@@ -6,7 +6,7 @@
 import { BrandConfig, REPORT_THEMES } from "@/constants/config";
 import { reportFontStack } from "@/constants/typography";
 import { escapeHtml, formatDate, formatDateTime, issueRef } from "@/lib/format";
-import { elementsToOverlaySvg } from "@/lib/annotationSvg";
+import { blurRegionsHtml, elementsToOverlaySvg } from "@/lib/annotationSvg";
 import type {
   AnnotationRecord,
   Assignee,
@@ -76,15 +76,25 @@ interface IssuePhotoHtmlArgs {
 }
 
 function photoFigure({ asset, annotation, annotated, imageSrc, label }: IssuePhotoHtmlArgs): string {
-  const src = imageSrc(asset.reportUri);
+  const elements = annotation?.elements ?? [];
+  const hasBlur = elements.some((el) => el.type === "blur");
+  // When a privacy blur exists, prefer the flattened annotated copy for the
+  // marked-up figure — the blur is burnt in at save time, so it can never
+  // leak in the PDF. Otherwise re-render crisp vector markup over the photo.
+  const useFlattened = annotated && hasBlur && !!asset.annotatedUri;
+  const src = imageSrc(useFlattened && asset.annotatedUri ? asset.annotatedUri : asset.reportUri);
+  // Privacy blur also applies to "original" figures and to the fallback path
+  // (flattened copy unavailable) via CSS-blurred clipped regions.
+  const blurHtml = !useFlattened && hasBlur ? blurRegionsHtml(elements, imageSrc(asset.reportUri)) : "";
   const overlay =
-    annotated && annotation && annotation.elements.length > 0
-      ? elementsToOverlaySvg(annotation.elements, asset.width, asset.height)
+    !useFlattened && annotated && elements.length > 0
+      ? elementsToOverlaySvg(elements, asset.width, asset.height)
       : "";
   return `
     <figure class="photo">
       <div class="photo-frame" style="aspect-ratio:${asset.width}/${asset.height}">
         <img src="${src}" alt=""/>
+        ${blurHtml}
         ${overlay}
       </div>
       <figcaption>${escapeHtml(label)}</figcaption>

@@ -1,13 +1,20 @@
 /**
  * Photo Markup Studio — layered vector annotation editor.
  *
- * Every annotation is an editable object/layer: tap to select, drag to move,
- * grab handles to resize (arrow endpoints, shape corners, text/callout scale),
- * restyle after selection, duplicate, reorder and delete. The original photo
- * is never modified — annotations live as normalised vector JSON and a
- * flattened annotated copy is generated only on save for reports/export.
+ * Every annotation is an editable object/layer: tap to select (from any
+ * tool), drag to move, grab handles to resize (arrow endpoints, shape
+ * corners, text/callout scale), restyle after selection, duplicate, reorder
+ * and delete. Privacy blur is a real live image blur with adjustable
+ * intensity — not an opaque mask. The original photo is never modified —
+ * annotations live as normalised vector JSON (with per-element timestamps)
+ * and a flattened annotated copy is generated only on save for reports.
+ *
+ * Save flow: "Save" commits markup in place (Saving… → Saved on device),
+ * then the button becomes "Done" to return. Leaving with unsaved changes
+ * prompts Save & Close / Discard / Cancel.
  */
 
+import * as Haptics from "expo-haptics";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
   ArrowUpRight,
@@ -69,8 +76,39 @@ type Tool = "select" | "arrow" | "ellipse" | "rect" | "pen" | "text" | "callout"
 
 const STROKE_SIZES = [4, 8, 14] as const;
 const TEXT_SIZES = [32, 44, 60] as const;
+const BLUR_INTENSITIES = [10, 18, 30] as const;
 const HANDLE_HIT_PX = 26;
 const TAP_THRESHOLD = 0.012;
+
+const DRAW_TOOLS: Tool[] = ["arrow", "ellipse", "rect", "pen", "blur"];
+
+const ELEMENT_LABEL: Record<AnnotationElement["type"], string> = {
+  arrow: "Arrow",
+  ellipse: "Circle",
+  rect: "Box",
+  pen: "Pen stroke",
+  text: "Text label",
+  callout: "Number callout",
+  blur: "Privacy blur",
+};
+
+function elementSwatchColor(el: AnnotationElement): string {
+  if (el.type === "text" || el.type === "callout") return el.color;
+  if (el.type === "blur") return "#B8C0C8";
+  return el.stroke;
+}
+
+const nowIso = (): string => new Date().toISOString();
+
+const tapHaptic = (): void => {
+  if (Platform.OS !== "web") Haptics.selectionAsync();
+};
+const successHaptic = (): void => {
+  if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+};
+const heavyHaptic = (): void => {
+  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+};
 
 interface CanvasLayout {
   width: number;
@@ -108,6 +146,7 @@ export default function MarkupStudio() {
   const [color, setColor] = useState<string>(MARKUP_COLORS[0]);
   const [stroke, setStroke] = useState<number>(STROKE_SIZES[1]);
   const [textSize, setTextSize] = useState<number>(TEXT_SIZES[1]);
+  const [blurIntensity, setBlurIntensity] = useState<number>(BLUR_INTENSITIES[1]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draftEl, setDraftEl] = useState<AnnotationElement | null>(null);
   const [cropRect, setCropRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -243,6 +282,7 @@ export default function MarkupStudio() {
           if (tool === "select") {
             const hit = [...elements].reverse().find((el) => hitTestElement(el, p, aspect)) ?? null;
             wasSelectedAtGrant.current = !!hit && hit.id === selectedId;
+            if (hit && hit.id !== selectedId) tapHaptic();
             setSelectedId(hit?.id ?? null);
             dragMode.current = hit ? { kind: "move", base: hit } : { kind: "none" };
             return;
@@ -260,7 +300,7 @@ export default function MarkupStudio() {
           } else if (tool === "rect") {
             setDraftEl({ id: "draft", type: "rect", x: p.x, y: p.y, width: 0, height: 0, stroke: color, strokeWidth: stroke });
           } else if (tool === "blur") {
-            setDraftEl({ id: "draft", type: "blur", x: p.x, y: p.y, width: 0, height: 0, intensity: 18 });
+            setDraftEl({ id: "draft", type: "blur", x: p.x, y: p.y, width: 0, height: 0, intensity: blurIntensity });
           }
         },
         onPanResponderMove: (evt) => {
@@ -336,6 +376,8 @@ export default function MarkupStudio() {
               const snapshot = preDrag.current;
               setUndoStack((prev) => [...prev, snapshot].slice(-40));
               setRedoStack([]);
+              const ts = nowIso();
+              setElements((prev) => prev.map((el) => (el.id === mode.base.id ? { ...el, updatedAt: ts } : el)));
               setDirty(true);
             } else if (isTap && mode.kind === "move" && wasSelectedAtGrant.current && mode.base.type === "text") {
               // Tapping an already-selected text label opens the editor.
@@ -354,10 +396,22 @@ export default function MarkupStudio() {
           }
 
           const p = dragStart.current;
-          if (tool === "text" && isTap && p) {
+          // Tapping an existing annotation while a drawing tool is active
+          // selects it — no need to switch to the Select tool first.
+          const hitOnTap =
+            isTap && p && DRAW_TOOLS.includes(tool)
+              ? ([...elements].reverse().find((el) => hitTestElement(el, p, aspect)) ?? null)
+              : null;
+          if (hitOnTap) {
+            setDraftEl(null);
+            setSelectedId(hitOnTap.id);
+            setTool("select");
+            tapHaptic();
+          } else if (tool === "text" && isTap && p) {
             openTextEditor({ mode: "new", at: p });
             setDraftEl(null);
           } else if (tool === "callout" && isTap && p) {
+            const ts = nowIso();
             const el: AnnotationElement = {
               id: newId(),
               type: "callout",
@@ -366,16 +420,21 @@ export default function MarkupStudio() {
               number: nextCalloutNumber,
               color,
               size: 64,
+              createdAt: ts,
+              updatedAt: ts,
             };
             pushHistory([...elements, el]);
             setSelectedId(el.id);
             setDraftEl(null);
+            tapHaptic();
           } else {
             setDraftEl((prev) => {
               if (prev && !isTap) {
-                const el = { ...prev, id: newId() };
+                const ts = nowIso();
+                const el = { ...prev, id: newId(), createdAt: ts, updatedAt: ts };
                 pushHistory([...elements, el]);
                 setSelectedId(el.id);
+                tapHaptic();
               }
               return null;
             });
@@ -385,7 +444,7 @@ export default function MarkupStudio() {
           dragStart.current = null;
         },
       }),
-    [tool, elements, selectedId, color, stroke, norm, aspect, pushHistory, nextCalloutNumber, handleAtPoint, openTextEditor],
+    [tool, elements, selectedId, color, stroke, blurIntensity, norm, aspect, pushHistory, nextCalloutNumber, handleAtPoint, openTextEditor],
   );
 
   if (!asset) {
@@ -403,6 +462,7 @@ export default function MarkupStudio() {
     if (!textModal) return;
     if (textModal.mode === "new") {
       if (value) {
+        const ts = nowIso();
         const el: AnnotationElement = {
           id: newId(),
           type: "text",
@@ -412,16 +472,19 @@ export default function MarkupStudio() {
           color,
           fontSize: textSize,
           bg: textBg,
+          createdAt: ts,
+          updatedAt: ts,
         };
         pushHistory([...elements, el]);
         setSelectedId(el.id);
         setTool("select");
+        tapHaptic();
       }
     } else {
       if (value) {
         pushHistory(
           elements.map((el) =>
-            el.id === textModal.id && el.type === "text" ? { ...el, text: value, bg: textBg } : el,
+            el.id === textModal.id && el.type === "text" ? { ...el, text: value, bg: textBg, updatedAt: nowIso() } : el,
           ),
         );
       }
@@ -436,14 +499,17 @@ export default function MarkupStudio() {
     if (!selectedId) return;
     pushHistory(elements.filter((el) => el.id !== selectedId));
     setSelectedId(null);
+    heavyHaptic();
   };
 
   const duplicateSelected = () => {
     const el = elements.find((e) => e.id === selectedId);
     if (!el) return;
-    const copy = { ...translateElement(el, 0.045, 0.045), id: newId() };
+    const ts = nowIso();
+    const copy = { ...translateElement(el, 0.045, 0.045), id: newId(), createdAt: ts, updatedAt: ts };
     pushHistory([...elements, copy]);
     setSelectedId(copy.id);
+    tapHaptic();
   };
 
   const moveLayer = (dir: 1 | -1) => {
@@ -467,9 +533,9 @@ export default function MarkupStudio() {
     pushHistory(
       elements.map((el) => {
         if (el.id !== selectedEl.id) return el;
-        if (el.type === "text" || el.type === "callout") return { ...el, color: c };
+        if (el.type === "text" || el.type === "callout") return { ...el, color: c, updatedAt: nowIso() };
         if (el.type === "blur") return el;
-        return { ...el, stroke: c };
+        return { ...el, stroke: c, updatedAt: nowIso() };
       }),
     );
   };
@@ -478,14 +544,24 @@ export default function MarkupStudio() {
     setStroke(s);
     if (!selectedEl) return;
     if (selectedEl.type === "arrow" || selectedEl.type === "ellipse" || selectedEl.type === "rect" || selectedEl.type === "pen") {
-      pushHistory(elements.map((el) => (el.id === selectedEl.id && "strokeWidth" in el ? { ...el, strokeWidth: s } : el)));
+      pushHistory(elements.map((el) => (el.id === selectedEl.id && "strokeWidth" in el ? { ...el, strokeWidth: s, updatedAt: nowIso() } : el)));
     }
   };
 
   const applyTextSize = (s: number) => {
     setTextSize(s);
     if (selectedEl?.type === "text") {
-      pushHistory(elements.map((el) => (el.id === selectedEl.id && el.type === "text" ? { ...el, fontSize: s } : el)));
+      pushHistory(elements.map((el) => (el.id === selectedEl.id && el.type === "text" ? { ...el, fontSize: s, updatedAt: nowIso() } : el)));
+    }
+  };
+
+  /** Change the live blur radius of the selected privacy mask (or the default for new ones). */
+  const applyBlurIntensity = (v: number) => {
+    setBlurIntensity(v);
+    if (selectedEl?.type === "blur") {
+      pushHistory(
+        elements.map((el) => (el.id === selectedEl.id && el.type === "blur" ? { ...el, intensity: v, updatedAt: nowIso() } : el)),
+      );
     }
   };
 
@@ -582,6 +658,7 @@ export default function MarkupStudio() {
   const save = async (thenBack: boolean) => {
     try {
       setSelectedId(null);
+      setDraftEl(null);
       setSaving(true);
       // Let the selection overlay unmount before flattening.
       await new Promise((r) => setTimeout(r, 80));
@@ -599,6 +676,7 @@ export default function MarkupStudio() {
       }
       saveAnnotation(asset.id, asset.issueId, elements, annotatedUri);
       setDirty(false);
+      successHaptic();
       if (thenBack) router.back();
     } catch (e) {
       console.log("[markup] save failed", e);
@@ -684,10 +762,41 @@ export default function MarkupStudio() {
         );
       }
       case "blur":
-        return (
-          <Rect key={el.id} x={el.x * w} y={el.y * h} width={el.width * w} height={el.height * h} rx={6} fill="#B9C2CF" opacity={0.97} />
-        );
+        // Privacy blur renders as a live blurred image region (see the
+        // canvas layer below the SVG), not as a vector shape.
+        return null;
     }
+  };
+
+  /** Live privacy-blur regions: clipped views containing a blurred copy of the photo. */
+  const renderBlurRegions = (w: number, h: number) => {
+    const blurs = elements.filter((el) => el.type === "blur");
+    if (draftEl?.type === "blur") blurs.push(draftEl);
+    return blurs.map((el) => {
+      if (el.type !== "blur") return null;
+      return (
+        <View
+          key={`blur-${el.id}`}
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: el.x * w,
+            top: el.y * h,
+            width: Math.max(1, el.width * w),
+            height: Math.max(1, el.height * h),
+            overflow: "hidden",
+            borderRadius: 6,
+          }}
+        >
+          <RNImage
+            source={{ uri: imageUri }}
+            blurRadius={el.intensity}
+            resizeMode="cover"
+            style={{ position: "absolute", left: -el.x * w, top: -el.y * h, width: w, height: h }}
+          />
+        </View>
+      );
+    });
   };
 
   /** Selection chrome: dashed bounding box + resize handles. Not captured on save. */
@@ -737,6 +846,9 @@ export default function MarkupStudio() {
 
   const strokeApplies = !selectedEl || selectedEl.type === "arrow" || selectedEl.type === "ellipse" || selectedEl.type === "rect" || selectedEl.type === "pen";
   const showTextSizes = tool === "text" || selectedEl?.type === "text";
+  const showBlurIntensity = !showTextSizes && (tool === "blur" || selectedEl?.type === "blur");
+  const colorsDisabled = showBlurIntensity;
+  const sizeValues: readonly number[] = showTextSizes ? TEXT_SIZES : showBlurIntensity ? BLUR_INTENSITIES : STROKE_SIZES;
 
   return (
     <>
@@ -750,19 +862,29 @@ export default function MarkupStudio() {
           <View style={styles.topCenter}>
             <Text style={styles.topTitle}>Markup Studio</Text>
             <View style={styles.saveState}>
-              <View style={[styles.saveDot, { backgroundColor: dirty ? "#F5A623" : palette.greenBright }]} />
-              <Text style={[styles.saveStateText, dirty && styles.saveStateDirty]}>
-                {dirty ? "Unsaved changes" : "Saved on device"}
+              <View
+                style={[
+                  styles.saveDot,
+                  { backgroundColor: saving ? palette.info : dirty ? "#F5A623" : palette.greenBright },
+                ]}
+              />
+              <Text style={[styles.saveStateText, dirty && !saving && styles.saveStateDirty, saving && styles.saveStateSaving]}>
+                {saving ? "Saving\u2026" : dirty ? "Unsaved changes" : "Saved on device"}
               </Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.saveBtn} onPress={() => save(true)} disabled={saving} testID="markup-save">
+          <TouchableOpacity
+            style={[styles.saveBtn, !dirty && !saving && styles.doneBtn]}
+            onPress={() => (dirty ? save(false) : router.back())}
+            disabled={saving}
+            testID="markup-save"
+          >
             {saving ? (
               <ActivityIndicator color={palette.white} size="small" />
             ) : (
               <>
                 <Check color={palette.white} size={17} strokeWidth={2.6} />
-                <Text style={styles.saveBtnText}>Save</Text>
+                <Text style={styles.saveBtnText}>{dirty ? "Save" : "Done"}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -794,10 +916,25 @@ export default function MarkupStudio() {
             onLayout={(e) => setCanvas({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
           >
             <RNImage source={{ uri: imageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            {canvas.width > 0 ? renderBlurRegions(canvas.width, canvas.height) : null}
             {canvas.width > 0 ? (
               <Svg width={canvas.width} height={canvas.height} style={StyleSheet.absoluteFill}>
                 {elements.map((el) => renderElement(el, canvas.width, canvas.height))}
                 {draftEl ? renderElement(draftEl, canvas.width, canvas.height) : null}
+                {draftEl?.type === "blur" && !saving ? (
+                  <Rect
+                    x={draftEl.x * canvas.width}
+                    y={draftEl.y * canvas.height}
+                    width={Math.max(1, draftEl.width * canvas.width)}
+                    height={Math.max(1, draftEl.height * canvas.height)}
+                    rx={6}
+                    stroke={palette.white}
+                    strokeWidth={1.6}
+                    strokeDasharray="6,4"
+                    fill="none"
+                    opacity={0.9}
+                  />
+                ) : null}
                 {selectedEl && !saving ? renderSelection(selectedEl, canvas.width, canvas.height) : null}
                 {cropRect && tool === "crop" ? (
                   <Rect
@@ -838,9 +975,12 @@ export default function MarkupStudio() {
           </View>
         ) : selectedEl ? (
           <View style={styles.selectionBar}>
-            <Text style={styles.selectionText} numberOfLines={1}>
-              {selectedEl.type === "callout" ? "number" : selectedEl.type}
-            </Text>
+            <View style={styles.selectionType}>
+              <View style={[styles.selectionSwatch, { backgroundColor: elementSwatchColor(selectedEl) }]} />
+              <Text style={styles.selectionText} numberOfLines={1}>
+                {ELEMENT_LABEL[selectedEl.type]}
+              </Text>
+            </View>
             {selectedEl.type === "text" ? (
               <TouchableOpacity style={styles.selectionBtn} onPress={() => openTextEditor({ mode: "edit", id: selectedEl.id })}>
                 <Pencil color={palette.white} size={15} />
@@ -871,26 +1011,35 @@ export default function MarkupStudio() {
               {MARKUP_COLORS.map((c) => (
                 <TouchableOpacity
                   key={c}
-                  style={[styles.colorDot, { backgroundColor: c }, color === c && styles.colorDotActive]}
+                  disabled={colorsDisabled}
+                  style={[
+                    styles.colorDot,
+                    { backgroundColor: c },
+                    color === c && !colorsDisabled && styles.colorDotActive,
+                    colorsDisabled && styles.colorDotDisabled,
+                  ]}
                   onPress={() => applyColor(c)}
                 />
               ))}
             </View>
             <View style={styles.strokeRow}>
-              {(showTextSizes ? TEXT_SIZES : STROKE_SIZES).map((s, i) => {
-                const active = showTextSizes ? textSize === s : stroke === s;
-                const disabled = !showTextSizes && !strokeApplies;
+              {sizeValues.map((s, i) => {
+                const active = showTextSizes ? textSize === s : showBlurIntensity ? blurIntensity === s : stroke === s;
+                const disabled = !showTextSizes && !showBlurIntensity && !strokeApplies;
                 return (
                   <TouchableOpacity
                     key={s}
                     disabled={disabled}
                     style={[styles.strokeBtn, active && styles.strokeBtnActive, disabled && styles.strokeBtnDisabled]}
-                    onPress={() => (showTextSizes ? applyTextSize(s) : applyStroke(s))}
+                    onPress={() =>
+                      showTextSizes ? applyTextSize(s) : showBlurIntensity ? applyBlurIntensity(s) : applyStroke(s)
+                    }
                   >
                     <View
                       style={[
                         styles.strokeDot,
                         { width: 5 + i * 4, height: 5 + i * 4, borderRadius: (5 + i * 4) / 2 },
+                        showBlurIntensity && { opacity: 0.55 + i * 0.22 },
                         active && styles.strokeDotActive,
                       ]}
                     />
@@ -908,6 +1057,7 @@ export default function MarkupStudio() {
               key={t.key}
               style={[styles.toolBtn, tool === t.key && styles.toolBtnActive]}
               onPress={() => {
+                if (t.key !== tool) tapHaptic();
                 setTool(t.key);
                 if (t.key !== "select") setSelectedId(null);
                 if (t.key !== "crop") setCropRect(null);
@@ -988,6 +1138,7 @@ const styles = StyleSheet.create({
   saveDot: { width: 6, height: 6, borderRadius: 3 },
   saveStateText: { color: palette.greenBright, fontSize: 10, fontFamily: font.family.bodyBold, textTransform: "uppercase", letterSpacing: 0.6 },
   saveStateDirty: { color: "#F5A623" },
+  saveStateSaving: { color: palette.info },
   saveBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -1000,6 +1151,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   saveBtnText: { color: palette.white, fontSize: font.size.sm, fontFamily: font.family.bodyBold },
+  doneBtn: { backgroundColor: "rgba(255,255,255,0.16)" },
   actionsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1036,12 +1188,20 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.07)",
     borderRadius: radius.pill,
   },
+  selectionType: { flex: 1, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 6 },
+  selectionSwatch: {
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.45)",
+  },
   selectionText: {
-    flex: 1,
-    color: palette.textFaint,
+    flexShrink: 1,
+    color: "rgba(255,255,255,0.85)",
     fontSize: font.size.xs,
     fontFamily: font.family.bodyBold,
-    textTransform: "capitalize",
+    letterSpacing: 0.2,
   },
   selectionBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 8, paddingHorizontal: 8 },
   selectionIconBtn: { paddingVertical: 8, paddingHorizontal: 7 },
@@ -1056,6 +1216,7 @@ const styles = StyleSheet.create({
   colorRow: { flexDirection: "row", gap: 9 },
   colorDot: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: "rgba(255,255,255,0.25)" },
   colorDotActive: { borderColor: palette.white, transform: [{ scale: 1.18 }] },
+  colorDotDisabled: { opacity: 0.3 },
   strokeRow: { flexDirection: "row", gap: 6 },
   strokeBtn: {
     width: 34,

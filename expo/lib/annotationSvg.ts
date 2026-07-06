@@ -101,12 +101,10 @@ export function elementsToSvgInner(elements: AnnotationElement[], w: number, h: 
         );
         break;
       }
-      case "blur": {
-        parts.push(
-          `<rect x="${el.x * w}" y="${el.y * h}" width="${el.width * w}" height="${el.height * h}" rx="6" fill="#B9C2CF" opacity="0.97"/>`,
-        );
+      case "blur":
+        // Privacy blur is a real image blur, rendered as positioned HTML
+        // regions (see blurRegionsHtml) — not part of the vector overlay.
         break;
-      }
     }
   }
   return parts.join("");
@@ -116,4 +114,26 @@ export function elementsToSvgInner(elements: AnnotationElement[], w: number, h: 
 export function elementsToOverlaySvg(elements: AnnotationElement[], w: number, h: number): string {
   if (elements.length === 0) return "";
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="position:absolute;left:0;top:0;width:100%;height:100%;">${elementsToSvgInner(elements, w, h)}</svg>`;
+}
+
+/**
+ * Real privacy-blur regions for report HTML: each blur element becomes a
+ * clipped div containing a CSS-blurred copy of the photo, positioned so it
+ * lines up exactly with the underlying image. Percentage-based, so it works
+ * at any rendered size.
+ */
+export function blurRegionsHtml(elements: AnnotationElement[], src: string): string {
+  const parts: string[] = [];
+  for (const el of elements) {
+    if (el.type !== "blur") continue;
+    const bw = Math.max(0.01, el.width);
+    const bh = Math.max(0.01, el.height);
+    const px = Math.max(4, Math.round(el.intensity / 2.5));
+    parts.push(
+      `<div style="position:absolute;left:${el.x * 100}%;top:${el.y * 100}%;width:${bw * 100}%;height:${bh * 100}%;overflow:hidden;border-radius:4px;">` +
+        `<img src="${src}" alt="" style="position:absolute;width:${100 / bw}%;height:${100 / bh}%;left:${(-el.x / bw) * 100}%;top:${(-el.y / bh) * 100}%;filter:blur(${px}px);-webkit-filter:blur(${px}px);"/>` +
+      `</div>`,
+    );
+  }
+  return parts.join("");
 }
