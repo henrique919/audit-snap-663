@@ -3,7 +3,7 @@
  * Cover page → summary + hit list table → grouped item detail pages.
  */
 
-import { BrandConfig, REPORT_THEMES } from "@/constants/config";
+import { BrandConfig, REPORT_THEMES, resolveThemeKey } from "@/constants/config";
 import { reportFontStack } from "@/constants/typography";
 import { escapeHtml, formatDate, formatDateTime, issueRef } from "@/lib/format";
 import { elementsToOverlaySvg } from "@/lib/annotationSvg";
@@ -20,6 +20,14 @@ import type {
 } from "@/types/models";
 import { PRIORITY_LABEL, STATUS_LABEL } from "@/types/models";
 
+/** User/report branding pulled from Settings (project fields override). */
+export interface ReportBranding {
+  companyName: string;
+  inspectorName: string;
+  logoUri: string | null;
+  footerText: string;
+}
+
 export interface ReportData {
   project: Project;
   audit: Audit;
@@ -29,6 +37,7 @@ export interface ReportData {
   assets: PhotoAsset[];
   annotations: AnnotationRecord[];
   options: ReportOptions;
+  branding: ReportBranding;
   /** Resolves an image URI to something embeddable (data URI or URL). */
   imageSrc: (uri: string) => string;
 }
@@ -112,8 +121,9 @@ function photoFigure({ asset, annotation, annotated, imageSrc, label }: IssuePho
 }
 
 export function buildReportHtml(data: ReportData): string {
-  const { project, audit, options, locations, assignees, assets, annotations, imageSrc } = data;
-  const theme = REPORT_THEMES[options.themeKey] ?? REPORT_THEMES.navy;
+  const { project, audit, options, locations, assignees, assets, annotations, branding, imageSrc } = data;
+  const theme = REPORT_THEMES[resolveThemeKey(options.themeKey)];
+  const dense = theme.density === "compact";
 
   let issues = data.issues.filter((i) => i.includeInReport && !i.deletedAt);
   if (!options.includeCompleted) issues = issues.filter((i) => i.status !== "completed");
@@ -128,52 +138,126 @@ export function buildReportHtml(data: ReportData): string {
     priorityCounts[i.priority] = (priorityCounts[i.priority] ?? 0) + 1;
   }
 
-  const inspector = audit.preparedBy || project.inspectorName || "—";
-  const companyName = project.companyName || BrandConfig.defaultCompanyName;
+  const inspector = audit.preparedBy || project.inspectorName || branding.inspectorName || "—";
+  const companyName = project.companyName || branding.companyName || BrandConfig.defaultCompanyName;
+  const footerText = branding.footerText || BrandConfig.reportFooter;
+  // "Standard" follows the theme's density; compact/large are explicit.
   const photoWidthCss =
-    options.imageSize === "compact" ? "31.5%" : options.imageSize === "large" ? "100%" : "48.5%";
+    options.imageSize === "compact"
+      ? "31.5%"
+      : options.imageSize === "large"
+        ? "100%"
+        : dense
+          ? "31.5%"
+          : "48.5%";
 
   /* ------------------------------- Cover page ------------------------------- */
-  const logo = project.logoUri
-    ? `<img class="cover-logo" src="${imageSrc(project.logoUri)}" alt=""/>`
+  const logoUri = project.logoUri ?? branding.logoUri;
+  const logo = logoUri
+    ? `<img class="cover-logo" src="${imageSrc(logoUri)}" alt=""/>`
     : `<div class="cover-mark">${escapeHtml(BrandConfig.monogram)}</div>`;
 
   const coverPhoto = project.coverPhotoUri
     ? `<div class="cover-photo"><img src="${imageSrc(project.coverPhotoUri)}" alt=""/></div>`
     : "";
 
-  const cover = options.coverPage
-    ? `
+  const coverMeta = `
+      <table class="cover-meta">
+        <tr><td>Prepared for</td><td>${escapeHtml(audit.preparedFor || project.clientName || "—")}</td></tr>
+        <tr><td>Prepared by</td><td>${escapeHtml(inspector)}${companyName ? ` · ${escapeHtml(companyName)}` : ""}</td></tr>
+        ${project.reference ? `<tr><td>Reference</td><td>${escapeHtml(project.reference)}</td></tr>` : ""}
+        <tr><td>Report date</td><td>${formatDate(audit.auditDate)}</td></tr>
+      </table>`;
+
+  // Status summary strip — required on every cover.
+  const coverStats = `
+      <div class="cover-stats">
+        <div class="cstat" style="border-top-color:${theme.primary}"><div class="cstat-num" style="color:${theme.primary}">${issues.length}</div><div class="cstat-lbl">Total items</div></div>
+        <div class="cstat" style="border-top-color:${STATUS_COLORS.open}"><div class="cstat-num" style="color:${STATUS_COLORS.open}">${counts.open}</div><div class="cstat-lbl">Open</div></div>
+        <div class="cstat" style="border-top-color:${STATUS_COLORS.assigned}"><div class="cstat-num" style="color:${STATUS_COLORS.assigned}">${counts.assigned}</div><div class="cstat-lbl">Assigned</div></div>
+        <div class="cstat" style="border-top-color:${STATUS_COLORS.in_progress}"><div class="cstat-num" style="color:${STATUS_COLORS.in_progress}">${counts.in_progress}</div><div class="cstat-lbl">In progress</div></div>
+        <div class="cstat" style="border-top-color:${STATUS_COLORS.completed}"><div class="cstat-num" style="color:${STATUS_COLORS.completed}">${counts.completed}</div><div class="cstat-lbl">Completed</div></div>
+      </div>`;
+
+  const coverFooter = `
+    <div class="cover-footer">
+      <span>${escapeHtml(footerText)}</span>
+      <span>${formatDate(new Date().toISOString())}</span>
+    </div>`;
+
+  let cover = "";
+  if (options.coverPage) {
+    if (theme.coverVariant === "executive") {
+      // Executive: full dark hero panel with kicker, big title, accent rule.
+      cover = `
   <section class="page cover">
-    <div class="cover-band" style="background:${theme.primary};border-bottom:3px solid ${theme.accent}">
-      <div class="cover-band-inner">
+    <div class="exec-hero" style="background:${theme.primary}">
+      <div class="exec-top">
         ${logo}
         <div class="cover-brand">
           <div class="cover-app">${escapeHtml(companyName || BrandConfig.appName)}</div>
           <div class="cover-tag">${escapeHtml(BrandConfig.reportName)}</div>
         </div>
       </div>
+      <div class="exec-title">
+        <div class="exec-kicker" style="color:${theme.accent}">${escapeHtml(BrandConfig.reportName).toUpperCase()}</div>
+        <h1 class="exec-h1">${escapeHtml(audit.title || BrandConfig.reportName)}</h1>
+        <div class="exec-project">${escapeHtml(project.name)}</div>
+        ${project.siteAddress ? `<div class="exec-address">${escapeHtml(project.siteAddress)}</div>` : ""}
+      </div>
     </div>
+    <div class="exec-accent" style="background:${theme.accent}"></div>
     <div class="cover-body">
+      ${coverPhoto}
+      ${coverMeta}
+      ${coverStats}
+    </div>
+    ${coverFooter}
+  </section>`;
+    } else if (theme.coverVariant === "formal") {
+      // Handover/closeout: centred, framed, formal.
+      cover = `
+  <section class="page cover">
+    <div class="formal-frame" style="border-color:${theme.primary}">
+      <div class="formal-inner" style="border-color:${theme.accent}">
+        <div class="formal-logo">${logo}</div>
+        ${companyName ? `<div class="formal-company" style="color:${theme.primary}">${escapeHtml(companyName)}</div>` : ""}
+        <div class="formal-kicker" style="color:${theme.accent}">${escapeHtml(BrandConfig.reportName).toUpperCase()} · CLOSEOUT</div>
+        <h1 class="formal-h1" style="color:${theme.heading}">${escapeHtml(audit.title || BrandConfig.reportName)}</h1>
+        <div class="formal-rule" style="background:${theme.accent}"></div>
+        <div class="formal-project">${escapeHtml(project.name)}</div>
+        ${project.siteAddress ? `<div class="formal-address">${escapeHtml(project.siteAddress)}</div>` : ""}
+        ${coverPhoto}
+        ${coverMeta}
+        ${coverStats}
+      </div>
+    </div>
+    ${coverFooter}
+  </section>`;
+    } else {
+      // Site Walk: minimal, fast — thin accent bar and a tight title block.
+      cover = `
+  <section class="page cover cover-compact">
+    <div class="compact-bar" style="background:${theme.accent}"></div>
+    <div class="compact-head">
+      ${logo}
+      <div class="cover-brand">
+        <div class="cover-app" style="color:${theme.heading}">${escapeHtml(companyName || BrandConfig.appName)}</div>
+        <div class="cover-tag" style="color:#69747D">${escapeHtml(BrandConfig.reportName)}</div>
+      </div>
+    </div>
+    <div class="cover-body compact-body">
       <h1 style="color:${theme.heading}">${escapeHtml(audit.title || BrandConfig.reportName)}</h1>
       <div class="cover-rule" style="background:${theme.accent}"></div>
       <div class="cover-project">${escapeHtml(project.name)}</div>
       ${project.siteAddress ? `<div class="cover-address">${escapeHtml(project.siteAddress)}</div>` : ""}
-      ${coverPhoto}
-      <table class="cover-meta">
-        <tr><td>Prepared for</td><td>${escapeHtml(audit.preparedFor || project.clientName || "—")}</td></tr>
-        <tr><td>Prepared by</td><td>${escapeHtml(inspector)}</td></tr>
-        ${project.reference ? `<tr><td>Reference</td><td>${escapeHtml(project.reference)}</td></tr>` : ""}
-        <tr><td>Report date</td><td>${formatDate(audit.auditDate)}</td></tr>
-        <tr><td>Items recorded</td><td>${issues.length} (${counts.open + counts.assigned + counts.in_progress} outstanding · ${counts.completed} completed)</td></tr>
-      </table>
+      ${coverMeta}
+      ${coverStats}
     </div>
-    <div class="cover-footer">
-      <span>${escapeHtml(BrandConfig.reportFooter)}</span>
-      <span>${formatDate(new Date().toISOString())}</span>
-    </div>
-  </section>`
-    : "";
+    ${coverFooter}
+  </section>`;
+    }
+  }
 
   /* ------------------------------ Summary page ------------------------------ */
   const hitRows = issues
@@ -322,6 +406,7 @@ export function buildReportHtml(data: ReportData): string {
   /* ------------------------------ Signature block ------------------------------ */
   const signature = options.includeSignature
     ? `
+  ${theme.coverVariant === "formal" ? `<div class="signoff-title" style="color:${theme.heading};border-color:${theme.accent}">Closeout sign-off</div>` : ""}
   <section class="signoff">
     <div class="sig-col">
       <div class="sig-line"></div>
@@ -353,27 +438,58 @@ export function buildReportHtml(data: ReportData): string {
   @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
   ${pageNumberCss}
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { font-family: ${reportFontStack.body}; color: #161A1D; font-size: 11px; line-height: 1.45; }
+  body { font-family: ${reportFontStack.body}; color: #161A1D; font-size: ${dense ? "10.5px" : "11px"}; line-height: 1.45; }
   h1, h2, h3, .stat-num, .item-num, .cover-app, .cover-brand, .hitlist .num { font-family: ${reportFontStack.heading}; }
   .page { page-break-after: always; }
   .page:last-of-type { page-break-after: auto; }
 
-  /* Cover */
+  /* Cover — shared */
   .cover { display: flex; flex-direction: column; min-height: 96vh; }
-  .cover-band { border-radius: 10px; padding: 20px 24px; }
-  .cover-band-inner { display: flex; align-items: center; gap: 16px; }
   .cover-mark { width: 52px; height: 52px; border-radius: 12px; background: rgba(255,255,255,0.14); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; letter-spacing: 1px; }
-  .cover-logo { height: 52px; max-width: 200px; object-fit: contain; }
+  .cover-logo { height: 52px; max-width: 200px; object-fit: contain; background: #fff; border-radius: 8px; padding: 4px; }
+  .cover-stats { display: flex; gap: 8px; margin-top: 26px; }
+  .cstat { flex: 1; border: 1px solid #DDE3E8; border-top: 3px solid #161A1D; border-radius: 8px; padding: 10px 8px; background: #F8FAFB; text-align: center; }
+  .cstat-num { font-size: 21px; font-weight: 800; line-height: 1; font-family: ${reportFontStack.heading}; }
+  .cstat-lbl { color: #69747D; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 4px; font-weight: 800; }
+
+  /* Executive cover */
+  .exec-hero { border-radius: 12px; padding: 26px 28px 34px; display: flex; flex-direction: column; gap: 56px; }
+  .exec-top { display: flex; align-items: center; gap: 16px; }
+  .exec-kicker { font-size: 10px; font-weight: 800; letter-spacing: 2.4px; margin-bottom: 10px; font-family: ${reportFontStack.heading}; }
+  .exec-h1 { color: #fff; font-size: 38px; font-weight: 800; letter-spacing: -0.6px; line-height: 1.08; }
+  .exec-project { color: rgba(255,255,255,0.85); font-size: 15px; font-weight: 600; margin-top: 12px; }
+  .exec-address { color: rgba(255,255,255,0.6); font-size: 11.5px; margin-top: 3px; }
+  .exec-accent { height: 5px; border-radius: 3px; margin: 10px 2px 0; }
+
+  /* Formal / handover cover */
+  .formal-frame { border: 1.6px solid; border-radius: 4px; padding: 7px; flex: 1; display: flex; }
+  .formal-inner { border: 1px solid; border-radius: 2px; flex: 1; padding: 44px 36px; text-align: center; }
+  .formal-logo { display: flex; justify-content: center; margin-bottom: 14px; }
+  .formal-logo .cover-mark { background: #14342B; }
+  .formal-company { font-size: 13px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; margin-bottom: 30px; font-family: ${reportFontStack.heading}; }
+  .formal-kicker { font-size: 9.5px; font-weight: 800; letter-spacing: 2.6px; margin-bottom: 12px; }
+  .formal-h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.4px; line-height: 1.14; }
+  .formal-rule { width: 72px; height: 3px; border-radius: 2px; margin: 16px auto; }
+  .formal-project { font-size: 15px; font-weight: 600; color: #33415C; }
+  .formal-address { font-size: 11.5px; color: #5A6B82; margin-top: 3px; }
+  .formal-inner .cover-meta { margin-top: 34px; text-align: left; }
+  .formal-inner .cover-photo { margin-top: 24px; }
+
+  /* Compact / site walk cover */
+  .compact-bar { height: 6px; border-radius: 3px; margin-bottom: 18px; }
+  .compact-head { display: flex; align-items: center; gap: 14px; }
+  .compact-head .cover-mark { background: #1F2937; }
+  .compact-body { padding-top: 30px; }
   .cover-app { color: #fff; font-size: 17px; font-weight: 800; letter-spacing: 0.3px; }
   .cover-tag { color: rgba(255,255,255,0.75); font-size: 11px; margin-top: 2px; text-transform: uppercase; letter-spacing: 1.6px; }
-  .cover-body { padding: 44px 8px 0; flex: 1; }
+  .cover-body { padding: 26px 8px 0; flex: 1; }
   .cover-body h1 { font-size: 34px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.12; }
   .cover-rule { width: 64px; height: 4px; border-radius: 2px; margin: 14px 0 4px; }
   .cover-project { font-size: 16px; font-weight: 600; margin-top: 10px; color: #33415C; }
   .cover-address { font-size: 12px; color: #5A6B82; margin-top: 3px; }
   .cover-photo { margin-top: 22px; border-radius: 10px; overflow: hidden; max-height: 240px; }
   .cover-photo img { width: 100%; height: 240px; object-fit: cover; display: block; }
-  .cover-meta { margin-top: 30px; width: 100%; border-collapse: collapse; }
+  .cover-meta { margin-top: 24px; width: 100%; border-collapse: collapse; }
   .cover-meta td { padding: 9px 2px; border-bottom: 1px solid #DDE3E8; font-size: 12px; }
   .cover-meta td:first-child { color: #69747D; text-transform: uppercase; font-size: 9.5px; letter-spacing: 1.2px; width: 130px; font-weight: 800; }
   .cover-meta td:last-child { font-weight: 600; }
@@ -410,7 +526,7 @@ export function buildReportHtml(data: ReportData): string {
   .group { margin-bottom: 18px; }
   .group-head { color: #fff; border-radius: 7px; padding: 7px 12px; font-weight: 800; font-size: 11.5px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; letter-spacing: 0.3px; font-family: ${reportFontStack.heading}; page-break-after: avoid; }
   .group-count { font-weight: 600; font-size: 9.5px; opacity: 0.8; }
-  .item { border: 1px solid #DDE3E8; border-left: 5px solid #B8C0C8; border-radius: 9px; padding: 12px 14px; margin-bottom: 12px; page-break-inside: avoid; background: #fff; }
+  .item { border: 1px solid #DDE3E8; border-left: 5px solid #B8C0C8; border-radius: 9px; padding: ${dense ? "9px 11px" : "12px 14px"}; margin-bottom: ${dense ? "9px" : "12px"}; page-break-inside: avoid; background: #fff; }
   .item-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .item-num { color: #fff; font-weight: 800; font-size: 10px; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.5px; }
   .item-title { font-weight: 700; font-size: 13px; flex: 1; letter-spacing: -0.1px; }
@@ -425,6 +541,7 @@ export function buildReportHtml(data: ReportData): string {
   figcaption { color: #69747D; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.45px; margin-top: 4px; font-weight: 800; }
 
   /* Signature */
+  .signoff-title { font-size: 13px; font-weight: 800; margin-top: 26px; padding-bottom: 6px; border-bottom: 2px solid; font-family: ${reportFontStack.heading}; }
   .signoff { display: flex; gap: 26px; margin-top: 26px; page-break-inside: avoid; }
   .sig-col { flex: 1; }
   .sig-line { border-bottom: 1.2px solid #283238; height: 34px; }
@@ -439,7 +556,7 @@ export function buildReportHtml(data: ReportData): string {
   ${summary}
   ${detailHtml}
   ${signature}
-  ${BrandConfig.reportFooter ? `<div class="report-footer">${escapeHtml(BrandConfig.reportFooter)}</div>` : ""}
+  ${footerText ? `<div class="report-footer">${escapeHtml(footerText)}</div>` : ""}
 </body>
 </html>`;
 }

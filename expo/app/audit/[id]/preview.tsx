@@ -10,7 +10,7 @@ import { Alert, Image, Platform, ScrollView, StyleSheet, Text, View } from "reac
 
 import { AppButton, Card } from "@/components/ui";
 import { STATUS_COLORS, StatusPill } from "@/components/pills";
-import { BrandConfig, buildEmailBody, buildEmailSubject } from "@/constants/config";
+import { BrandConfig, REPORT_THEMES, buildEmailBody, buildEmailSubject, resolveThemeKey } from "@/constants/config";
 import { font, palette, radius, spacing } from "@/constants/theme";
 import { fileToDataUri, persistGeneratedPdf } from "@/lib/files";
 import { formatDate, formatDateTime, issueRef } from "@/lib/format";
@@ -37,6 +37,9 @@ export default function ReportPreviewScreen() {
 
   const [generating, setGenerating] = useState<boolean>(false);
   const [pdfUri, setPdfUri] = useState<string | null>(null);
+
+  const theme = REPORT_THEMES[resolveThemeKey(options.themeKey)];
+  const brandLogoUri = project?.logoUri ?? settings.logoUri;
 
   const includedIssues = useMemo(
     () =>
@@ -104,6 +107,7 @@ export default function ReportPreviewScreen() {
       relevantAssets.forEach((a) => urisToResolve.add(a.reportUri));
       if (project.coverPhotoUri) urisToResolve.add(project.coverPhotoUri);
       if (project.logoUri) urisToResolve.add(project.logoUri);
+      if (settings.logoUri) urisToResolve.add(settings.logoUri);
       await Promise.all(
         Array.from(urisToResolve).map(async (uri) => {
           const resolved = await fileToDataUri(uri);
@@ -120,6 +124,12 @@ export default function ReportPreviewScreen() {
         assets: relevantAssets,
         annotations: db.annotations,
         options,
+        branding: {
+          companyName: settings.companyName,
+          inspectorName: settings.inspectorName,
+          logoUri: settings.logoUri,
+          footerText: settings.reportFooterText,
+        },
         imageSrc: (uri) => uriMap.get(uri) ?? uri,
       });
 
@@ -145,7 +155,7 @@ export default function ReportPreviewScreen() {
     } finally {
       setGenerating(false);
     }
-  }, [audit, project, db.assets, db.locations, db.assignees, db.annotations, includedIssues, options, photoCount, addReportExport]);
+  }, [audit, project, db.assets, db.locations, db.assignees, db.annotations, includedIssues, options, settings, photoCount, addReportExport]);
 
   const ensurePdf = useCallback(async (): Promise<string | null> => {
     if (pdfUri) return pdfUri;
@@ -250,17 +260,27 @@ export default function ReportPreviewScreen() {
     <>
       <Stack.Screen options={{ title: "PDF Preview" }} />
       <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Cover preview */}
+        {/* Cover preview — reflects the selected report theme */}
         <Card style={styles.coverCard}>
-          <View style={styles.coverBand}>
-            <View style={styles.coverMark}>
-              <Text style={styles.coverMarkText}>{BrandConfig.monogram}</Text>
-            </View>
-            <View>
-              <Text style={styles.coverBrand}>{project.companyName || BrandConfig.appName}</Text>
+          <View style={[styles.coverBand, { backgroundColor: theme.primary }]}>
+            {brandLogoUri ? (
+              <Image source={{ uri: brandLogoUri }} style={styles.coverLogo} resizeMode="contain" />
+            ) : (
+              <View style={styles.coverMark}>
+                <Text style={styles.coverMarkText}>{BrandConfig.monogram}</Text>
+              </View>
+            )}
+            <View style={styles.coverBrandBody}>
+              <Text style={styles.coverBrand}>
+                {project.companyName || settings.companyName || BrandConfig.appName}
+              </Text>
               <Text style={styles.coverTag}>{BrandConfig.reportName.toUpperCase()}</Text>
             </View>
+            <View style={[styles.coverThemeTag, { borderColor: theme.accent }]}>
+              <Text style={[styles.coverThemeTagText, { color: theme.accent }]}>{theme.label}</Text>
+            </View>
           </View>
+          <View style={[styles.coverAccentRule, { backgroundColor: theme.accent }]} />
           <Text style={styles.coverTitle}>{audit.title}</Text>
           <Text style={styles.coverProject}>{project.name}</Text>
           {project.siteAddress ? <Text style={styles.coverAddress}>{project.siteAddress}</Text> : null}
@@ -465,6 +485,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   coverMarkText: { color: palette.white, fontFamily: font.family.headingHeavy, fontSize: font.size.md },
+  coverLogo: { width: 42, height: 42, borderRadius: radius.sm, backgroundColor: palette.white },
+  coverBrandBody: { flex: 1 },
+  coverAccentRule: { height: 3 },
+  coverThemeTag: {
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  coverThemeTagText: { fontSize: 10, fontFamily: font.family.bodyHeavy, textTransform: "uppercase", letterSpacing: 0.8 },
   coverBrand: { color: palette.white, fontSize: font.size.md, fontFamily: font.family.headingHeavy },
   coverTag: { color: "rgba(255,255,255,0.65)", fontSize: 9, letterSpacing: 1.6, marginTop: 2, fontFamily: font.family.bodyBold },
   coverTitle: { fontSize: font.size.xl, fontFamily: font.family.headingHeavy, color: palette.text, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, letterSpacing: -0.3 },

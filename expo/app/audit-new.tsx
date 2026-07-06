@@ -14,7 +14,7 @@ import {
 } from "react-native";
 
 import { AppButton, Chip, Field } from "@/components/ui";
-import { REPORT_THEMES, ReportThemeKey } from "@/constants/config";
+import { REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/constants/config";
 import { font, palette, spacing } from "@/constants/theme";
 import { todayIsoDate } from "@/lib/format";
 import { useAppStore, useProject } from "@/providers/AppStore";
@@ -31,7 +31,9 @@ export default function AuditNewScreen() {
   const [preparedBy, setPreparedBy] = useState<string>(project?.inspectorName || settings.inspectorName);
   const [defaultLocation, setDefaultLocation] = useState<string>("");
   const [defaultAssignee, setDefaultAssignee] = useState<string>("");
-  const [themeKey, setThemeKey] = useState<ReportThemeKey>("navy");
+  const [themeKey, setThemeKey] = useState<ReportThemeKey>(
+    resolveThemeKey(settings.defaultReportOptions.themeKey),
+  );
 
   const existingLocations = useMemo(
     () => db.locations.filter((l) => l.projectId === projectId && !l.deletedAt).slice(0, 6),

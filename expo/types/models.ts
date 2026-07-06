@@ -195,7 +195,7 @@ export const DEFAULT_REPORT_OPTIONS: ReportOptions = {
   groupBy: "location",
   sortBy: "number",
   imageSize: "standard",
-  themeKey: "navy",
+  themeKey: "executive",
 };
 
 export interface ReportExport extends BaseRecord {
@@ -224,6 +224,10 @@ export interface OutboxEntry {
 export interface AppSettings {
   inspectorName: string;
   companyName: string;
+  /** User's own logo — appears on report covers and brand areas. */
+  logoUri: string | null;
+  /** Custom footer line printed on every report (falls back to brand default). */
+  reportFooterText: string;
   defaultReportOptions: ReportOptions;
   demoSeeded: boolean;
   lastAuditId: string | null;
@@ -237,6 +241,8 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   inspectorName: "",
   companyName: "",
+  logoUri: null,
+  reportFooterText: "",
   defaultReportOptions: DEFAULT_REPORT_OPTIONS,
   demoSeeded: false,
   lastAuditId: null,

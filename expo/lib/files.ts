@@ -13,6 +13,7 @@ import { Platform } from "react-native";
 
 const PHOTO_DIR = `${FileSystem.documentDirectory ?? ""}photos/`;
 const REPORT_DIR = `${FileSystem.documentDirectory ?? ""}reports/`;
+const BRAND_DIR = `${FileSystem.documentDirectory ?? ""}brand/`;
 
 export interface ProcessedPhoto {
   originalUri: string;
@@ -125,6 +126,16 @@ export async function cropWorkingImage(
   return { uri: dest, width: result.width, height: result.height };
 }
 
+/** Persist a picked brand/company logo into document storage (keeps PNG transparency). */
+export async function persistBrandLogo(sourceUri: string): Promise<string> {
+  if (Platform.OS === "web") return sourceUri;
+  await ensureDir(BRAND_DIR);
+  const ext = sourceUri.toLowerCase().includes(".png") ? "png" : "jpg";
+  const dest = `${BRAND_DIR}logo_${Date.now()}.${ext}`;
+  await FileSystem.copyAsync({ from: sourceUri, to: dest });
+  return dest;
+}
+
 /** Move a generated PDF into persistent report storage. */
 export async function persistGeneratedPdf(tmpUri: string, name: string): Promise<string> {
   if (Platform.OS === "web") return tmpUri;
@@ -143,7 +154,8 @@ export async function fileToDataUri(uri: string): Promise<string | null> {
     const base64 = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.Base64,
     });
-    return `data:image/jpeg;base64,${base64}`;
+    const mime = uri.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
+    return `data:${mime};base64,${base64}`;
   } catch (e) {
     console.log("[files] fileToDataUri failed", e);
     return null;

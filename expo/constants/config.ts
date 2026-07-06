@@ -31,17 +31,64 @@ export const BrandConfig = {
   brandAccent: "#18A94F",
 } as const;
 
-/** Report themes available in the report builder. */
-export type ReportThemeKey = "navy" | "slate" | "forest";
+/**
+ * Report themes. Each theme drives the cover layout, density, accent
+ * treatment and table styling of the generated PDF — all report design is
+ * centralised here and in lib/report.ts so new themes are cheap to add.
+ */
+export type ReportThemeKey = "executive" | "sitewalk" | "handover";
 
-export const REPORT_THEMES: Record<
-  ReportThemeKey,
-  { label: string; primary: string; accent: string; heading: string }
-> = {
-  navy: { label: "CleanRun Carbon", primary: "#161A1D", accent: "#20C55E", heading: "#161A1D" },
-  slate: { label: "Minimal Slate", primary: "#1F2937", accent: "#1D4ED8", heading: "#111827" },
-  forest: { label: "Field Forest", primary: "#14342B", accent: "#C27803", heading: "#14342B" },
+export interface ReportTheme {
+  label: string;
+  /** One-line purpose shown in the report builder. */
+  description: string;
+  primary: string;
+  accent: string;
+  heading: string;
+  /** Cover page layout variant. */
+  coverVariant: "executive" | "compact" | "formal";
+  /** compact = smaller type, denser item cards, 3-across photos. */
+  density: "comfortable" | "compact";
+}
+
+export const REPORT_THEMES: Record<ReportThemeKey, ReportTheme> = {
+  executive: {
+    label: "Executive",
+    description: "Polished client handover — strong cover, premium spacing",
+    primary: "#161A1D",
+    accent: "#20C55E",
+    heading: "#161A1D",
+    coverVariant: "executive",
+    density: "comfortable",
+  },
+  sitewalk: {
+    label: "Site Walk",
+    description: "Fast field report — compact, issue-dense, strong hit list",
+    primary: "#1F2937",
+    accent: "#1D4ED8",
+    heading: "#111827",
+    coverVariant: "compact",
+    density: "compact",
+  },
+  handover: {
+    label: "Handover",
+    description: "Formal closeout — status-focused with sign-off block",
+    primary: "#14342B",
+    accent: "#C27803",
+    heading: "#14342B",
+    coverVariant: "formal",
+    density: "comfortable",
+  },
 };
+
+/** Coerce stored theme keys (including legacy navy/slate/forest) to a valid theme. */
+export function resolveThemeKey(key: string | null | undefined): ReportThemeKey {
+  if (key && key in REPORT_THEMES) return key as ReportThemeKey;
+  if (key === "navy") return "executive";
+  if (key === "slate") return "sitewalk";
+  if (key === "forest") return "handover";
+  return "executive";
+}
 
 /** Default email templates used by the share flow. */
 export function buildEmailSubject(projectName: string, auditDate: string): string {

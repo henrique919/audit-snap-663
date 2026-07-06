@@ -215,7 +215,7 @@ export function buildDemoDb(): Db {
     notes: "",
     defaultLocationId: locations[0]?.id ?? null,
     defaultAssigneeId: null,
-    themeKey: "navy",
+    themeKey: "executive",
     completedAt: null,
     reportIssuedAt: null,
   };

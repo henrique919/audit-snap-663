@@ -3,11 +3,11 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Eye } from "lucide-react-native";
 import React, { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-import { AppButton, Card, Chip, Segmented, SectionTitle, ToggleRow } from "@/components/ui";
-import { REPORT_THEMES, ReportThemeKey } from "@/constants/config";
-import { font, palette, spacing } from "@/constants/theme";
+import { AppButton, Card, Segmented, SectionTitle, ToggleRow } from "@/components/ui";
+import { REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/constants/config";
+import { font, palette, radius, spacing } from "@/constants/theme";
 import { useAppStore, useAudit, useIssuesForAudit } from "@/providers/AppStore";
 import type { ReportOptions } from "@/types/models";
 
@@ -20,7 +20,7 @@ export default function ReportBuilderScreen() {
 
   const [options, setOptions] = useState<ReportOptions>({
     ...settings.defaultReportOptions,
-    themeKey: audit?.themeKey ?? settings.defaultReportOptions.themeKey,
+    themeKey: resolveThemeKey(audit?.themeKey ?? settings.defaultReportOptions.themeKey),
   });
 
   if (!audit) {
@@ -54,16 +54,32 @@ export default function ReportBuilderScreen() {
           included in “{audit.title}”.
         </Text>
 
-        <SectionTitle title="Theme" />
-        <View style={styles.chipRow}>
-          {(Object.keys(REPORT_THEMES) as ReportThemeKey[]).map((key) => (
-            <Chip
-              key={key}
-              label={REPORT_THEMES[key].label}
-              active={options.themeKey === key}
-              onPress={() => set({ themeKey: key })}
-            />
-          ))}
+        <SectionTitle title="Report theme" />
+        <View style={styles.themeRow}>
+          {(Object.keys(REPORT_THEMES) as ReportThemeKey[]).map((key) => {
+            const t = REPORT_THEMES[key];
+            const active = options.themeKey === key;
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[styles.themeCard, active && { borderColor: t.accent, borderWidth: 2 }]}
+                activeOpacity={0.85}
+                onPress={() => set({ themeKey: key })}
+                testID={`theme-${key}`}
+              >
+                {/* Miniature cover preview */}
+                <View style={[styles.themeSwatch, { backgroundColor: t.primary }]}>
+                  <View style={[styles.themeSwatchRule, { backgroundColor: t.accent }]} />
+                  <View style={styles.themeSwatchLineWide} />
+                  <View style={styles.themeSwatchLine} />
+                </View>
+                <Text style={[styles.themeLabel, active && { color: t.primary }]}>{t.label}</Text>
+                <Text style={styles.themeDesc} numberOfLines={2}>
+                  {t.description}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <SectionTitle title="Sections" />
@@ -155,7 +171,28 @@ const styles = StyleSheet.create({
   missingText: { color: palette.textMuted },
   summary: { fontSize: font.size.md, color: palette.textMuted },
   summaryStrong: { fontFamily: font.family.bodyHeavy, color: palette.text },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  themeRow: { flexDirection: "row", gap: spacing.sm },
+  themeCard: {
+    flex: 1,
+    backgroundColor: palette.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: palette.border,
+    padding: spacing.sm,
+  },
+  themeSwatch: {
+    height: 54,
+    borderRadius: radius.sm,
+    padding: 8,
+    justifyContent: "flex-end",
+    gap: 3,
+    marginBottom: spacing.sm,
+  },
+  themeSwatchRule: { width: 22, height: 3, borderRadius: 2, marginBottom: 2 },
+  themeSwatchLineWide: { width: "78%", height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.75)" },
+  themeSwatchLine: { width: "48%", height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.4)" },
+  themeLabel: { fontSize: font.size.sm, fontFamily: font.family.bodyHeavy, color: palette.text },
+  themeDesc: { fontSize: 10, color: palette.textMuted, marginTop: 2, lineHeight: 13 },
   fieldLbl: {
     fontSize: font.size.xs,
     fontFamily: font.family.bodyBold,

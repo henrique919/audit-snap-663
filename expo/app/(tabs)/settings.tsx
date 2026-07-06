@@ -1,15 +1,17 @@
 /** Settings — inspector defaults, brand info, sync centre, data management. */
 
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { ChevronRight, CloudOff, Database, RefreshCcw, Trash2 } from "lucide-react-native";
+import { ChevronRight, CloudOff, Database, ImagePlus, RefreshCcw, Trash2, X } from "lucide-react-native";
 import React from "react";
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BrandMark } from "@/components/BrandMark";
 import { Card, Field, SectionTitle } from "@/components/ui";
-import { BrandConfig } from "@/constants/config";
+import { BrandConfig, REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/constants/config";
 import { font, palette, radius, spacing } from "@/constants/theme";
+import { persistBrandLogo } from "@/lib/files";
 import { useAppStore } from "@/providers/AppStore";
 
 export default function SettingsTab() {
@@ -23,6 +25,25 @@ export default function SettingsTab() {
     ...db.issues,
     ...db.assets,
   ].filter((r) => r.syncStatus !== "synced" && !r.deletedAt).length;
+
+  const pickLogo = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.9,
+        allowsEditing: false,
+      });
+      const uri = result.assets?.[0]?.uri;
+      if (result.canceled || !uri) return;
+      const persisted = await persistBrandLogo(uri);
+      updateSettings({ logoUri: persisted });
+    } catch (e) {
+      console.log("[settings] logo pick failed", e);
+      Alert.alert("Logo upload failed", "Could not save the logo. Please try again.");
+    }
+  };
+
+  const defaultThemeKey = resolveThemeKey(settings.defaultReportOptions.themeKey);
 
   const confirmReset = (reseed: boolean) => {
     Alert.alert(
@@ -78,6 +99,62 @@ export default function SettingsTab() {
         <Text style={styles.note}>
           Used as defaults when starting new audits. Each project can override these.
         </Text>
+      </Card>
+
+      <SectionTitle title="Report branding" />
+      <Card>
+        <Text style={styles.fieldLbl}>Company logo</Text>
+        <View style={styles.logoRow}>
+          <TouchableOpacity style={styles.logoBox} onPress={pickLogo} activeOpacity={0.8} testID="pick-logo">
+            {settings.logoUri ? (
+              <Image source={{ uri: settings.logoUri }} style={styles.logoImg} resizeMode="contain" />
+            ) : (
+              <>
+                <ImagePlus color={palette.textFaint} size={22} />
+                <Text style={styles.logoHint}>Upload logo</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <View style={styles.logoBody}>
+            <Text style={styles.logoNote}>
+              Appears on report covers and brand areas. Projects with their own logo override this.
+            </Text>
+            {settings.logoUri ? (
+              <TouchableOpacity style={styles.logoRemove} onPress={() => updateSettings({ logoUri: null })}>
+                <X color={palette.red} size={13} />
+                <Text style={styles.logoRemoveText}>Remove logo</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+        <Field
+          label="Report footer"
+          value={settings.reportFooterText}
+          onChangeText={(v) => updateSettings({ reportFooterText: v })}
+          placeholder={BrandConfig.reportFooter}
+          optional
+        />
+        <Text style={styles.fieldLbl}>Default report theme</Text>
+        <View style={styles.themeChips}>
+          {(Object.keys(REPORT_THEMES) as ReportThemeKey[]).map((key) => {
+            const t = REPORT_THEMES[key];
+            const active = defaultThemeKey === key;
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[styles.themeChip, active && { backgroundColor: t.primary, borderColor: t.primary }]}
+                onPress={() =>
+                  updateSettings({
+                    defaultReportOptions: { ...settings.defaultReportOptions, themeKey: key },
+                  })
+                }
+              >
+                <View style={[styles.themeDot, { backgroundColor: active ? t.accent : t.primary }]} />
+                <Text style={[styles.themeChipText, active && styles.themeChipTextActive]}>{t.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </Card>
 
       <SectionTitle title="Sync" />
@@ -141,6 +218,49 @@ const styles = StyleSheet.create({
   brandSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 1 },
   brandSite: { fontSize: font.size.xs, color: palette.textFaint, marginTop: 1 },
   note: { fontSize: font.size.xs, color: palette.textFaint, lineHeight: 17 },
+  fieldLbl: {
+    fontSize: font.size.xs,
+    fontFamily: font.family.bodyBold,
+    color: palette.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  logoRow: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.md },
+  logoBox: {
+    width: 92,
+    height: 92,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    borderStyle: "dashed",
+    backgroundColor: palette.surfaceAlt,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    overflow: "hidden",
+  },
+  logoImg: { width: "100%", height: "100%" },
+  logoHint: { fontSize: 10, color: palette.textFaint, fontFamily: font.family.bodySemibold },
+  logoBody: { flex: 1, justifyContent: "center", gap: spacing.sm },
+  logoNote: { fontSize: font.size.xs, color: palette.textMuted, lineHeight: 16 },
+  logoRemove: { flexDirection: "row", alignItems: "center", gap: 4 },
+  logoRemoveText: { fontSize: font.size.xs, color: palette.red, fontFamily: font.family.bodySemibold },
+  themeChips: { flexDirection: "row", gap: spacing.sm },
+  themeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: palette.surface,
+  },
+  themeDot: { width: 8, height: 8, borderRadius: 4 },
+  themeChipText: { fontSize: font.size.xs, fontFamily: font.family.bodyBold, color: palette.text },
+  themeChipTextActive: { color: palette.white },
   linkRow: {
     flexDirection: "row",
     alignItems: "center",

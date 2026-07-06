@@ -141,8 +141,6 @@ export default function MarkupStudio() {
   );
 
   const [elements, setElements] = useState<AnnotationElement[]>(existing?.elements ?? []);
-  const [undoStack, setUndoStack] = useState<AnnotationElement[][]>([]);
-  const [redoStack, setRedoStack] = useState<AnnotationElement[][]>([]);
   const [tool, setTool] = useState<Tool>("arrow");
   const [color, setColor] = useState<string>(MARKUP_COLORS[0]);
   const [stroke, setStroke] = useState<number>(STROKE_SIZES[1]);
@@ -167,45 +165,64 @@ export default function MarkupStudio() {
   const moved = useRef<boolean>(false);
   const wasSelectedAtGrant = useRef<boolean>(false);
   const penPoints = useRef<NormPoint[]>([]);
+  /**
+   * Source-of-truth mirrors. All element/history writes go through these refs
+   * so rapid successive commits (quick pen strokes) can never read a stale
+   * snapshot and silently drop a stroke — the historical pen-disappearing bug
+   * was caused by commits running inside setState updaters with stale
+   * closures over `elements`.
+   */
+  const elementsRef = useRef<AnnotationElement[]>(existing?.elements ?? []);
+  const undoRef = useRef<AnnotationElement[][]>([]);
+  const redoRef = useRef<AnnotationElement[][]>([]);
+  const draftRef = useRef<AnnotationElement | null>(null);
 
   const imageUri = workingUri ?? asset?.reportUri ?? "";
   const imgWidth = workingDims?.width ?? asset?.width ?? 1600;
   const imgHeight = workingDims?.height ?? asset?.height ?? 1200;
   const aspect = canvas.height > 0 ? canvas.width / canvas.height : 1;
 
+  /** Write elements to both the ref (immediate) and state (render). */
+  const applyElements = useCallback((next: AnnotationElement[]) => {
+    elementsRef.current = next;
+    setElements(next);
+  }, []);
+
+  /** Mirror draft into a ref so commit-on-release never uses a stale closure. */
+  const setDraft = useCallback((el: AnnotationElement | null) => {
+    draftRef.current = el;
+    setDraftEl(el);
+  }, []);
+
   const pushHistory = useCallback(
     (next: AnnotationElement[]) => {
-      setUndoStack((prev) => [...prev, elements].slice(-40));
-      setRedoStack([]);
-      setElements(next);
+      undoRef.current = [...undoRef.current, elementsRef.current].slice(-40);
+      redoRef.current = [];
+      applyElements(next);
       setDirty(true);
     },
-    [elements],
+    [applyElements],
   );
 
   const undo = useCallback(() => {
-    setUndoStack((prev) => {
-      const last = prev[prev.length - 1];
-      if (!last) return prev;
-      setRedoStack((r) => [...r, elements]);
-      setElements(last);
-      setSelectedId(null);
-      setDirty(true);
-      return prev.slice(0, -1);
-    });
-  }, [elements]);
+    const last = undoRef.current[undoRef.current.length - 1];
+    if (!last) return;
+    undoRef.current = undoRef.current.slice(0, -1);
+    redoRef.current = [...redoRef.current, elementsRef.current];
+    applyElements(last);
+    setSelectedId(null);
+    setDirty(true);
+  }, [applyElements]);
 
   const redo = useCallback(() => {
-    setRedoStack((prev) => {
-      const last = prev[prev.length - 1];
-      if (!last) return prev;
-      setUndoStack((u) => [...u, elements]);
-      setElements(last);
-      setSelectedId(null);
-      setDirty(true);
-      return prev.slice(0, -1);
-    });
-  }, [elements]);
+    const last = redoRef.current[redoRef.current.length - 1];
+    if (!last) return;
+    redoRef.current = redoRef.current.slice(0, -1);
+    undoRef.current = [...undoRef.current, elementsRef.current];
+    applyElements(last);
+    setSelectedId(null);
+    setDirty(true);
+  }, [applyElements]);
 
   const nextCalloutNumber = useMemo(() => {
     const nums = elements.filter((e) => e.type === "callout").map((e) => (e.type === "callout" ? e.number : 0));
@@ -251,17 +268,105 @@ export default function MarkupStudio() {
     [elements],
   );
 
+  /**
+   * Commit the in-progress gesture. Shared by release AND terminate so a
+   * stolen gesture still commits the stroke. Reads only refs — never stale.
+   */
+  const endGesture = useCallback(() => {
+    const mode = dragMode.current;
+    const isTap = !moved.current;
+
+    if (mode.kind === "move" || mode.kind === "handle") {
+      if (moved.current && preDrag.current) {
+        const snapshot = preDrag.current;
+        undoRef.current = [...undoRef.current, snapshot].slice(-40);
+        redoRef.current = [];
+        const ts = nowIso();
+        applyElements(elementsRef.current.map((el) => (el.id === mode.base.id ? { ...el, updatedAt: ts } : el)));
+        setDirty(true);
+      } else if (isTap && mode.kind === "move" && wasSelectedAtGrant.current && mode.base.type === "text") {
+        // Tapping an already-selected text label opens the editor.
+        openTextEditor({ mode: "edit", id: mode.base.id });
+      }
+      dragMode.current = { kind: "none" };
+      dragStart.current = null;
+      preDrag.current = null;
+      return;
+    }
+
+    if (mode.kind === "crop") {
+      dragMode.current = { kind: "none" };
+      dragStart.current = null;
+      return;
+    }
+
+    const p = dragStart.current;
+    const draft = draftRef.current;
+    // A pen gesture that recorded 2+ points is ALWAYS a stroke — even a tiny
+    // fast squiggle below the tap threshold must never be discarded as a tap.
+    const isPenStroke = draft?.type === "pen" && draft.points.length >= 2;
+
+    // Tapping an existing annotation while any creation tool is active
+    // selects it — no need to switch to the Select tool first.
+    const hitOnTap =
+      isTap && !isPenStroke && p && tool !== "select" && tool !== "crop"
+        ? ([...elementsRef.current].reverse().find((el) => hitTestElement(el, p, aspect)) ?? null)
+        : null;
+    if (hitOnTap) {
+      setDraft(null);
+      setSelectedId(hitOnTap.id);
+      setTool("select");
+      tapHaptic();
+    } else if (tool === "text" && isTap && p) {
+      openTextEditor({ mode: "new", at: p });
+      setDraft(null);
+    } else if (tool === "callout" && isTap && p) {
+      const nums = elementsRef.current
+        .filter((e) => e.type === "callout")
+        .map((e) => (e.type === "callout" ? e.number : 0));
+      const ts = nowIso();
+      const el: AnnotationElement = {
+        id: newId(),
+        type: "callout",
+        cx: p.x,
+        cy: p.y,
+        number: nums.length === 0 ? 1 : Math.max(...nums) + 1,
+        color,
+        size: 64,
+        createdAt: ts,
+        updatedAt: ts,
+      };
+      pushHistory([...elementsRef.current, el]);
+      setSelectedId(el.id);
+      setDraft(null);
+      tapHaptic();
+    } else if (draft && (!isTap || isPenStroke) && mode.kind === "draw") {
+      const ts = nowIso();
+      const el = { ...draft, id: newId(), createdAt: ts, updatedAt: ts };
+      pushHistory([...elementsRef.current, el]);
+      setSelectedId(el.id);
+      setDraft(null);
+      tapHaptic();
+    } else {
+      setDraft(null);
+    }
+    penPoints.current = [];
+    dragMode.current = { kind: "none" };
+    dragStart.current = null;
+  }, [tool, aspect, color, applyElements, pushHistory, openTextEditor, setDraft]);
+
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: (evt) => {
           const { locationX, locationY } = evt.nativeEvent;
           const p = norm(locationX, locationY);
           dragStart.current = p;
           moved.current = false;
-          preDrag.current = elements;
+          preDrag.current = elementsRef.current;
           wasSelectedAtGrant.current = false;
 
           if (tool === "crop") {
@@ -271,7 +376,7 @@ export default function MarkupStudio() {
           }
 
           // 1. Handles on the selected element win over everything.
-          const selected = elements.find((e) => e.id === selectedId) ?? null;
+          const selected = elementsRef.current.find((e) => e.id === selectedId) ?? null;
           if (selected) {
             const handle = handleAtPoint(selected, p);
             if (handle) {
@@ -281,7 +386,7 @@ export default function MarkupStudio() {
           }
 
           if (tool === "select") {
-            const hit = [...elements].reverse().find((el) => hitTestElement(el, p, aspect)) ?? null;
+            const hit = [...elementsRef.current].reverse().find((el) => hitTestElement(el, p, aspect)) ?? null;
             wasSelectedAtGrant.current = !!hit && hit.id === selectedId;
             if (hit && hit.id !== selectedId) tapHaptic();
             setSelectedId(hit?.id ?? null);
@@ -293,15 +398,15 @@ export default function MarkupStudio() {
           dragMode.current = { kind: "draw" };
           if (tool === "pen") {
             penPoints.current = [p];
-            setDraftEl({ id: "draft", type: "pen", points: [p], stroke: color, strokeWidth: stroke });
+            setDraft({ id: "draft", type: "pen", points: [p], stroke: color, strokeWidth: stroke });
           } else if (tool === "arrow") {
-            setDraftEl({ id: "draft", type: "arrow", x1: p.x, y1: p.y, x2: p.x, y2: p.y, stroke: color, strokeWidth: stroke });
+            setDraft({ id: "draft", type: "arrow", x1: p.x, y1: p.y, x2: p.x, y2: p.y, stroke: color, strokeWidth: stroke });
           } else if (tool === "ellipse") {
-            setDraftEl({ id: "draft", type: "ellipse", cx: p.x, cy: p.y, rx: 0, ry: 0, stroke: color, strokeWidth: stroke });
+            setDraft({ id: "draft", type: "ellipse", cx: p.x, cy: p.y, rx: 0, ry: 0, stroke: color, strokeWidth: stroke });
           } else if (tool === "rect") {
-            setDraftEl({ id: "draft", type: "rect", x: p.x, y: p.y, width: 0, height: 0, stroke: color, strokeWidth: stroke });
+            setDraft({ id: "draft", type: "rect", x: p.x, y: p.y, width: 0, height: 0, stroke: color, strokeWidth: stroke });
           } else if (tool === "blur") {
-            setDraftEl({ id: "draft", type: "blur", x: p.x, y: p.y, width: 0, height: 0, intensity: blurIntensity });
+            setDraft({ id: "draft", type: "blur", x: p.x, y: p.y, width: 0, height: 0, intensity: blurIntensity });
           }
         },
         onPanResponderMove: (evt) => {
@@ -322,12 +427,14 @@ export default function MarkupStudio() {
             const cy = b.y + b.height / 2;
             const dx = Math.min(0.98 - cx, Math.max(0.02 - cx, p.x - start.x));
             const dy = Math.min(0.98 - cy, Math.max(0.02 - cy, p.y - start.y));
-            setElements((prev) => prev.map((el) => (el.id === mode.base.id ? translateElement(mode.base, dx, dy) : el)));
+            applyElements(
+              elementsRef.current.map((el) => (el.id === mode.base.id ? translateElement(mode.base, dx, dy) : el)),
+            );
             return;
           }
           if (mode.kind === "handle") {
-            setElements((prev) =>
-              prev.map((el) => (el.id === mode.base.id ? resizeElement(mode.base, mode.handle, p, aspect) : el)),
+            applyElements(
+              elementsRef.current.map((el) => (el.id === mode.base.id ? resizeElement(mode.base, mode.handle, p, aspect) : el)),
             );
             return;
           }
@@ -341,120 +448,51 @@ export default function MarkupStudio() {
             return;
           }
           if (mode.kind === "draw") {
-            setDraftEl((prev) => {
-              if (!prev) return prev;
-              switch (prev.type) {
-                case "arrow":
-                  return { ...prev, x2: p.x, y2: p.y };
-                case "ellipse":
-                  return {
-                    ...prev,
-                    cx: (start.x + p.x) / 2,
-                    cy: (start.y + p.y) / 2,
-                    rx: Math.abs(p.x - start.x) / 2,
-                    ry: Math.abs(p.y - start.y) / 2,
-                  };
-                case "rect":
-                case "blur":
-                  return {
-                    ...prev,
-                    x: Math.min(start.x, p.x),
-                    y: Math.min(start.y, p.y),
-                    width: Math.abs(p.x - start.x),
-                    height: Math.abs(p.y - start.y),
-                  };
-                case "pen": {
-                  const last = penPoints.current[penPoints.current.length - 1];
-                  if (last && Math.abs(p.x - last.x) < PEN_MIN_STEP && Math.abs(p.y - last.y) < PEN_MIN_STEP) {
-                    return prev;
-                  }
-                  penPoints.current = [...penPoints.current, p];
-                  return { ...prev, points: penPoints.current };
+            const prev = draftRef.current;
+            if (!prev) return;
+            switch (prev.type) {
+              case "arrow":
+                setDraft({ ...prev, x2: p.x, y2: p.y });
+                return;
+              case "ellipse":
+                setDraft({
+                  ...prev,
+                  cx: (start.x + p.x) / 2,
+                  cy: (start.y + p.y) / 2,
+                  rx: Math.abs(p.x - start.x) / 2,
+                  ry: Math.abs(p.y - start.y) / 2,
+                });
+                return;
+              case "rect":
+              case "blur":
+                setDraft({
+                  ...prev,
+                  x: Math.min(start.x, p.x),
+                  y: Math.min(start.y, p.y),
+                  width: Math.abs(p.x - start.x),
+                  height: Math.abs(p.y - start.y),
+                });
+                return;
+              case "pen": {
+                const last = penPoints.current[penPoints.current.length - 1];
+                if (last && Math.abs(p.x - last.x) < PEN_MIN_STEP && Math.abs(p.y - last.y) < PEN_MIN_STEP) {
+                  return;
                 }
-                default:
-                  return prev;
+                penPoints.current = [...penPoints.current, p];
+                setDraft({ ...prev, points: penPoints.current });
+                return;
               }
-            });
-          }
-        },
-        onPanResponderRelease: () => {
-          const mode = dragMode.current;
-          const isTap = !moved.current;
-
-          if (mode.kind === "move" || mode.kind === "handle") {
-            if (moved.current && preDrag.current) {
-              const snapshot = preDrag.current;
-              setUndoStack((prev) => [...prev, snapshot].slice(-40));
-              setRedoStack([]);
-              const ts = nowIso();
-              setElements((prev) => prev.map((el) => (el.id === mode.base.id ? { ...el, updatedAt: ts } : el)));
-              setDirty(true);
-            } else if (isTap && mode.kind === "move" && wasSelectedAtGrant.current && mode.base.type === "text") {
-              // Tapping an already-selected text label opens the editor.
-              openTextEditor({ mode: "edit", id: mode.base.id });
+              default:
+                return;
             }
-            dragMode.current = { kind: "none" };
-            dragStart.current = null;
-            preDrag.current = null;
-            return;
           }
-
-          if (mode.kind === "crop") {
-            dragMode.current = { kind: "none" };
-            dragStart.current = null;
-            return;
-          }
-
-          const p = dragStart.current;
-          // Tapping an existing annotation while any creation tool is active
-          // selects it — no need to switch to the Select tool first.
-          const hitOnTap =
-            isTap && p && tool !== "select" && tool !== "crop"
-              ? ([...elements].reverse().find((el) => hitTestElement(el, p, aspect)) ?? null)
-              : null;
-          if (hitOnTap) {
-            setDraftEl(null);
-            setSelectedId(hitOnTap.id);
-            setTool("select");
-            tapHaptic();
-          } else if (tool === "text" && isTap && p) {
-            openTextEditor({ mode: "new", at: p });
-            setDraftEl(null);
-          } else if (tool === "callout" && isTap && p) {
-            const ts = nowIso();
-            const el: AnnotationElement = {
-              id: newId(),
-              type: "callout",
-              cx: p.x,
-              cy: p.y,
-              number: nextCalloutNumber,
-              color,
-              size: 64,
-              createdAt: ts,
-              updatedAt: ts,
-            };
-            pushHistory([...elements, el]);
-            setSelectedId(el.id);
-            setDraftEl(null);
-            tapHaptic();
-          } else {
-            setDraftEl((prev) => {
-              if (prev && !isTap) {
-                const ts = nowIso();
-                const el = { ...prev, id: newId(), createdAt: ts, updatedAt: ts };
-                pushHistory([...elements, el]);
-                setSelectedId(el.id);
-                tapHaptic();
-              }
-              return null;
-            });
-          }
-          penPoints.current = [];
-          dragMode.current = { kind: "none" };
-          dragStart.current = null;
         },
+        onPanResponderRelease: () => endGesture(),
+        // If the OS steals the gesture mid-stroke, commit what was drawn
+        // instead of silently dropping it.
+        onPanResponderTerminate: () => endGesture(),
       }),
-    [tool, elements, selectedId, color, stroke, blurIntensity, norm, aspect, pushHistory, nextCalloutNumber, handleAtPoint, openTextEditor],
+    [tool, selectedId, color, stroke, blurIntensity, norm, aspect, handleAtPoint, openTextEditor, applyElements, setDraft, endGesture],
   );
 
   if (!asset) {
@@ -616,9 +654,9 @@ export default function MarkupStudio() {
       };
       // Rotation changes the underlying image, so earlier history snapshots
       // no longer line up with it — clear undo/redo instead of corrupting it.
-      setElements((prev) => prev.map(rotateEl));
-      setUndoStack([]);
-      setRedoStack([]);
+      applyElements(elementsRef.current.map(rotateEl));
+      undoRef.current = [];
+      redoRef.current = [];
       setSelectedId(null);
       setDirty(true);
     } catch (e) {
@@ -660,9 +698,9 @@ export default function MarkupStudio() {
       };
       // Crop changes the underlying image — clear undo/redo history so an
       // undo can't restore coordinates that belong to the pre-crop image.
-      setElements((prev) => prev.map(remap));
-      setUndoStack([]);
-      setRedoStack([]);
+      applyElements(elementsRef.current.map(remap));
+      undoRef.current = [];
+      redoRef.current = [];
       setSelectedId(null);
       setCropRect(null);
       setTool("select");
@@ -678,12 +716,14 @@ export default function MarkupStudio() {
   const save = async (thenBack: boolean) => {
     try {
       setSelectedId(null);
-      setDraftEl(null);
+      setDraft(null);
       setSaving(true);
       // Let the selection overlay unmount before flattening.
       await new Promise((r) => setTimeout(r, 80));
+      // Read from the ref — a stroke committed milliseconds ago is always included.
+      const elementsToSave = elementsRef.current;
       let annotatedUri: string | null = null;
-      if (Platform.OS !== "web" && canvasRef.current && elements.length > 0) {
+      if (Platform.OS !== "web" && canvasRef.current && elementsToSave.length > 0) {
         try {
           const tmp = await captureRef(canvasRef, { format: "jpg", quality: 0.9, result: "tmpfile" });
           annotatedUri = await persistAnnotatedCapture(tmp, asset.id);
@@ -707,7 +747,7 @@ export default function MarkupStudio() {
           ...(thumbUri ? { thumbUri } : {}),
         });
       }
-      saveAnnotation(asset.id, asset.issueId, elements, annotatedUri);
+      saveAnnotation(asset.id, asset.issueId, elementsToSave, annotatedUri);
       setDirty(false);
       successHaptic();
       if (thenBack) router.back();
@@ -926,17 +966,17 @@ export default function MarkupStudio() {
         {/* Secondary actions */}
         <View style={styles.actionsRow}>
           <TouchableOpacity
-            style={[styles.miniBtn, undoStack.length === 0 && styles.miniBtnDisabled]}
+            style={[styles.miniBtn, undoRef.current.length === 0 && styles.miniBtnDisabled]}
             onPress={undo}
-            disabled={undoStack.length === 0}
+            disabled={undoRef.current.length === 0}
             testID="markup-undo"
           >
             <Undo2 color={palette.white} size={18} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.miniBtn, redoStack.length === 0 && styles.miniBtnDisabled]}
+            style={[styles.miniBtn, redoRef.current.length === 0 && styles.miniBtnDisabled]}
             onPress={redo}
-            disabled={redoStack.length === 0}
+            disabled={redoRef.current.length === 0}
             testID="markup-redo"
           >
             <Redo2 color={palette.white} size={18} />
