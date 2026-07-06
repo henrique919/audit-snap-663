@@ -1,13 +1,14 @@
 /** Home / Project List — gets the user into a job fast. */
 
 import { useRouter } from "expo-router";
-import { FolderPlus, Play, Search } from "lucide-react-native";
+import { ChevronRight, FolderPlus, Play, Search } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -43,6 +44,11 @@ export default function ProjectsScreen() {
   const lastAudit = useMemo(
     () => db.audits.find((a) => a.id === settings.lastAuditId && !a.deletedAt && a.status === "draft") ?? null,
     [db.audits, settings.lastAuditId],
+  );
+
+  const lastAuditProject = useMemo(
+    () => (lastAudit ? db.projects.find((p) => p.id === lastAudit.projectId) ?? null : null),
+    [db.projects, lastAudit],
   );
 
   const statsFor = (project: Project) => {
@@ -81,6 +87,31 @@ export default function ProjectsScreen() {
         />
       </View>
 
+      {lastAudit ? (
+        <TouchableOpacity
+          testID="continue-audit"
+          activeOpacity={0.88}
+          style={styles.continueCard}
+          onPress={() => router.push({ pathname: "/capture-session", params: { auditId: lastAudit.id } })}
+        >
+          <View style={styles.continuePlay}>
+            <Play color={palette.carbon} size={18} fill={palette.carbon} />
+          </View>
+          <View style={styles.continueText}>
+            <Text style={styles.continueKicker}>Continue last audit</Text>
+            <Text style={styles.continueTitle} numberOfLines={1}>
+              {lastAudit.title}
+            </Text>
+            {lastAuditProject ? (
+              <Text style={styles.continueSub} numberOfLines={1}>
+                {lastAuditProject.name}
+              </Text>
+            ) : null}
+          </View>
+          <ChevronRight color="rgba(255,255,255,0.5)" size={20} />
+        </TouchableOpacity>
+      ) : null}
+
       <View style={styles.actionRow}>
         <AppButton
           testID="new-project"
@@ -89,16 +120,6 @@ export default function ProjectsScreen() {
           onPress={() => router.push("/project-new")}
           style={styles.actionBtn}
         />
-        {lastAudit ? (
-          <AppButton
-            testID="continue-audit"
-            label="Continue Audit"
-            variant="secondary"
-            icon={<Play color={palette.carbon} size={18} />}
-            onPress={() => router.push({ pathname: "/capture-session", params: { auditId: lastAudit.id } })}
-            style={styles.actionBtn}
-          />
-        ) : null}
       </View>
 
       <FlatList
@@ -154,6 +175,33 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   searchInput: { flex: 1, fontSize: font.size.md, color: palette.text },
+  continueCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: palette.carbon,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  continuePlay: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: palette.greenBright,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  continueText: { flex: 1 },
+  continueKicker: {
+    color: palette.greenBright,
+    fontSize: 10,
+    fontFamily: font.family.bodyBold,
+    textTransform: "uppercase",
+    letterSpacing: 1.1,
+  },
+  continueTitle: { color: palette.white, fontSize: font.size.md, fontFamily: font.family.heading, marginTop: 2 },
+  continueSub: { color: "rgba(255,255,255,0.55)", fontSize: font.size.xs, marginTop: 1 },
   actionRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg },
   actionBtn: { flex: 1 },
   listContent: { paddingBottom: 120 },

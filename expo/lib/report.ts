@@ -136,6 +136,7 @@ export function buildReportHtml(data: ReportData): string {
     </div>
     <div class="cover-body">
       <h1 style="color:${theme.heading}">${escapeHtml(audit.title || BrandConfig.reportName)}</h1>
+      <div class="cover-rule" style="background:${theme.accent}"></div>
       <div class="cover-project">${escapeHtml(project.name)}</div>
       ${project.siteAddress ? `<div class="cover-address">${escapeHtml(project.siteAddress)}</div>` : ""}
       ${coverPhoto}
@@ -240,6 +241,10 @@ export function buildReportHtml(data: ReportData): string {
               }
             }
 
+            // A single photo gets a larger layout so the markup stays readable.
+            const itemPhotoWidth =
+              figures.length === 1 && options.imageSize !== "large" ? "66%" : photoWidthCss;
+
             const metaCells: string[] = [
               `<div class="meta"><span>Location</span>${escapeHtml(locationName(locations, issue.locationId))}</div>`,
               `<div class="meta"><span>Assignee</span>${escapeHtml(assigneeName(assignees, issue.assigneeId))}</div>`,
@@ -262,7 +267,7 @@ export function buildReportHtml(data: ReportData): string {
               </div>
               <div class="item-meta">${metaCells.join("")}</div>
               ${issue.description ? `<div class="item-desc">${escapeHtml(issue.description)}</div>` : ""}
-              ${figures.length > 0 ? `<div class="photos" style="--pw:${photoWidthCss}">${figures.join("")}</div>` : ""}
+              ${figures.length > 0 ? `<div class="photos" style="--pw:${itemPhotoWidth}">${figures.join("")}</div>` : ""}
             </article>`;
           })
           .join("");
@@ -335,7 +340,8 @@ export function buildReportHtml(data: ReportData): string {
   .cover-app { color: #fff; font-size: 17px; font-weight: 800; letter-spacing: 0.3px; }
   .cover-tag { color: rgba(255,255,255,0.75); font-size: 11px; margin-top: 2px; text-transform: uppercase; letter-spacing: 1.6px; }
   .cover-body { padding: 44px 8px 0; flex: 1; }
-  .cover-body h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.4px; }
+  .cover-body h1 { font-size: 34px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.12; }
+  .cover-rule { width: 64px; height: 4px; border-radius: 2px; margin: 14px 0 4px; }
   .cover-project { font-size: 16px; font-weight: 600; margin-top: 10px; color: #33415C; }
   .cover-address { font-size: 12px; color: #5A6B82; margin-top: 3px; }
   .cover-photo { margin-top: 22px; border-radius: 10px; overflow: hidden; max-height: 240px; }
@@ -360,6 +366,8 @@ export function buildReportHtml(data: ReportData): string {
   .pr-lbl { font-weight: 700; color: #283238; }
   .hitlist-title { font-size: 14px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.2px; }
   .hitlist { width: 100%; border-collapse: collapse; font-size: 10px; }
+  .hitlist thead { display: table-header-group; }
+  .hitlist tr { page-break-inside: avoid; }
   .hitlist th { color: #fff; text-align: left; padding: 7px 8px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 800; }
   .hitlist th:first-child { border-radius: 6px 0 0 6px; }
   .hitlist th:last-child { border-radius: 0 6px 6px 0; }
@@ -373,7 +381,7 @@ export function buildReportHtml(data: ReportData): string {
 
   /* Item details — CleanRun IQ item card with status spine */
   .group { margin-bottom: 18px; }
-  .group-head { color: #fff; border-radius: 7px; padding: 7px 12px; font-weight: 800; font-size: 11.5px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; letter-spacing: 0.3px; font-family: ${reportFontStack.heading}; }
+  .group-head { color: #fff; border-radius: 7px; padding: 7px 12px; font-weight: 800; font-size: 11.5px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; letter-spacing: 0.3px; font-family: ${reportFontStack.heading}; page-break-after: avoid; }
   .group-count { font-weight: 600; font-size: 9.5px; opacity: 0.8; }
   .item { border: 1px solid #DDE3E8; border-left: 5px solid #B8C0C8; border-radius: 9px; padding: 12px 14px; margin-bottom: 12px; page-break-inside: avoid; background: #fff; }
   .item-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }

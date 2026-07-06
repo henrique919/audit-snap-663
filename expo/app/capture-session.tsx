@@ -14,10 +14,11 @@ import {
   UserRound,
   X,
 } from "lucide-react-native";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -32,6 +33,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppButton, Chip, Segmented, ToggleRow } from "@/components/ui";
 import { font, palette, radius, shadow, spacing } from "@/constants/theme";
+import { issueRef } from "@/lib/format";
 import { newId } from "@/lib/ids";
 import { ProcessedPhoto, processPickedPhoto } from "@/lib/files";
 import { useAppStore, useAudit, useIssuesForAudit, useProject } from "@/providers/AppStore";
@@ -59,6 +61,22 @@ export default function CaptureSession() {
 
   const [processing, setProcessing] = useState<boolean>(false);
   const [draft, setDraft] = useState<DraftIssue | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+
+  /** Explicit local-save confirmation — the user should never wonder if it saved. */
+  const showSavedToast = useCallback(
+    (message: string) => {
+      setToast(message);
+      toastOpacity.setValue(0);
+      Animated.sequence([
+        Animated.timing(toastOpacity, { toValue: 1, duration: 160, useNativeDriver: true }),
+        Animated.delay(1900),
+        Animated.timing(toastOpacity, { toValue: 0, duration: 320, useNativeDriver: true }),
+      ]).start(() => setToast(null));
+    },
+    [toastOpacity],
+  );
 
   const lastLocationName = useMemo(() => {
     const id = settings.lastLocationId ?? audit?.defaultLocationId ?? null;
@@ -157,6 +175,7 @@ export default function CaptureSession() {
         draft.photos,
       );
       setDraft(null);
+      showSavedToast(`${issueRef(issue.issueNumber)} saved on device`);
       if (next === "photo") {
         takePhoto();
       } else if (next === "review") {
@@ -164,7 +183,7 @@ export default function CaptureSession() {
       }
       return issue;
     },
-    [draft, audit, createIssue, findOrCreateLocation, findOrCreateAssignee, router, takePhoto],
+    [draft, audit, createIssue, findOrCreateLocation, findOrCreateAssignee, router, takePhoto, showSavedToast],
   );
 
   if (!audit || !project) {
@@ -193,11 +212,12 @@ export default function CaptureSession() {
             </Text>
           </View>
           <TouchableOpacity
-            style={[styles.headerBtn, styles.doneBtn]}
+            style={styles.doneBtn}
             onPress={() => router.replace({ pathname: "/audit/[id]/hitlist", params: { id: audit.id } })}
             testID="capture-done"
           >
-            <Check color={palette.white} size={20} />
+            <Check color={palette.white} size={16} strokeWidth={2.8} />
+            <Text style={styles.doneText}>Done</Text>
           </TouchableOpacity>
         </View>
 
@@ -230,6 +250,7 @@ export default function CaptureSession() {
         </View>
 
         {/* Recent strip */}
+        {issues.length > 0 ? <Text style={styles.recentLabel}>Recent captures</Text> : null}
         <ScrollView style={styles.recentWrap} contentContainerStyle={styles.recentContent} horizontal showsHorizontalScrollIndicator={false}>
           {issues
             .slice()
@@ -256,24 +277,38 @@ export default function CaptureSession() {
             })}
         </ScrollView>
 
+        {/* Saved toast */}
+        {toast ? (
+          <Animated.View style={[styles.toast, { opacity: toastOpacity }]} pointerEvents="none">
+            <Check color={palette.greenBright} size={15} strokeWidth={3} />
+            <Text style={styles.toastText}>{toast}</Text>
+          </Animated.View>
+        ) : null}
+
         {/* Capture controls */}
         <View style={[styles.controls, { paddingBottom: insets.bottom + spacing.xl }]}>
           <TouchableOpacity style={styles.sideBtn} onPress={pickFromGallery} testID="capture-gallery">
-            <Images color={palette.white} size={24} />
+            <View style={styles.sideChip}>
+              <Images color={palette.white} size={22} />
+            </View>
             <Text style={styles.sideLbl}>Gallery</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.shutter} onPress={takePhoto} disabled={processing} testID="capture-shutter">
-            {processing ? (
-              <ActivityIndicator color={palette.carbon} size="large" />
-            ) : (
-              <Camera color={palette.carbon} size={34} strokeWidth={2.2} />
-            )}
+          <TouchableOpacity style={styles.shutterRing} onPress={takePhoto} disabled={processing} testID="capture-shutter">
+            <View style={styles.shutter}>
+              {processing ? (
+                <ActivityIndicator color={palette.carbon} size="large" />
+              ) : (
+                <Camera color={palette.carbon} size={34} strokeWidth={2.2} />
+              )}
+            </View>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sideBtn}
             onPress={() => Alert.alert("Voice notes", "Voice-to-issue capture is coming in a future update.")}
           >
-            <Mic color={palette.textFaint} size={24} />
+            <View style={[styles.sideChip, styles.sideChipMuted]}>
+              <Mic color={palette.textFaint} size={22} />
+            </View>
             <Text style={[styles.sideLbl, styles.sideLblMuted]}>Voice</Text>
           </TouchableOpacity>
         </View>
@@ -304,7 +339,7 @@ export default function CaptureSession() {
                   ))}
                 </View>
                 <AppButton
-                  label="Save & Mark Up Photo"
+                  label="Save Issue & Mark Up Photo"
                   variant="secondary"
                   icon={<PenLine color={palette.carbon} size={18} />}
                   onPress={() => {
@@ -429,7 +464,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  doneBtn: { backgroundColor: palette.green },
+  doneBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: palette.green,
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    height: 40,
+  },
+  doneText: { color: palette.white, fontSize: font.size.sm, fontFamily: font.family.bodyBold },
   headerCenter: { flex: 1, alignItems: "center" },
   headerTitle: { color: palette.white, fontSize: font.size.md, fontFamily: font.family.heading },
   headerSub: { color: "rgba(255,255,255,0.55)", fontSize: font.size.xs, marginTop: 1 },
@@ -458,7 +502,16 @@ const styles = StyleSheet.create({
   metaChipText: { color: palette.white, fontSize: font.size.xs, fontFamily: font.family.bodySemibold },
   offlineChip: { flexDirection: "row", alignItems: "center", gap: 5 },
   offlineText: { color: palette.greenBright, fontSize: font.size.xs, fontFamily: font.family.bodyBold },
-  recentWrap: { flexGrow: 0, marginTop: spacing.xl },
+  recentLabel: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 10,
+    fontFamily: font.family.bodyBold,
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
+  },
+  recentWrap: { flexGrow: 0 },
   recentContent: { gap: spacing.sm },
   recentItem: { alignItems: "center", gap: 3 },
   recentImg: { width: 64, height: 64, borderRadius: radius.md },
@@ -470,20 +523,53 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     justifyContent: "space-around",
   },
+  shutterRing: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    borderWidth: 4,
+    borderColor: palette.greenBright,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadow.floating,
+  },
   shutter: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: palette.white,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 5,
-    borderColor: "rgba(255,255,255,0.35)",
-    ...shadow.floating,
   },
-  sideBtn: { alignItems: "center", gap: 5, paddingBottom: spacing.lg, minWidth: 70 },
+  sideBtn: { alignItems: "center", gap: 6, paddingBottom: spacing.lg, minWidth: 70 },
+  sideChip: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sideChipMuted: { opacity: 0.6 },
   sideLbl: { color: palette.white, fontSize: font.size.xs, fontFamily: font.family.bodyBold },
   sideLblMuted: { color: palette.textFaint },
+  toast: {
+    position: "absolute",
+    bottom: 170,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    backgroundColor: "rgba(22,26,29,0.94)",
+    borderWidth: 1,
+    borderColor: "rgba(32,197,94,0.4)",
+    borderRadius: radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  toastText: { color: palette.white, fontSize: font.size.sm, fontFamily: font.family.bodyBold },
 
   sheetFlex: { flex: 1 },
   sheet: { flex: 1, backgroundColor: palette.background },

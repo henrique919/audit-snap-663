@@ -1,31 +1,35 @@
 /**
- * Photo Markup Studio — vector annotation editor.
+ * Photo Markup Studio — layered vector annotation editor.
  *
- * The original photo is never modified. Annotations are stored as normalised
- * vector JSON, rendered live via SVG, and a flattened copy is captured on
- * save for exports. One-tap tools, undo/redo, move/duplicate/delete, colour
- * and stroke controls, blur privacy mask, crop and rotate.
+ * Every annotation is an editable object/layer: tap to select, drag to move,
+ * grab handles to resize (arrow endpoints, shape corners, text/callout scale),
+ * restyle after selection, duplicate, reorder and delete. The original photo
+ * is never modified — annotations live as normalised vector JSON and a
+ * flattened annotated copy is generated only on save for reports/export.
  */
 
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
   ArrowUpRight,
+  BringToFront,
   Check,
   Circle,
+  Copy,
   Crop,
   Droplets,
   Eraser,
   MousePointer2,
   MessageCircleWarning,
+  Pencil,
   PenLine,
   Redo2,
   RotateCw,
+  SendToBack,
   Square,
   Trash2,
   Type,
   Undo2,
   X,
-  Copy,
 } from "lucide-react-native";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -46,7 +50,16 @@ import Svg, { Circle as SvgCircle, Ellipse, Line, Polygon, Polyline, Rect, Text 
 import { captureRef } from "react-native-view-shot";
 
 import { MARKUP_COLORS, font, palette, radius, spacing } from "@/constants/theme";
-import { arrowHeadPoints, strokePx } from "@/lib/annotationSvg";
+import { arrowHeadPoints, estimateTextWidthPx, strokePx } from "@/lib/annotationSvg";
+import {
+  HandleId,
+  NormPoint,
+  elementBounds,
+  elementHandles,
+  hitTestElement,
+  resizeElement,
+  translateElement,
+} from "@/lib/annotationGeometry";
 import { cropWorkingImage, persistAnnotatedCapture, rotateWorkingImage } from "@/lib/files";
 import { newId } from "@/lib/ids";
 import { useAppStore } from "@/providers/AppStore";
@@ -56,56 +69,25 @@ type Tool = "select" | "arrow" | "ellipse" | "rect" | "pen" | "text" | "callout"
 
 const STROKE_SIZES = [4, 8, 14] as const;
 const TEXT_SIZES = [32, 44, 60] as const;
+const HANDLE_HIT_PX = 26;
+const TAP_THRESHOLD = 0.012;
 
 interface CanvasLayout {
   width: number;
   height: number;
 }
 
-function hitTest(el: AnnotationElement, x: number, y: number): boolean {
-  const pad = 0.035;
-  switch (el.type) {
-    case "arrow": {
-      const minX = Math.min(el.x1, el.x2) - pad;
-      const maxX = Math.max(el.x1, el.x2) + pad;
-      const minY = Math.min(el.y1, el.y2) - pad;
-      const maxY = Math.max(el.y1, el.y2) + pad;
-      return x >= minX && x <= maxX && y >= minY && y <= maxY;
-    }
-    case "ellipse":
-      return x >= el.cx - el.rx - pad && x <= el.cx + el.rx + pad && y >= el.cy - el.ry - pad && y <= el.cy + el.ry + pad;
-    case "rect":
-    case "blur":
-      return x >= el.x - pad && x <= el.x + el.width + pad && y >= el.y - pad && y <= el.y + el.height + pad;
-    case "pen": {
-      return el.points.some((p) => Math.abs(p.x - x) < pad * 1.6 && Math.abs(p.y - y) < pad * 1.6);
-    }
-    case "text":
-      return x >= el.x - pad && x <= el.x + 0.35 && y >= el.y - 0.07 && y <= el.y + pad;
-    case "callout": {
-      const r = 0.05;
-      return Math.abs(el.cx - x) < r && Math.abs(el.cy - y) < r;
-    }
-  }
-}
+type DragMode =
+  | { kind: "none" }
+  | { kind: "draw" }
+  | { kind: "move"; base: AnnotationElement }
+  | { kind: "handle"; base: AnnotationElement; handle: HandleId }
+  | { kind: "crop" };
 
-function translateElement(el: AnnotationElement, dx: number, dy: number): AnnotationElement {
-  switch (el.type) {
-    case "arrow":
-      return { ...el, x1: el.x1 + dx, y1: el.y1 + dy, x2: el.x2 + dx, y2: el.y2 + dy };
-    case "ellipse":
-      return { ...el, cx: el.cx + dx, cy: el.cy + dy };
-    case "rect":
-    case "blur":
-      return { ...el, x: el.x + dx, y: el.y + dy };
-    case "pen":
-      return { ...el, points: el.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) };
-    case "text":
-      return { ...el, x: el.x + dx, y: el.y + dy };
-    case "callout":
-      return { ...el, cx: el.cx + dx, cy: el.cy + dy };
-  }
-}
+type TextModalState =
+  | { mode: "new"; at: NormPoint }
+  | { mode: "edit"; id: string }
+  | null;
 
 export default function MarkupStudio() {
   const { assetId } = useLocalSearchParams<{ assetId: string }>();
@@ -129,8 +111,9 @@ export default function MarkupStudio() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draftEl, setDraftEl] = useState<AnnotationElement | null>(null);
   const [cropRect, setCropRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-  const [textPrompt, setTextPrompt] = useState<{ x: number; y: number } | null>(null);
+  const [textModal, setTextModal] = useState<TextModalState>(null);
   const [textValue, setTextValue] = useState<string>("");
+  const [textBg, setTextBg] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [dirty, setDirty] = useState<boolean>(false);
   const [canvas, setCanvas] = useState<CanvasLayout>({ width: 0, height: 0 });
@@ -138,13 +121,17 @@ export default function MarkupStudio() {
   const [workingDims, setWorkingDims] = useState<{ width: number; height: number } | null>(null);
 
   const canvasRef = useRef<View>(null);
-  const dragStart = useRef<{ x: number; y: number } | null>(null);
-  const dragBase = useRef<AnnotationElement | null>(null);
-  const penPoints = useRef<{ x: number; y: number }[]>([]);
+  const dragStart = useRef<NormPoint | null>(null);
+  const dragMode = useRef<DragMode>({ kind: "none" });
+  const preDrag = useRef<AnnotationElement[] | null>(null);
+  const moved = useRef<boolean>(false);
+  const wasSelectedAtGrant = useRef<boolean>(false);
+  const penPoints = useRef<NormPoint[]>([]);
 
   const imageUri = workingUri ?? asset?.reportUri ?? "";
   const imgWidth = workingDims?.width ?? asset?.width ?? 1600;
   const imgHeight = workingDims?.height ?? asset?.height ?? 1200;
+  const aspect = canvas.height > 0 ? canvas.width / canvas.height : 1;
 
   const pushHistory = useCallback(
     (next: AnnotationElement[]) => {
@@ -162,6 +149,7 @@ export default function MarkupStudio() {
       if (!last) return prev;
       setRedoStack((r) => [...r, elements]);
       setElements(last);
+      setSelectedId(null);
       setDirty(true);
       return prev.slice(0, -1);
     });
@@ -173,6 +161,7 @@ export default function MarkupStudio() {
       if (!last) return prev;
       setUndoStack((u) => [...u, elements]);
       setElements(last);
+      setSelectedId(null);
       setDirty(true);
       return prev.slice(0, -1);
     });
@@ -184,11 +173,42 @@ export default function MarkupStudio() {
   }, [elements]);
 
   const norm = useCallback(
-    (px: number, py: number) => ({
+    (px: number, py: number): NormPoint => ({
       x: Math.min(1, Math.max(0, px / Math.max(1, canvas.width))),
       y: Math.min(1, Math.max(0, py / Math.max(1, canvas.height))),
     }),
     [canvas],
+  );
+
+  /** Find a selection handle under the touch point (px distance). */
+  const handleAtPoint = useCallback(
+    (el: AnnotationElement, p: NormPoint): HandleId | null => {
+      const handles = elementHandles(el, aspect);
+      for (const h of handles) {
+        const dx = (h.x - p.x) * canvas.width;
+        const dy = (h.y - p.y) * canvas.height;
+        if (Math.sqrt(dx * dx + dy * dy) <= HANDLE_HIT_PX) return h.id;
+      }
+      return null;
+    },
+    [aspect, canvas],
+  );
+
+  const openTextEditor = useCallback(
+    (state: TextModalState) => {
+      if (state?.mode === "edit") {
+        const el = elements.find((e) => e.id === state.id);
+        if (el?.type === "text") {
+          setTextValue(el.text);
+          setTextBg(el.bg ?? false);
+        }
+      } else {
+        setTextValue("");
+        setTextBg(true);
+      }
+      setTextModal(state);
+    },
+    [elements],
   );
 
   const panResponder = useMemo(
@@ -200,11 +220,37 @@ export default function MarkupStudio() {
           const { locationX, locationY } = evt.nativeEvent;
           const p = norm(locationX, locationY);
           dragStart.current = p;
+          moved.current = false;
+          preDrag.current = elements;
+          wasSelectedAtGrant.current = false;
+
+          if (tool === "crop") {
+            dragMode.current = { kind: "crop" };
+            setCropRect({ x: p.x, y: p.y, width: 0, height: 0 });
+            return;
+          }
+
+          // 1. Handles on the selected element win over everything.
+          const selected = elements.find((e) => e.id === selectedId) ?? null;
+          if (selected) {
+            const handle = handleAtPoint(selected, p);
+            if (handle) {
+              dragMode.current = { kind: "handle", base: selected, handle };
+              return;
+            }
+          }
+
           if (tool === "select") {
-            const hit = [...elements].reverse().find((el) => hitTest(el, p.x, p.y));
+            const hit = [...elements].reverse().find((el) => hitTestElement(el, p, aspect)) ?? null;
+            wasSelectedAtGrant.current = !!hit && hit.id === selectedId;
             setSelectedId(hit?.id ?? null);
-            dragBase.current = hit ?? null;
-          } else if (tool === "pen") {
+            dragMode.current = hit ? { kind: "move", base: hit } : { kind: "none" };
+            return;
+          }
+
+          // Drawing tools
+          dragMode.current = { kind: "draw" };
+          if (tool === "pen") {
             penPoints.current = [p];
             setDraftEl({ id: "draft", type: "pen", points: [p], stroke: color, strokeWidth: stroke });
           } else if (tool === "arrow") {
@@ -215,8 +261,6 @@ export default function MarkupStudio() {
             setDraftEl({ id: "draft", type: "rect", x: p.x, y: p.y, width: 0, height: 0, stroke: color, strokeWidth: stroke });
           } else if (tool === "blur") {
             setDraftEl({ id: "draft", type: "blur", x: p.x, y: p.y, width: 0, height: 0, intensity: 18 });
-          } else if (tool === "crop") {
-            setCropRect({ x: p.x, y: p.y, width: 0, height: 0 });
           }
         },
         onPanResponderMove: (evt) => {
@@ -224,99 +268,124 @@ export default function MarkupStudio() {
           const p = norm(locationX, locationY);
           const start = dragStart.current;
           if (!start) return;
-          if (tool === "select") {
-            const base = dragBase.current;
-            if (base) {
-              const dx = p.x - start.x;
-              const dy = p.y - start.y;
-              setElements((prev) => prev.map((el) => (el.id === base.id ? translateElement(base, dx, dy) : el)));
-              setDirty(true);
-            }
+          const mode = dragMode.current;
+          if (Math.abs(p.x - start.x) > TAP_THRESHOLD || Math.abs(p.y - start.y) > TAP_THRESHOLD) {
+            moved.current = true;
+          }
+
+          if (mode.kind === "move") {
+            const dx = p.x - start.x;
+            const dy = p.y - start.y;
+            setElements((prev) => prev.map((el) => (el.id === mode.base.id ? translateElement(mode.base, dx, dy) : el)));
             return;
           }
-          setDraftEl((prev) => {
-            if (!prev) return prev;
-            switch (prev.type) {
-              case "arrow":
-                return { ...prev, x2: p.x, y2: p.y };
-              case "ellipse":
-                return {
-                  ...prev,
-                  cx: (start.x + p.x) / 2,
-                  cy: (start.y + p.y) / 2,
-                  rx: Math.abs(p.x - start.x) / 2,
-                  ry: Math.abs(p.y - start.y) / 2,
-                };
-              case "rect":
-              case "blur":
-                return {
-                  ...prev,
-                  x: Math.min(start.x, p.x),
-                  y: Math.min(start.y, p.y),
-                  width: Math.abs(p.x - start.x),
-                  height: Math.abs(p.y - start.y),
-                };
-              case "pen": {
-                penPoints.current = [...penPoints.current, p];
-                return { ...prev, points: penPoints.current };
-              }
-              default:
-                return prev;
-            }
-          });
-          if (tool === "crop") {
+          if (mode.kind === "handle") {
+            setElements((prev) =>
+              prev.map((el) => (el.id === mode.base.id ? resizeElement(mode.base, mode.handle, p, aspect) : el)),
+            );
+            return;
+          }
+          if (mode.kind === "crop") {
             setCropRect({
               x: Math.min(start.x, p.x),
               y: Math.min(start.y, p.y),
               width: Math.abs(p.x - start.x),
               height: Math.abs(p.y - start.y),
             });
+            return;
+          }
+          if (mode.kind === "draw") {
+            setDraftEl((prev) => {
+              if (!prev) return prev;
+              switch (prev.type) {
+                case "arrow":
+                  return { ...prev, x2: p.x, y2: p.y };
+                case "ellipse":
+                  return {
+                    ...prev,
+                    cx: (start.x + p.x) / 2,
+                    cy: (start.y + p.y) / 2,
+                    rx: Math.abs(p.x - start.x) / 2,
+                    ry: Math.abs(p.y - start.y) / 2,
+                  };
+                case "rect":
+                case "blur":
+                  return {
+                    ...prev,
+                    x: Math.min(start.x, p.x),
+                    y: Math.min(start.y, p.y),
+                    width: Math.abs(p.x - start.x),
+                    height: Math.abs(p.y - start.y),
+                  };
+                case "pen": {
+                  penPoints.current = [...penPoints.current, p];
+                  return { ...prev, points: penPoints.current };
+                }
+                default:
+                  return prev;
+              }
+            });
           }
         },
-        onPanResponderRelease: (evt) => {
-          const { locationX, locationY } = evt.nativeEvent;
-          const p = norm(locationX, locationY);
-          const start = dragStart.current;
-          const isTap = start ? Math.abs(p.x - start.x) < 0.012 && Math.abs(p.y - start.y) < 0.012 : false;
+        onPanResponderRelease: () => {
+          const mode = dragMode.current;
+          const isTap = !moved.current;
 
-          if (tool === "select") {
-            if (dragBase.current && !isTap) {
-              setUndoStack((prev) => [...prev, elements].slice(-40));
+          if (mode.kind === "move" || mode.kind === "handle") {
+            if (moved.current && preDrag.current) {
+              const snapshot = preDrag.current;
+              setUndoStack((prev) => [...prev, snapshot].slice(-40));
               setRedoStack([]);
+              setDirty(true);
+            } else if (isTap && mode.kind === "move" && wasSelectedAtGrant.current && mode.base.type === "text") {
+              // Tapping an already-selected text label opens the editor.
+              openTextEditor({ mode: "edit", id: mode.base.id });
             }
-            dragBase.current = null;
+            dragMode.current = { kind: "none" };
+            dragStart.current = null;
+            preDrag.current = null;
+            return;
+          }
+
+          if (mode.kind === "crop") {
+            dragMode.current = { kind: "none" };
             dragStart.current = null;
             return;
           }
-          if (tool === "text" && isTap) {
-            setTextPrompt(p);
-            setTextValue("");
-            dragStart.current = null;
-            return;
+
+          const p = dragStart.current;
+          if (tool === "text" && isTap && p) {
+            openTextEditor({ mode: "new", at: p });
+            setDraftEl(null);
+          } else if (tool === "callout" && isTap && p) {
+            const el: AnnotationElement = {
+              id: newId(),
+              type: "callout",
+              cx: p.x,
+              cy: p.y,
+              number: nextCalloutNumber,
+              color,
+              size: 64,
+            };
+            pushHistory([...elements, el]);
+            setSelectedId(el.id);
+            setDraftEl(null);
+          } else {
+            setDraftEl((prev) => {
+              if (prev && !isTap) {
+                const el = { ...prev, id: newId() };
+                pushHistory([...elements, el]);
+                setSelectedId(el.id);
+              }
+              return null;
+            });
           }
-          if (tool === "callout" && isTap) {
-            pushHistory([
-              ...elements,
-              { id: newId(), type: "callout", cx: p.x, cy: p.y, number: nextCalloutNumber, color, size: 64 },
-            ]);
-            dragStart.current = null;
-            return;
-          }
-          if (tool === "crop") {
-            dragStart.current = null;
-            return;
-          }
-          setDraftEl((prev) => {
-            if (prev && !isTap) {
-              pushHistory([...elements, { ...prev, id: newId() }]);
-            }
-            return null;
-          });
           penPoints.current = [];
+          dragMode.current = { kind: "none" };
           dragStart.current = null;
         },
       }),
-    [tool, elements, color, stroke, norm, pushHistory, nextCalloutNumber],
+    [tool, elements, selectedId, color, stroke, norm, aspect, pushHistory, nextCalloutNumber, handleAtPoint, openTextEditor],
   );
 
   if (!asset) {
@@ -327,18 +396,41 @@ export default function MarkupStudio() {
     );
   }
 
-  const aspect = imgWidth / Math.max(1, imgHeight);
+  const imageAspect = imgWidth / Math.max(1, imgHeight);
 
   const commitText = () => {
-    if (textPrompt && textValue.trim()) {
-      pushHistory([
-        ...elements,
-        { id: newId(), type: "text", x: textPrompt.x, y: textPrompt.y, text: textValue.trim(), color, fontSize: textSize },
-      ]);
+    const value = textValue.trim();
+    if (!textModal) return;
+    if (textModal.mode === "new") {
+      if (value) {
+        const el: AnnotationElement = {
+          id: newId(),
+          type: "text",
+          x: textModal.at.x,
+          y: textModal.at.y,
+          text: value,
+          color,
+          fontSize: textSize,
+          bg: textBg,
+        };
+        pushHistory([...elements, el]);
+        setSelectedId(el.id);
+        setTool("select");
+      }
+    } else {
+      if (value) {
+        pushHistory(
+          elements.map((el) =>
+            el.id === textModal.id && el.type === "text" ? { ...el, text: value, bg: textBg } : el,
+          ),
+        );
+      }
     }
-    setTextPrompt(null);
+    setTextModal(null);
     setTextValue("");
   };
+
+  const selectedEl = elements.find((e) => e.id === selectedId) ?? null;
 
   const deleteSelected = () => {
     if (!selectedId) return;
@@ -349,16 +441,66 @@ export default function MarkupStudio() {
   const duplicateSelected = () => {
     const el = elements.find((e) => e.id === selectedId);
     if (!el) return;
-    const copy = { ...translateElement(el, 0.04, 0.04), id: newId() };
+    const copy = { ...translateElement(el, 0.045, 0.045), id: newId() };
     pushHistory([...elements, copy]);
     setSelectedId(copy.id);
+  };
+
+  const moveLayer = (dir: 1 | -1) => {
+    const idx = elements.findIndex((e) => e.id === selectedId);
+    if (idx < 0) return;
+    const j = idx + dir;
+    if (j < 0 || j >= elements.length) return;
+    const next = [...elements];
+    const a = next[idx];
+    const b = next[j];
+    if (!a || !b) return;
+    next[idx] = b;
+    next[j] = a;
+    pushHistory(next);
+  };
+
+  /** Restyle the selected element, or set the default for new elements. */
+  const applyColor = (c: string) => {
+    setColor(c);
+    if (!selectedEl) return;
+    pushHistory(
+      elements.map((el) => {
+        if (el.id !== selectedEl.id) return el;
+        if (el.type === "text" || el.type === "callout") return { ...el, color: c };
+        if (el.type === "blur") return el;
+        return { ...el, stroke: c };
+      }),
+    );
+  };
+
+  const applyStroke = (s: number) => {
+    setStroke(s);
+    if (!selectedEl) return;
+    if (selectedEl.type === "arrow" || selectedEl.type === "ellipse" || selectedEl.type === "rect" || selectedEl.type === "pen") {
+      pushHistory(elements.map((el) => (el.id === selectedEl.id && "strokeWidth" in el ? { ...el, strokeWidth: s } : el)));
+    }
+  };
+
+  const applyTextSize = (s: number) => {
+    setTextSize(s);
+    if (selectedEl?.type === "text") {
+      pushHistory(elements.map((el) => (el.id === selectedEl.id && el.type === "text" ? { ...el, fontSize: s } : el)));
+    }
   };
 
   const clearAll = () => {
     if (elements.length === 0) return;
     Alert.alert("Clear all markup?", "All annotations on this photo will be removed.", [
       { text: "Cancel", style: "cancel" },
-      { text: "Clear", style: "destructive", onPress: () => pushHistory([]) },
+      {
+        text: "Clear",
+        style: "destructive",
+        onPress: () => {
+          pushHistory([]);
+          setSelectedId(null);
+        },
+      },
     ]);
   };
 
@@ -437,9 +579,12 @@ export default function MarkupStudio() {
     }
   };
 
-  const save = async () => {
+  const save = async (thenBack: boolean) => {
     try {
+      setSelectedId(null);
       setSaving(true);
+      // Let the selection overlay unmount before flattening.
+      await new Promise((r) => setTimeout(r, 80));
       let annotatedUri: string | null = null;
       if (Platform.OS !== "web" && canvasRef.current && elements.length > 0) {
         try {
@@ -454,7 +599,7 @@ export default function MarkupStudio() {
       }
       saveAnnotation(asset.id, asset.issueId, elements, annotatedUri);
       setDirty(false);
-      router.back();
+      if (thenBack) router.back();
     } catch (e) {
       console.log("[markup] save failed", e);
       Alert.alert("Save failed", "Could not save markup. Please try again.");
@@ -465,35 +610,35 @@ export default function MarkupStudio() {
 
   const close = () => {
     if (dirty) {
-      Alert.alert("Discard markup changes?", "You have unsaved annotation changes.", [
-        { text: "Keep editing", style: "cancel" },
+      Alert.alert("Unsaved markup changes", "You have unsaved markup changes. Save before leaving?", [
+        { text: "Save & Close", onPress: () => save(true) },
         { text: "Discard", style: "destructive", onPress: () => router.back() },
+        { text: "Cancel", style: "cancel" },
       ]);
     } else {
       router.back();
     }
   };
 
-  const renderElement = (el: AnnotationElement, w: number, h: number, isSelected: boolean) => {
-    const common = { opacity: isSelected ? 0.85 : 1 };
+  const renderElement = (el: AnnotationElement, w: number, h: number) => {
     switch (el.type) {
       case "arrow": {
         const sw = strokePx(el.strokeWidth, w);
         const head = Math.max(10, sw * 3.4);
         return (
           <React.Fragment key={el.id}>
-            <Line x1={el.x1 * w} y1={el.y1 * h} x2={el.x2 * w} y2={el.y2 * h} stroke={el.stroke} strokeWidth={sw} strokeLinecap="round" {...common} />
-            <Polygon points={arrowHeadPoints(el.x1 * w, el.y1 * h, el.x2 * w, el.y2 * h, head)} fill={el.stroke} {...common} />
+            <Line x1={el.x1 * w} y1={el.y1 * h} x2={el.x2 * w} y2={el.y2 * h} stroke={el.stroke} strokeWidth={sw} strokeLinecap="round" />
+            <Polygon points={arrowHeadPoints(el.x1 * w, el.y1 * h, el.x2 * w, el.y2 * h, head)} fill={el.stroke} />
           </React.Fragment>
         );
       }
       case "ellipse":
         return (
-          <Ellipse key={el.id} cx={el.cx * w} cy={el.cy * h} rx={el.rx * w} ry={el.ry * h} stroke={el.stroke} strokeWidth={strokePx(el.strokeWidth, w)} fill="none" {...common} />
+          <Ellipse key={el.id} cx={el.cx * w} cy={el.cy * h} rx={el.rx * w} ry={el.ry * h} stroke={el.stroke} strokeWidth={strokePx(el.strokeWidth, w)} fill="none" />
         );
       case "rect":
         return (
-          <Rect key={el.id} x={el.x * w} y={el.y * h} width={el.width * w} height={el.height * h} rx={4} stroke={el.stroke} strokeWidth={strokePx(el.strokeWidth, w)} fill="none" {...common} />
+          <Rect key={el.id} x={el.x * w} y={el.y * h} width={el.width * w} height={el.height * h} rx={4} stroke={el.stroke} strokeWidth={strokePx(el.strokeWidth, w)} fill="none" />
         );
       case "pen":
         return (
@@ -505,13 +650,24 @@ export default function MarkupStudio() {
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
-            {...common}
           />
         );
       case "text": {
         const fs = Math.max(10, (el.fontSize * w) / 1000);
+        if (el.bg) {
+          const tw = estimateTextWidthPx(el.text, fs);
+          const padX = fs * 0.45;
+          return (
+            <React.Fragment key={el.id}>
+              <Rect x={el.x * w - padX} y={el.y * h - fs * 1.05} width={tw + padX * 2} height={fs * 1.5} rx={fs * 0.35} fill={el.color} opacity={0.94} />
+              <SvgText x={el.x * w} y={el.y * h} fill="#FFFFFF" fontSize={fs} fontWeight="800">
+                {el.text}
+              </SvgText>
+            </React.Fragment>
+          );
+        }
         return (
-          <SvgText key={el.id} x={el.x * w} y={el.y * h} fill={el.color} fontSize={fs} fontWeight="700" stroke="rgba(0,0,0,0.55)" strokeWidth={fs / 10} {...common}>
+          <SvgText key={el.id} x={el.x * w} y={el.y * h} fill={el.color} fontSize={fs} fontWeight="700" stroke="rgba(0,0,0,0.55)" strokeWidth={fs / 10}>
             {el.text}
           </SvgText>
         );
@@ -520,7 +676,7 @@ export default function MarkupStudio() {
         const r = Math.max(12, (el.size * w) / 1000 / 2);
         return (
           <React.Fragment key={el.id}>
-            <SvgCircle cx={el.cx * w} cy={el.cy * h} r={r} fill={el.color} stroke="#FFFFFF" strokeWidth={r / 6} {...common} />
+            <SvgCircle cx={el.cx * w} cy={el.cy * h} r={r} fill={el.color} stroke="#FFFFFF" strokeWidth={r / 6} />
             <SvgText x={el.cx * w} y={el.cy * h + r * 0.38} fill="#FFFFFF" fontSize={r * 1.1} fontWeight="800" textAnchor="middle">
               {`${el.number}`}
             </SvgText>
@@ -534,10 +690,41 @@ export default function MarkupStudio() {
     }
   };
 
-  const selectedEl = elements.find((e) => e.id === selectedId) ?? null;
+  /** Selection chrome: dashed bounding box + resize handles. Not captured on save. */
+  const renderSelection = (el: AnnotationElement, w: number, h: number) => {
+    const b = elementBounds(el, aspect);
+    const handles = elementHandles(el, aspect);
+    const pad = 7;
+    return (
+      <React.Fragment key={`sel-${el.id}`}>
+        <Rect
+          x={b.x * w - pad}
+          y={b.y * h - pad}
+          width={b.width * w + pad * 2}
+          height={b.height * h + pad * 2}
+          stroke={palette.white}
+          strokeWidth={1.4}
+          strokeDasharray="6,4"
+          fill="none"
+          opacity={0.9}
+        />
+        {handles.map((hd) => (
+          <SvgCircle
+            key={hd.id}
+            cx={hd.x * w}
+            cy={hd.y * h}
+            r={8}
+            fill={palette.white}
+            stroke={palette.carbon}
+            strokeWidth={2}
+          />
+        ))}
+      </React.Fragment>
+    );
+  };
 
   const tools: { key: Tool; icon: React.ReactNode; label: string }[] = [
-    { key: "select", icon: <MousePointer2 color={tool === "select" ? palette.carbon : palette.white} size={19} />, label: "Move" },
+    { key: "select", icon: <MousePointer2 color={tool === "select" ? palette.carbon : palette.white} size={19} />, label: "Select" },
     { key: "arrow", icon: <ArrowUpRight color={tool === "arrow" ? palette.carbon : palette.white} size={19} />, label: "Arrow" },
     { key: "ellipse", icon: <Circle color={tool === "ellipse" ? palette.carbon : palette.white} size={19} />, label: "Circle" },
     { key: "rect", icon: <Square color={tool === "rect" ? palette.carbon : palette.white} size={19} />, label: "Box" },
@@ -547,6 +734,9 @@ export default function MarkupStudio() {
     { key: "blur", icon: <Droplets color={tool === "blur" ? palette.carbon : palette.white} size={19} />, label: "Blur" },
     { key: "crop", icon: <Crop color={tool === "crop" ? palette.carbon : palette.white} size={19} />, label: "Crop" },
   ];
+
+  const strokeApplies = !selectedEl || selectedEl.type === "arrow" || selectedEl.type === "ellipse" || selectedEl.type === "rect" || selectedEl.type === "pen";
+  const showTextSizes = tool === "text" || selectedEl?.type === "text";
 
   return (
     <>
@@ -558,21 +748,40 @@ export default function MarkupStudio() {
             <X color={palette.white} size={20} />
           </TouchableOpacity>
           <View style={styles.topCenter}>
-            <TouchableOpacity style={[styles.topBtn, undoStack.length === 0 && styles.topBtnDisabled]} onPress={undo}>
-              <Undo2 color={palette.white} size={19} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.topBtn, redoStack.length === 0 && styles.topBtnDisabled]} onPress={redo}>
-              <Redo2 color={palette.white} size={19} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.topBtn} onPress={rotate}>
-              <RotateCw color={palette.white} size={19} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.topBtn, elements.length === 0 && styles.topBtnDisabled]} onPress={clearAll}>
-              <Eraser color={palette.white} size={19} />
-            </TouchableOpacity>
+            <Text style={styles.topTitle}>Markup Studio</Text>
+            <View style={styles.saveState}>
+              <View style={[styles.saveDot, { backgroundColor: dirty ? "#F5A623" : palette.greenBright }]} />
+              <Text style={[styles.saveStateText, dirty && styles.saveStateDirty]}>
+                {dirty ? "Unsaved changes" : "Saved on device"}
+              </Text>
+            </View>
           </View>
-          <TouchableOpacity style={[styles.topBtn, styles.saveBtn]} onPress={save} disabled={saving} testID="markup-save">
-            {saving ? <ActivityIndicator color={palette.white} size="small" /> : <Check color={palette.white} size={20} />}
+          <TouchableOpacity style={styles.saveBtn} onPress={() => save(true)} disabled={saving} testID="markup-save">
+            {saving ? (
+              <ActivityIndicator color={palette.white} size="small" />
+            ) : (
+              <>
+                <Check color={palette.white} size={17} strokeWidth={2.6} />
+                <Text style={styles.saveBtnText}>Save</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Secondary actions */}
+        <View style={styles.actionsRow}>
+          <TouchableOpacity style={[styles.miniBtn, undoStack.length === 0 && styles.miniBtnDisabled]} onPress={undo}>
+            <Undo2 color={palette.white} size={18} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.miniBtn, redoStack.length === 0 && styles.miniBtnDisabled]} onPress={redo}>
+            <Redo2 color={palette.white} size={18} />
+          </TouchableOpacity>
+          <View style={styles.actionsSpacer} />
+          <TouchableOpacity style={styles.miniBtn} onPress={rotate}>
+            <RotateCw color={palette.white} size={18} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.miniBtn, elements.length === 0 && styles.miniBtnDisabled]} onPress={clearAll}>
+            <Eraser color={palette.white} size={18} />
           </TouchableOpacity>
         </View>
 
@@ -581,14 +790,15 @@ export default function MarkupStudio() {
           <View
             ref={canvasRef}
             collapsable={false}
-            style={[styles.canvas, { aspectRatio: aspect }]}
+            style={[styles.canvas, { aspectRatio: imageAspect }]}
             onLayout={(e) => setCanvas({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
           >
             <RNImage source={{ uri: imageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             {canvas.width > 0 ? (
               <Svg width={canvas.width} height={canvas.height} style={StyleSheet.absoluteFill}>
-                {elements.map((el) => renderElement(el, canvas.width, canvas.height, el.id === selectedId))}
-                {draftEl ? renderElement(draftEl, canvas.width, canvas.height, false) : null}
+                {elements.map((el) => renderElement(el, canvas.width, canvas.height))}
+                {draftEl ? renderElement(draftEl, canvas.width, canvas.height) : null}
+                {selectedEl && !saving ? renderSelection(selectedEl, canvas.width, canvas.height) : null}
                 {cropRect && tool === "crop" ? (
                   <Rect
                     x={cropRect.x * canvas.width}
@@ -607,13 +817,13 @@ export default function MarkupStudio() {
           </View>
         </View>
 
-        {/* Selection actions / crop confirm */}
+        {/* Crop confirm / selection object bar */}
         {tool === "crop" ? (
           <View style={styles.selectionBar}>
             <Text style={styles.selectionText}>Drag to select crop area</Text>
             <TouchableOpacity style={styles.selectionBtn} onPress={applyCrop}>
               <Check color={palette.greenBright} size={16} />
-              <Text style={[styles.selectionBtnText, { color: palette.greenBright }]}>Apply Crop</Text>
+              <Text style={[styles.selectionBtnText, { color: palette.greenBright }]}>Apply</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.selectionBtn}
@@ -626,37 +836,56 @@ export default function MarkupStudio() {
               <Text style={styles.selectionBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
-        ) : selectedEl && tool === "select" ? (
+        ) : selectedEl ? (
           <View style={styles.selectionBar}>
-            <Text style={styles.selectionText}>Selected: {selectedEl.type}</Text>
+            <Text style={styles.selectionText} numberOfLines={1}>
+              {selectedEl.type === "callout" ? "number" : selectedEl.type}
+            </Text>
+            {selectedEl.type === "text" ? (
+              <TouchableOpacity style={styles.selectionBtn} onPress={() => openTextEditor({ mode: "edit", id: selectedEl.id })}>
+                <Pencil color={palette.white} size={15} />
+                <Text style={styles.selectionBtnText}>Edit</Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity style={styles.selectionBtn} onPress={duplicateSelected}>
-              <Copy color={palette.white} size={16} />
-              <Text style={styles.selectionBtnText}>Duplicate</Text>
+              <Copy color={palette.white} size={15} />
+              <Text style={styles.selectionBtnText}>Copy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.selectionIconBtn} onPress={() => moveLayer(1)}>
+              <BringToFront color={palette.white} size={16} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.selectionIconBtn} onPress={() => moveLayer(-1)}>
+              <SendToBack color={palette.white} size={16} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.selectionBtn} onPress={deleteSelected}>
-              <Trash2 color={palette.red} size={16} />
+              <Trash2 color={palette.red} size={15} />
               <Text style={[styles.selectionBtnText, { color: palette.red }]}>Delete</Text>
             </TouchableOpacity>
           </View>
-        ) : (
+        ) : null}
+
+        {/* Style bar — applies to the selection, or sets defaults for new elements */}
+        {tool !== "crop" ? (
           <View style={styles.styleBar}>
             <View style={styles.colorRow}>
               {MARKUP_COLORS.map((c) => (
                 <TouchableOpacity
                   key={c}
                   style={[styles.colorDot, { backgroundColor: c }, color === c && styles.colorDotActive]}
-                  onPress={() => setColor(c)}
+                  onPress={() => applyColor(c)}
                 />
               ))}
             </View>
             <View style={styles.strokeRow}>
-              {(tool === "text" ? TEXT_SIZES : STROKE_SIZES).map((s, i) => {
-                const active = tool === "text" ? textSize === s : stroke === s;
+              {(showTextSizes ? TEXT_SIZES : STROKE_SIZES).map((s, i) => {
+                const active = showTextSizes ? textSize === s : stroke === s;
+                const disabled = !showTextSizes && !strokeApplies;
                 return (
                   <TouchableOpacity
                     key={s}
-                    style={[styles.strokeBtn, active && styles.strokeBtnActive]}
-                    onPress={() => (tool === "text" ? setTextSize(s) : setStroke(s))}
+                    disabled={disabled}
+                    style={[styles.strokeBtn, active && styles.strokeBtnActive, disabled && styles.strokeBtnDisabled]}
+                    onPress={() => (showTextSizes ? applyTextSize(s) : applyStroke(s))}
                   >
                     <View
                       style={[
@@ -670,7 +899,7 @@ export default function MarkupStudio() {
               })}
             </View>
           </View>
-        )}
+        ) : null}
 
         {/* Tool bar */}
         <View style={[styles.toolBar, { paddingBottom: insets.bottom + spacing.sm }]}>
@@ -680,7 +909,7 @@ export default function MarkupStudio() {
               style={[styles.toolBtn, tool === t.key && styles.toolBtnActive]}
               onPress={() => {
                 setTool(t.key);
-                setSelectedId(null);
+                if (t.key !== "select") setSelectedId(null);
                 if (t.key !== "crop") setCropRect(null);
               }}
               testID={`tool-${t.key}`}
@@ -692,11 +921,11 @@ export default function MarkupStudio() {
         </View>
       </View>
 
-      {/* Text entry modal */}
-      <Modal visible={textPrompt !== null} transparent animationType="fade" onRequestClose={() => setTextPrompt(null)}>
+      {/* Text entry / edit modal */}
+      <Modal visible={textModal !== null} transparent animationType="fade" onRequestClose={() => setTextModal(null)}>
         <View style={styles.textModalBackdrop}>
           <View style={styles.textModal}>
-            <Text style={styles.textModalTitle}>Add label</Text>
+            <Text style={styles.textModalTitle}>{textModal?.mode === "edit" ? "Edit label" : "Add label"}</Text>
             <TextInput
               style={styles.textModalInput}
               value={textValue}
@@ -705,13 +934,26 @@ export default function MarkupStudio() {
               placeholderTextColor={palette.textFaint}
               autoFocus
               onSubmitEditing={commitText}
+              testID="markup-text-input"
             />
+            <TouchableOpacity style={styles.bgToggleRow} onPress={() => setTextBg((v) => !v)} activeOpacity={0.7}>
+              <View style={[styles.bgToggleBox, textBg && styles.bgToggleBoxOn]}>
+                {textBg ? <Check color={palette.white} size={13} strokeWidth={3} /> : null}
+              </View>
+              <View style={styles.bgToggleTextWrap}>
+                <Text style={styles.bgToggleLabel}>Background pill</Text>
+                <Text style={styles.bgToggleSub}>Keeps labels readable on busy site photos</Text>
+              </View>
+            </TouchableOpacity>
+            <Text style={styles.textModalHint}>
+              After adding, drag the label into position — tap it again to edit.
+            </Text>
             <View style={styles.textModalRow}>
-              <TouchableOpacity style={styles.textModalBtn} onPress={() => setTextPrompt(null)}>
+              <TouchableOpacity style={styles.textModalBtn} onPress={() => setTextModal(null)}>
                 <Text style={styles.textModalCancel}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.textModalBtn, styles.textModalPrimary]} onPress={commitText}>
-                <Text style={styles.textModalOk}>Add</Text>
+                <Text style={styles.textModalOk}>{textModal?.mode === "edit" ? "Update" : "Add"}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -730,9 +972,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
-  topCenter: { flexDirection: "row", gap: spacing.sm },
   topBtn: {
     width: 40,
     height: 40,
@@ -741,8 +982,41 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  topBtnDisabled: { opacity: 0.35 },
-  saveBtn: { backgroundColor: palette.green },
+  topCenter: { flex: 1, alignItems: "center", gap: 2 },
+  topTitle: { color: palette.white, fontSize: font.size.md, fontFamily: font.family.heading, letterSpacing: -0.2 },
+  saveState: { flexDirection: "row", alignItems: "center", gap: 5 },
+  saveDot: { width: 6, height: 6, borderRadius: 3 },
+  saveStateText: { color: palette.greenBright, fontSize: 10, fontFamily: font.family.bodyBold, textTransform: "uppercase", letterSpacing: 0.6 },
+  saveStateDirty: { color: "#F5A623" },
+  saveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: palette.green,
+    borderRadius: radius.pill,
+    paddingHorizontal: 16,
+    height: 40,
+    minWidth: 84,
+    justifyContent: "center",
+  },
+  saveBtnText: { color: palette.white, fontSize: font.size.sm, fontFamily: font.family.bodyBold },
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  actionsSpacer: { flex: 1 },
+  miniBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.09)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  miniBtnDisabled: { opacity: 0.3 },
   canvasWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.sm },
   canvas: {
     width: "100%",
@@ -754,12 +1028,23 @@ const styles = StyleSheet.create({
   selectionBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    gap: 2,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: radius.pill,
   },
-  selectionText: { flex: 1, color: palette.textFaint, fontSize: font.size.xs, fontFamily: font.family.bodyBold, textTransform: "capitalize" },
-  selectionBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 8, paddingHorizontal: 10 },
+  selectionText: {
+    flex: 1,
+    color: palette.textFaint,
+    fontSize: font.size.xs,
+    fontFamily: font.family.bodyBold,
+    textTransform: "capitalize",
+  },
+  selectionBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 8, paddingHorizontal: 8 },
+  selectionIconBtn: { paddingVertical: 8, paddingHorizontal: 7 },
   selectionBtnText: { color: palette.white, fontSize: font.size.sm, fontFamily: font.family.bodyBold },
   styleBar: {
     flexDirection: "row",
@@ -781,6 +1066,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.1)",
   },
   strokeBtnActive: { backgroundColor: palette.white },
+  strokeBtnDisabled: { opacity: 0.3 },
   strokeDot: { backgroundColor: palette.white },
   strokeDotActive: { backgroundColor: palette.carbon },
   toolBar: {
@@ -818,6 +1104,21 @@ const styles = StyleSheet.create({
     fontSize: font.size.md,
     color: palette.text,
   },
+  bgToggleRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: spacing.md },
+  bgToggleBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: palette.borderStrong,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bgToggleBoxOn: { backgroundColor: palette.green, borderColor: palette.green },
+  bgToggleTextWrap: { flex: 1 },
+  bgToggleLabel: { fontSize: font.size.sm, fontFamily: font.family.bodySemibold, color: palette.text },
+  bgToggleSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 1 },
+  textModalHint: { fontSize: font.size.xs, color: palette.textFaint, marginTop: spacing.sm, lineHeight: 16 },
   textModalRow: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.md },
   textModalBtn: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: radius.md },
   textModalPrimary: { backgroundColor: palette.carbon },

@@ -13,6 +13,11 @@ export function strokePx(strokeWidth: number, renderWidth: number): number {
   return Math.max(1, (strokeWidth * renderWidth) / 1000);
 }
 
+/** Rough single-line text width estimate used for label pills + hit testing. */
+export function estimateTextWidthPx(text: string, fontSizePx: number): number {
+  return Math.max(fontSizePx * 0.6, text.length * fontSizePx * 0.58);
+}
+
 export function arrowHeadPoints(
   x1: number,
   y1: number,
@@ -72,9 +77,18 @@ export function elementsToSvgInner(elements: AnnotationElement[], w: number, h: 
       }
       case "text": {
         const fs = Math.max(10, (el.fontSize * w) / 1000);
-        parts.push(
-          `<text x="${el.x * w}" y="${el.y * h}" fill="${el.color}" font-size="${fs}" font-weight="700" font-family="Helvetica, Arial, sans-serif" paint-order="stroke" stroke="rgba(0,0,0,0.55)" stroke-width="${fs / 8}">${escapeHtml(el.text)}</text>`,
-        );
+        if (el.bg) {
+          const tw = estimateTextWidthPx(el.text, fs);
+          const padX = fs * 0.45;
+          parts.push(
+            `<rect x="${el.x * w - padX}" y="${el.y * h - fs * 1.05}" width="${tw + padX * 2}" height="${fs * 1.5}" rx="${fs * 0.35}" fill="${el.color}" opacity="0.94"/>`,
+            `<text x="${el.x * w}" y="${el.y * h}" fill="#FFFFFF" font-size="${fs}" font-weight="800" font-family="Helvetica, Arial, sans-serif">${escapeHtml(el.text)}</text>`,
+          );
+        } else {
+          parts.push(
+            `<text x="${el.x * w}" y="${el.y * h}" fill="${el.color}" font-size="${fs}" font-weight="700" font-family="Helvetica, Arial, sans-serif" paint-order="stroke" stroke="rgba(0,0,0,0.55)" stroke-width="${fs / 8}">${escapeHtml(el.text)}</text>`,
+          );
+        }
         break;
       }
       case "callout": {

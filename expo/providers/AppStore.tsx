@@ -443,8 +443,15 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
               ...prev.annotations,
               { ...newBase(), assetId, issueId, elements, toolsetVersion: 1 },
             ];
+        // Clearing all markup also clears the stale flattened copy so the
+        // hit list and report fall back to the preserved original photo.
         const assets = prev.assets.map((a) =>
-          a.id === assetId ? touched({ ...a, annotatedUri: annotatedUri ?? a.annotatedUri }) : a,
+          a.id === assetId
+            ? touched({
+                ...a,
+                annotatedUri: elements.length === 0 ? null : (annotatedUri ?? a.annotatedUri),
+              })
+            : a,
         );
         return {
           ...prev,

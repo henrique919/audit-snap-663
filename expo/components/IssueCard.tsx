@@ -1,11 +1,14 @@
-/** Issue card for the hit list. */
+/**
+ * Issue card for the hit list — status spine on the left edge, annotated
+ * thumbnail preferred over the original photo, "Marked up" badge.
+ */
 
 import { Image } from "expo-image";
 import { Camera, EyeOff, MapPin, PenLine, UserRound } from "lucide-react-native";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-import { PriorityPill, StatusPill } from "@/components/pills";
+import { PriorityPill, STATUS_COLORS, StatusPill } from "@/components/pills";
 import { font, palette, radius, spacing } from "@/constants/theme";
 import { issueRef } from "@/lib/format";
 import type { Issue, PhotoAsset } from "@/types/models";
@@ -22,7 +25,12 @@ interface IssueCardProps {
 }
 
 function IssueCardInner({ issue, assets, locationName, assigneeName, hasMarkup, onPress, onLongPress }: IssueCardProps) {
-  const thumb = assets[0]?.thumbUri;
+  const first = assets[0];
+  // Prefer the flattened annotated copy so the hit list shows the markup.
+  const thumb = first ? (first.annotatedUri ?? first.thumbUri) : undefined;
+  const showMarkupBadge = hasMarkup || !!first?.annotatedUri;
+  const spineColor = STATUS_COLORS[issue.status].color;
+
   return (
     <TouchableOpacity
       activeOpacity={0.85}
@@ -32,6 +40,7 @@ function IssueCardInner({ issue, assets, locationName, assigneeName, hasMarkup, 
       style={[styles.card, !issue.includeInReport && styles.excluded]}
       testID={`issue-card-${issue.id}`}
     >
+      <View style={[styles.spine, { backgroundColor: spineColor }]} />
       <View style={styles.thumbWrap}>
         {thumb ? (
           <Image source={{ uri: thumb }} style={styles.thumb} contentFit="cover" />
@@ -45,9 +54,10 @@ function IssueCardInner({ issue, assets, locationName, assigneeName, hasMarkup, 
             <Text style={styles.photoCountText}>{assets.length}</Text>
           </View>
         ) : null}
-        {hasMarkup ? (
+        {showMarkupBadge ? (
           <View style={styles.markupBadge}>
-            <PenLine color={palette.white} size={10} />
+            <PenLine color={palette.white} size={9} />
+            <Text style={styles.markupBadgeText}>Marked up</Text>
           </View>
         ) : null}
       </View>
@@ -88,12 +98,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.border,
     padding: spacing.sm,
+    paddingLeft: spacing.sm + 6,
     marginBottom: spacing.sm,
     gap: spacing.md,
+    overflow: "hidden",
   },
+  spine: { position: "absolute", left: 0, top: 0, bottom: 0, width: 4 },
   excluded: { opacity: 0.55 },
   thumbWrap: { position: "relative" },
-  thumb: { width: 82, height: 82, borderRadius: radius.md },
+  thumb: { width: 86, height: 86, borderRadius: radius.md },
   thumbPlaceholder: {
     backgroundColor: palette.surfaceAlt,
     alignItems: "center",
@@ -102,7 +115,7 @@ const styles = StyleSheet.create({
   photoCount: {
     position: "absolute",
     right: 4,
-    bottom: 4,
+    top: 4,
     backgroundColor: "rgba(22,26,29,0.85)",
     borderRadius: radius.pill,
     paddingHorizontal: 6,
@@ -112,14 +125,16 @@ const styles = StyleSheet.create({
   markupBadge: {
     position: "absolute",
     left: 4,
-    top: 4,
+    bottom: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
     backgroundColor: palette.green,
     borderRadius: radius.pill,
-    width: 18,
-    height: 18,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
   },
+  markupBadgeText: { color: palette.white, fontSize: 8, fontFamily: font.family.bodyBold, textTransform: "uppercase", letterSpacing: 0.3 },
   body: { flex: 1, paddingVertical: 2 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   number: {

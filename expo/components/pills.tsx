@@ -7,7 +7,7 @@ import { font, palette, radius } from "@/constants/theme";
 import type { IssuePriority, IssueStatus, SyncStatus } from "@/types/models";
 import { PRIORITY_LABEL, STATUS_LABEL } from "@/types/models";
 
-const STATUS_COLORS: Record<IssueStatus, { color: string; soft: string }> = {
+export const STATUS_COLORS: Record<IssueStatus, { color: string; soft: string }> = {
   open: { color: palette.red, soft: palette.redSoft },
   assigned: { color: palette.amber, soft: palette.amberSoft },
   in_progress: { color: palette.info, soft: palette.infoSoft },

@@ -124,13 +124,17 @@ export interface PhotoAsset extends BaseRecord {
  * All coordinates are normalised 0..1 relative to the image.
  * Stroke widths / font sizes are relative to a virtual 1000px-wide canvas
  * so markup renders identically in-app and in the PDF.
+ *
+ * Elements are editable layered objects: array order is the z/layer order
+ * (later = on top). Every element is selectable, movable, resizable and
+ * restylable after creation — the photo is never permanently drawn on.
  */
 export type AnnotationElement =
   | { id: string; type: "arrow"; x1: number; y1: number; x2: number; y2: number; stroke: string; strokeWidth: number }
   | { id: string; type: "ellipse"; cx: number; cy: number; rx: number; ry: number; stroke: string; strokeWidth: number }
   | { id: string; type: "rect"; x: number; y: number; width: number; height: number; stroke: string; strokeWidth: number }
   | { id: string; type: "pen"; points: { x: number; y: number }[]; stroke: string; strokeWidth: number }
-  | { id: string; type: "text"; x: number; y: number; text: string; color: string; fontSize: number }
+  | { id: string; type: "text"; x: number; y: number; text: string; color: string; fontSize: number; bg?: boolean }
   | { id: string; type: "callout"; cx: number; cy: number; number: number; color: string; size: number }
   | { id: string; type: "blur"; x: number; y: number; width: number; height: number; intensity: number };
 
