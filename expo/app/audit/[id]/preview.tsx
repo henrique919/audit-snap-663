@@ -4,18 +4,18 @@ import * as MailComposer from "expo-mail-composer";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { Stack, useLocalSearchParams } from "expo-router";
-import { CheckCircle2, FileText, Mail, Share2 } from "lucide-react-native";
+import { AlertTriangle, CheckCircle2, FileText, Mail, Share2, ShieldCheck } from "lucide-react-native";
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AppButton, Card } from "@/components/ui";
-import { STATUS_COLORS } from "@/components/pills";
+import { STATUS_COLORS, StatusPill } from "@/components/pills";
 import { BrandConfig, buildEmailBody, buildEmailSubject } from "@/constants/config";
 import { font, palette, radius, spacing } from "@/constants/theme";
 import { fileToDataUri, persistGeneratedPdf } from "@/lib/files";
-import { formatDate, issueRef } from "@/lib/format";
+import { formatDate, formatDateTime, issueRef } from "@/lib/format";
 import { buildReportHtml } from "@/lib/report";
-import { useAppStore, useAudit, useIssuesForAudit, useProject } from "@/providers/AppStore";
+import { useAppStore, useAudit, useIssuesForAudit, useProject, useReportFreshness } from "@/providers/AppStore";
 import { DEFAULT_REPORT_OPTIONS, ReportOptions } from "@/types/models";
 
 export default function ReportPreviewScreen() {
@@ -24,6 +24,7 @@ export default function ReportPreviewScreen() {
   const audit = useAudit(id);
   const project = useProject(audit?.projectId);
   const issues = useIssuesForAudit(id);
+  const freshness = useReportFreshness(id);
 
   const options: ReportOptions = useMemo(() => {
     try {
@@ -71,6 +72,23 @@ export default function ReportPreviewScreen() {
     () => Math.max(0.3, (photoCount * 0.35 + 0.2)).toFixed(1),
     [photoCount],
   );
+
+  const sampleIssue = includedIssues[0] ?? null;
+  const sampleAsset = useMemo(
+    () => (sampleIssue ? (db.assets.find((a) => a.issueId === sampleIssue.id && !a.deletedAt) ?? null) : null),
+    [db.assets, sampleIssue],
+  );
+
+  /** Whether any included photo carries a privacy blur — shown as a redaction guarantee. */
+  const hasPrivacyBlur = useMemo(() => {
+    const includedIds = new Set(includedIssues.map((i) => i.id));
+    return db.annotations.some(
+      (an) => includedIds.has(an.issueId) && an.elements.some((el) => el.type === "blur"),
+    );
+  }, [db.annotations, includedIssues]);
+
+  const reportState: "none" | "ready" | "stale" =
+    pdfUri || freshness.lastExport ? (freshness.isStale ? "stale" : "ready") : "none";
 
   const generate = useCallback(async (): Promise<string | null> => {
     if (!audit || !project) return null;
@@ -130,12 +148,53 @@ export default function ReportPreviewScreen() {
   }, [audit, project, db.assets, db.locations, db.assignees, db.annotations, includedIssues, options, photoCount, addReportExport]);
 
   const ensurePdf = useCallback(async (): Promise<string | null> => {
-    return pdfUri ?? (await generate());
-  }, [pdfUri, generate]);
+    if (pdfUri) return pdfUri;
+    // Reuse the last export only when it is up to date AND was generated
+    // with the same options — otherwise regenerate.
+    if (
+      freshness.lastExport &&
+      !freshness.isStale &&
+      Platform.OS !== "web" &&
+      JSON.stringify(freshness.lastExport.options) === JSON.stringify(options)
+    ) {
+      return freshness.lastExport.pdfUri;
+    }
+    return generate();
+  }, [pdfUri, freshness.lastExport, freshness.isStale, options, generate]);
 
-  const share = useCallback(async () => {
-    const uri = await ensurePdf();
-    if (!uri) return;
+  /**
+   * Runs an action with a PDF, but never silently uses an outdated one:
+   * if content changed since the last export, the user chooses to
+   * regenerate or knowingly use the existing file.
+   */
+  const withFreshPdf = useCallback(
+    async (action: (uri: string) => Promise<void>) => {
+      const existingUri = pdfUri ?? freshness.lastExport?.pdfUri ?? null;
+      if (freshness.isStale && existingUri) {
+        Alert.alert(
+          "Report out of date",
+          "Issues, photos or markup changed since this PDF was generated. Regenerate to include the latest changes?",
+          [
+            {
+              text: "Regenerate & Continue",
+              onPress: async () => {
+                const uri = await generate();
+                if (uri) await action(uri);
+              },
+            },
+            { text: "Use existing PDF", onPress: async () => action(existingUri) },
+            { text: "Cancel", style: "cancel" },
+          ],
+        );
+        return;
+      }
+      const uri = await ensurePdf();
+      if (uri) await action(uri);
+    },
+    [pdfUri, freshness.lastExport, freshness.isStale, generate, ensurePdf],
+  );
+
+  const doShare = useCallback(async (uri: string) => {
     try {
       if (Platform.OS === "web") {
         Alert.alert("PDF ready", "On web, use your browser's print dialog to save the report.");
@@ -147,13 +206,14 @@ export default function ReportPreviewScreen() {
       }
     } catch (e) {
       console.log("[preview] share failed", e);
+      Alert.alert("Share failed", "The saved PDF may have been removed. Regenerate and try again.");
     }
-  }, [ensurePdf]);
+  }, []);
 
-  const email = useCallback(async () => {
+  const share = useCallback(() => withFreshPdf(doShare), [withFreshPdf, doShare]);
+
+  const doEmail = useCallback(async (uri: string) => {
     if (!audit || !project) return;
-    const uri = await ensurePdf();
-    if (!uri) return;
     const subject = buildEmailSubject(project.name, formatDate(audit.auditDate));
     const body = buildEmailBody(
       project.name,
@@ -174,7 +234,9 @@ export default function ReportPreviewScreen() {
       console.log("[preview] email failed", e);
       Alert.alert("Email unavailable", "Could not open the mail composer. Use Share instead.");
     }
-  }, [audit, project, ensurePdf, settings.inspectorName]);
+  }, [audit, project, settings.inspectorName]);
+
+  const email = useCallback(() => withFreshPdf(doEmail), [withFreshPdf, doEmail]);
 
   if (!audit || !project) {
     return (
@@ -265,16 +327,91 @@ export default function ReportPreviewScreen() {
           </Card>
         ) : null}
 
-        {pdfUri ? (
-          <View style={styles.readyRow}>
-            <CheckCircle2 color={palette.green} size={18} />
-            <Text style={styles.readyText}>PDF ready locally · saved to reports</Text>
+        {/* Item page preview — what a detail block looks like in the PDF */}
+        {sampleIssue ? (
+          <Card style={styles.itemCard}>
+            <Text style={styles.summaryTitle}>Item page preview</Text>
+            <View style={styles.itemRow}>
+              {sampleAsset ? (
+                <Image
+                  source={{ uri: sampleAsset.annotatedUri ?? sampleAsset.thumbUri }}
+                  style={styles.itemThumb}
+                />
+              ) : (
+                <View style={[styles.itemThumb, styles.itemThumbEmpty]}>
+                  <FileText color={palette.textFaint} size={18} />
+                </View>
+              )}
+              <View style={styles.itemBody}>
+                <View style={styles.itemTopRow}>
+                  <Text style={styles.itemNum}>{issueRef(sampleIssue.issueNumber)}</Text>
+                  <StatusPill status={sampleIssue.status} />
+                </View>
+                <Text style={styles.itemTitle} numberOfLines={1}>
+                  {sampleIssue.title || "Untitled issue"}
+                </Text>
+                {sampleIssue.description ? (
+                  <Text style={styles.itemDesc} numberOfLines={2}>
+                    {sampleIssue.description}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+            <Text style={styles.itemNote}>
+              Each item gets a detail block like this
+              {options.includeAnnotatedPhotos ? " — marked-up photos are used where available" : ""}.
+            </Text>
+          </Card>
+        ) : null}
+
+        {hasPrivacyBlur ? (
+          <View style={styles.privacyRow}>
+            <ShieldCheck color={palette.green} size={16} />
+            <Text style={styles.privacyText}>
+              Privacy blurs are permanently redacted in the exported PDF — including on original
+              photos.
+            </Text>
           </View>
         ) : null}
 
+        {/* Report status */}
+        <View style={[styles.statusRow, reportState === "stale" && styles.statusRowStale]}>
+          {reportState === "stale" ? (
+            <>
+              <AlertTriangle color={palette.amber} size={18} />
+              <View style={styles.statusBody}>
+                <Text style={styles.statusStaleText}>Report needs regeneration</Text>
+                <Text style={styles.statusSub}>
+                  Content changed since the last PDF
+                  {freshness.lastExport ? ` (${formatDateTime(freshness.lastExport.createdAt)})` : ""}.
+                </Text>
+              </View>
+            </>
+          ) : reportState === "ready" ? (
+            <>
+              <CheckCircle2 color={palette.green} size={18} />
+              <View style={styles.statusBody}>
+                <Text style={styles.readyText}>PDF ready · up to date</Text>
+                <Text style={styles.statusSub}>
+                  Saved on this device
+                  {freshness.lastExport ? ` · ${formatDateTime(freshness.lastExport.createdAt)}` : ""}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <FileText color={palette.textFaint} size={18} />
+              <View style={styles.statusBody}>
+                <Text style={styles.statusNoneText}>No PDF generated yet</Text>
+                <Text style={styles.statusSub}>Generate below — the PDF is created and stored on this device.</Text>
+              </View>
+            </>
+          )}
+        </View>
+
         <AppButton
           testID="generate-pdf"
-          label={pdfUri ? "Regenerate PDF" : "Generate PDF"}
+          label={reportState === "none" ? "Generate PDF" : "Regenerate PDF"}
           icon={<FileText color={palette.white} size={18} />}
           onPress={generate}
           loading={generating}
@@ -357,7 +494,42 @@ const styles = StyleSheet.create({
   hitTitle: { flex: 1, fontSize: font.size.sm, fontFamily: font.family.bodySemibold, color: palette.text },
   hitLoc: { fontSize: font.size.xs, color: palette.textFaint, maxWidth: 110 },
   hitMore: { fontSize: font.size.xs, color: palette.textFaint, marginTop: 2 },
-  readyRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  itemCard: { gap: spacing.sm },
+  itemRow: { flexDirection: "row", gap: spacing.md },
+  itemThumb: { width: 76, height: 76, borderRadius: radius.sm, backgroundColor: palette.surfaceAlt },
+  itemThumbEmpty: { alignItems: "center", justifyContent: "center" },
+  itemBody: { flex: 1, gap: 4 },
+  itemTopRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  itemNum: { fontSize: font.size.xs, fontFamily: font.family.headingHeavy, color: palette.textMuted },
+  itemTitle: { fontSize: font.size.sm, fontFamily: font.family.bodyBold, color: palette.text },
+  itemDesc: { fontSize: font.size.xs, color: palette.textMuted, lineHeight: 16 },
+  itemNote: { fontSize: font.size.xs, color: palette.textFaint },
+  privacyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: palette.greenSoft,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  privacyText: { flex: 1, fontSize: font.size.xs, color: palette.green, fontFamily: font.family.bodySemibold, lineHeight: 16 },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: palette.surface,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: palette.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  statusRowStale: { borderColor: palette.amber, backgroundColor: palette.amberSoft },
+  statusBody: { flex: 1 },
+  statusSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 1 },
+  statusStaleText: { fontSize: font.size.sm, color: palette.amber, fontFamily: font.family.bodyBold },
+  statusNoneText: { fontSize: font.size.sm, color: palette.textMuted, fontFamily: font.family.bodyBold },
   readyText: { fontSize: font.size.sm, color: palette.green, fontFamily: font.family.bodyBold },
   btnRow: { flexDirection: "row", gap: spacing.sm },
   halfBtn: { flex: 1 },

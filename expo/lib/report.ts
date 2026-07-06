@@ -6,7 +6,7 @@
 import { BrandConfig, REPORT_THEMES } from "@/constants/config";
 import { reportFontStack } from "@/constants/typography";
 import { escapeHtml, formatDate, formatDateTime, issueRef } from "@/lib/format";
-import { blurRegionsHtml, elementsToOverlaySvg } from "@/lib/annotationSvg";
+import { elementsToOverlaySvg } from "@/lib/annotationSvg";
 import type {
   AnnotationRecord,
   Assignee,
@@ -77,24 +77,34 @@ interface IssuePhotoHtmlArgs {
 
 function photoFigure({ asset, annotation, annotated, imageSrc, label }: IssuePhotoHtmlArgs): string {
   const elements = annotation?.elements ?? [];
-  const hasBlur = elements.some((el) => el.type === "blur");
-  // When a privacy blur exists, prefer the flattened annotated copy for the
-  // marked-up figure — the blur is burnt in at save time, so it can never
-  // leak in the PDF. Otherwise re-render crisp vector markup over the photo.
+  const blurEls = elements.filter((el) => el.type === "blur");
+  const hasBlur = blurEls.length > 0;
+  // Privacy-safe export path (verified end-to-end):
+  //  1. Marked-up figure with blur → use the flattened copy whenever it
+  //     exists; the live blur is burnt into its pixels at save time, so it
+  //     can never leak in the PDF.
+  //  2. Any figure rendered from the raw photo (an "Original" figure, or a
+  //     missing flattened copy) → blur regions become OPAQUE SVG redaction
+  //     blocks. Never rely on CSS filter blur — the PDF renderer is not
+  //     guaranteed to apply it, and a dropped filter would leak the photo.
   const useFlattened = annotated && hasBlur && !!asset.annotatedUri;
   const src = imageSrc(useFlattened && asset.annotatedUri ? asset.annotatedUri : asset.reportUri);
-  // Privacy blur also applies to "original" figures and to the fallback path
-  // (flattened copy unavailable) via CSS-blurred clipped regions.
-  const blurHtml = !useFlattened && hasBlur ? blurRegionsHtml(elements, imageSrc(asset.reportUri)) : "";
-  const overlay =
-    !useFlattened && annotated && elements.length > 0
-      ? elementsToOverlaySvg(elements, asset.width, asset.height)
-      : "";
+  let overlay = "";
+  if (!useFlattened) {
+    if (annotated && elements.length > 0) {
+      overlay = elementsToOverlaySvg(elements, asset.width, asset.height, { blurAsRedaction: true });
+    } else if (hasBlur) {
+      // Original photo still respects privacy redaction.
+      overlay = elementsToOverlaySvg(blurEls, asset.width, asset.height, { blurAsRedaction: true });
+    }
+  }
+  // padding-top ratio box instead of CSS aspect-ratio — reliable in the
+  // print/PDF renderer across platforms.
+  const framePad = ((asset.height / Math.max(1, asset.width)) * 100).toFixed(2);
   return `
     <figure class="photo">
-      <div class="photo-frame" style="aspect-ratio:${asset.width}/${asset.height}">
+      <div class="photo-frame" style="padding-top:${framePad}%">
         <img src="${src}" alt=""/>
-        ${blurHtml}
         ${overlay}
       </div>
       <figcaption>${escapeHtml(label)}</figcaption>
@@ -410,7 +420,7 @@ export function buildReportHtml(data: ReportData): string {
   .item-desc { font-size: 10.5px; color: #283238; margin-bottom: 9px; white-space: pre-wrap; }
   .photos { display: flex; flex-wrap: wrap; gap: 2.5%; }
   .photo { width: var(--pw, 48.5%); margin-bottom: 8px; background: #fff; border: 1px solid #DDE3E8; border-radius: 8px; padding: 5px; page-break-inside: avoid; }
-  .photo-frame { position: relative; width: 100%; border-radius: 5px; overflow: hidden; background: #EDF0F3; }
+  .photo-frame { position: relative; width: 100%; height: 0; border-radius: 5px; overflow: hidden; background: #EDF0F3; }
   .photo-frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
   figcaption { color: #69747D; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.45px; margin-top: 4px; font-weight: 800; }
 

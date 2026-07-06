@@ -1,6 +1,9 @@
 /**
- * Demo seed data — one realistic project with an audit and 7 issues across
- * multiple locations/statuses, including sample annotations.
+ * Demo seed data — one realistic project with an audit and 8 issues across
+ * multiple locations/statuses, including sample annotations. Issue 8 is a
+ * "markup QA" sample demonstrating every annotation tool (arrow, circle,
+ * box, pen, text label, numbered callouts and a privacy blur) so the markup
+ * studio and report redaction path can be reviewed without manual setup.
  *
  * Easy to remove: delete this file and the single call in providers/AppStore.
  * Users can also wipe it from Settings → Reset demo data.
@@ -138,6 +141,38 @@ const SEED_ISSUES: SeedIssue[] = [
     location: 1,
     assignee: 0,
     photo: 5,
+  },
+  {
+    title: "Temporary switchboard unsecured — signage non-compliant",
+    description:
+      "Temporary site switchboard door left open with contractor contact details exposed. Secure the door, replace non-compliant signage and re-issue the test tag. Contractor phone number has been redacted in the report copy.",
+    status: "in_progress",
+    priority: "high",
+    location: 1,
+    assignee: 2,
+    photo: 4,
+    annotations: [
+      { id: "ann_100", type: "rect", x: 0.1, y: 0.16, width: 0.36, height: 0.34, stroke: "#E53935", strokeWidth: 8 },
+      { id: "ann_101", type: "ellipse", cx: 0.7, cy: 0.28, rx: 0.12, ry: 0.09, stroke: "#0EA5E9", strokeWidth: 8 },
+      { id: "ann_102", type: "arrow", x1: 0.58, y1: 0.74, x2: 0.4, y2: 0.48, stroke: "#E53935", strokeWidth: 8 },
+      {
+        id: "ann_103",
+        type: "pen",
+        points: [
+          { x: 0.14, y: 0.6 },
+          { x: 0.17, y: 0.64 },
+          { x: 0.21, y: 0.6 },
+          { x: 0.25, y: 0.65 },
+          { x: 0.29, y: 0.61 },
+        ],
+        stroke: "#F59E0B",
+        strokeWidth: 8,
+      },
+      { id: "ann_104", type: "text", x: 0.5, y: 0.8, text: "Door left open", color: "#E53935", fontSize: 42, bg: true },
+      { id: "ann_105", type: "callout", cx: 0.16, cy: 0.1, number: 1, color: "#E53935", size: 64 },
+      { id: "ann_106", type: "callout", cx: 0.85, cy: 0.14, number: 2, color: "#0EA5E9", size: 64 },
+      { id: "ann_107", type: "blur", x: 0.56, y: 0.54, width: 0.26, height: 0.12, intensity: 18 },
+    ],
   },
 ];
 

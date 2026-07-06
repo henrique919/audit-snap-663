@@ -11,6 +11,7 @@ import { EmptyState, SectionTitle } from "@/components/ui";
 import { font, palette, radius, spacing } from "@/constants/theme";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { useAppStore } from "@/providers/AppStore";
+import type { ReportExport } from "@/types/models";
 
 export default function ReportsTab() {
   const router = useRouter();
@@ -34,6 +35,15 @@ export default function ReportsTab() {
   const auditTitle = (id: string) => db.audits.find((a) => a.id === id)?.title ?? "Audit";
   const issueCount = (auditId: string) =>
     db.issues.filter((i) => i.auditId === auditId && !i.deletedAt).length;
+
+  /** Content changed after this PDF was generated → flag it as outdated. */
+  const isExportStale = (exp: ReportExport): boolean => {
+    const issues = db.issues.filter((i) => i.auditId === exp.auditId);
+    const issueIds = new Set(issues.map((i) => i.id));
+    const assets = db.assets.filter((a) => a.auditId === exp.auditId);
+    const annotations = db.annotations.filter((an) => issueIds.has(an.issueId));
+    return [...issues, ...assets, ...annotations].some((r) => r.updatedAt > exp.createdAt);
+  };
 
   const sharePdf = async (uri: string) => {
     try {
@@ -108,6 +118,11 @@ export default function ReportsTab() {
               <Text style={styles.rowSub} numberOfLines={1}>
                 {formatDateTime(exp.createdAt)} · {exp.issueCount} issues · {exp.photoCount} photos
               </Text>
+              {isExportStale(exp) ? (
+                <Text style={styles.rowStale} numberOfLines={1}>
+                  Content changed since export — regenerate before issuing
+                </Text>
+              ) : null}
             </View>
             <TouchableOpacity style={styles.shareBtn} onPress={() => sharePdf(exp.pdfUri)} testID={`share-export-${exp.id}`}>
               <Share2 color={palette.carbon} size={18} />
@@ -147,6 +162,7 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1 },
   rowTitle: { fontSize: font.size.md, fontFamily: font.family.bodyBold, color: palette.text },
   rowSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 2 },
+  rowStale: { fontSize: font.size.xs, color: palette.amber, fontFamily: font.family.bodyBold, marginTop: 2 },
   shareBtn: {
     width: 40,
     height: 40,

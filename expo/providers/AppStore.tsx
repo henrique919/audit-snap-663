@@ -569,6 +569,32 @@ export function useIssuesForAudit(auditId: string | undefined) {
   );
 }
 
+/**
+ * Freshness of the latest generated PDF for an audit: compares the export
+ * time against the newest content change (issues, photos, annotations —
+ * including soft-deletes, which also bump updatedAt). Drives "report needs
+ * regeneration" states so an outdated PDF is never shared silently.
+ */
+export function useReportFreshness(auditId: string | undefined) {
+  const { db } = useAppStore();
+  return useMemo(() => {
+    const lastExport =
+      db.reports
+        .filter((r) => r.auditId === auditId && !r.deletedAt)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
+    const issues = db.issues.filter((i) => i.auditId === auditId);
+    const issueIds = new Set(issues.map((i) => i.id));
+    const assets = db.assets.filter((a) => a.auditId === auditId);
+    const annotations = db.annotations.filter((an) => issueIds.has(an.issueId));
+    const contentUpdatedAt = [...issues, ...assets, ...annotations].reduce<string | null>(
+      (acc, r) => (acc === null || r.updatedAt > acc ? r.updatedAt : acc),
+      null,
+    );
+    const isStale = !!lastExport && !!contentUpdatedAt && contentUpdatedAt > lastExport.createdAt;
+    return { lastExport, contentUpdatedAt, isStale };
+  }, [db.reports, db.issues, db.assets, db.annotations, auditId]);
+}
+
 export function useProjectStats(projectId: string | undefined) {
   const { db } = useAppStore();
   return useMemo(() => {

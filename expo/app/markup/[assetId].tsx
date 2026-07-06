@@ -67,7 +67,7 @@ import {
   resizeElement,
   translateElement,
 } from "@/lib/annotationGeometry";
-import { cropWorkingImage, persistAnnotatedCapture, rotateWorkingImage } from "@/lib/files";
+import { cropWorkingImage, persistAnnotatedCapture, regenerateThumbnail, rotateWorkingImage } from "@/lib/files";
 import { newId } from "@/lib/ids";
 import { useAppStore } from "@/providers/AppStore";
 import type { AnnotationElement } from "@/types/models";
@@ -79,8 +79,9 @@ const TEXT_SIZES = [32, 44, 60] as const;
 const BLUR_INTENSITIES = [10, 18, 30] as const;
 const HANDLE_HIT_PX = 26;
 const TAP_THRESHOLD = 0.012;
-
-const DRAW_TOOLS: Tool[] = ["arrow", "ellipse", "rect", "pen", "blur"];
+/** Min normalised distance between recorded pen points — keeps long freehand
+ * strokes light enough for smooth rendering and hit testing on large photos. */
+const PEN_MIN_STEP = 0.004;
 
 const ELEMENT_LABEL: Record<AnnotationElement["type"], string> = {
   arrow: "Arrow",
@@ -314,8 +315,13 @@ export default function MarkupStudio() {
           }
 
           if (mode.kind === "move") {
-            const dx = p.x - start.x;
-            const dy = p.y - start.y;
+            // Clamp so the element's centre stays on-canvas — an annotation
+            // can never be dragged fully off the photo and lost.
+            const b = elementBounds(mode.base, aspect);
+            const cx = b.x + b.width / 2;
+            const cy = b.y + b.height / 2;
+            const dx = Math.min(0.98 - cx, Math.max(0.02 - cx, p.x - start.x));
+            const dy = Math.min(0.98 - cy, Math.max(0.02 - cy, p.y - start.y));
             setElements((prev) => prev.map((el) => (el.id === mode.base.id ? translateElement(mode.base, dx, dy) : el)));
             return;
           }
@@ -358,6 +364,10 @@ export default function MarkupStudio() {
                     height: Math.abs(p.y - start.y),
                   };
                 case "pen": {
+                  const last = penPoints.current[penPoints.current.length - 1];
+                  if (last && Math.abs(p.x - last.x) < PEN_MIN_STEP && Math.abs(p.y - last.y) < PEN_MIN_STEP) {
+                    return prev;
+                  }
                   penPoints.current = [...penPoints.current, p];
                   return { ...prev, points: penPoints.current };
                 }
@@ -396,10 +406,10 @@ export default function MarkupStudio() {
           }
 
           const p = dragStart.current;
-          // Tapping an existing annotation while a drawing tool is active
+          // Tapping an existing annotation while any creation tool is active
           // selects it — no need to switch to the Select tool first.
           const hitOnTap =
-            isTap && p && DRAW_TOOLS.includes(tool)
+            isTap && p && tool !== "select" && tool !== "crop"
               ? ([...elements].reverse().find((el) => hitTestElement(el, p, aspect)) ?? null)
               : null;
           if (hitOnTap) {
@@ -604,7 +614,12 @@ export default function MarkupStudio() {
             return { ...el, cx: 1 - el.cy, cy: el.cx };
         }
       };
-      pushHistory(elements.map(rotateEl));
+      // Rotation changes the underlying image, so earlier history snapshots
+      // no longer line up with it — clear undo/redo instead of corrupting it.
+      setElements((prev) => prev.map(rotateEl));
+      setUndoStack([]);
+      setRedoStack([]);
+      setSelectedId(null);
       setDirty(true);
     } catch (e) {
       console.log("[markup] rotate failed", e);
@@ -643,7 +658,12 @@ export default function MarkupStudio() {
             return { ...el, cx: (el.cx - cropRect.x) / cw, cy: (el.cy - cropRect.y) / ch };
         }
       };
-      pushHistory(elements.map(remap));
+      // Crop changes the underlying image — clear undo/redo history so an
+      // undo can't restore coordinates that belong to the pre-crop image.
+      setElements((prev) => prev.map(remap));
+      setUndoStack([]);
+      setRedoStack([]);
+      setSelectedId(null);
       setCropRect(null);
       setTool("select");
       setDirty(true);
@@ -672,7 +692,20 @@ export default function MarkupStudio() {
         }
       }
       if (workingUri && workingDims) {
-        updateAsset(asset.id, { reportUri: workingUri, width: workingDims.width, height: workingDims.height });
+        // The working image was cropped/rotated — refresh the list thumbnail
+        // so the hit list matches the new orientation/frame.
+        let thumbUri: string | null = null;
+        try {
+          thumbUri = await regenerateThumbnail(workingUri, asset.id);
+        } catch (e) {
+          console.log("[markup] thumbnail refresh failed", e);
+        }
+        updateAsset(asset.id, {
+          reportUri: workingUri,
+          width: workingDims.width,
+          height: workingDims.height,
+          ...(thumbUri ? { thumbUri } : {}),
+        });
       }
       saveAnnotation(asset.id, asset.issueId, elements, annotatedUri);
       setDirty(false);
@@ -892,10 +925,20 @@ export default function MarkupStudio() {
 
         {/* Secondary actions */}
         <View style={styles.actionsRow}>
-          <TouchableOpacity style={[styles.miniBtn, undoStack.length === 0 && styles.miniBtnDisabled]} onPress={undo}>
+          <TouchableOpacity
+            style={[styles.miniBtn, undoStack.length === 0 && styles.miniBtnDisabled]}
+            onPress={undo}
+            disabled={undoStack.length === 0}
+            testID="markup-undo"
+          >
             <Undo2 color={palette.white} size={18} />
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.miniBtn, redoStack.length === 0 && styles.miniBtnDisabled]} onPress={redo}>
+          <TouchableOpacity
+            style={[styles.miniBtn, redoStack.length === 0 && styles.miniBtnDisabled]}
+            onPress={redo}
+            disabled={redoStack.length === 0}
+            testID="markup-redo"
+          >
             <Redo2 color={palette.white} size={18} />
           </TouchableOpacity>
           <View style={styles.actionsSpacer} />

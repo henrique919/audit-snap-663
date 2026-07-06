@@ -62,6 +62,19 @@ export async function processPickedPhoto(
   return { originalUri, reportUri, thumbUri, width: report.width, height: report.height };
 }
 
+/** Regenerate the small list thumbnail after crop/rotate transforms. */
+export async function regenerateThumbnail(uri: string, assetId: string): Promise<string> {
+  if (Platform.OS === "web") return uri;
+  await ensureDir(PHOTO_DIR);
+  const thumb = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 500 } }], {
+    compress: 0.6,
+    format: ImageManipulator.SaveFormat.JPEG,
+  });
+  const dest = `${PHOTO_DIR}thumb_${assetId}_${Date.now()}.jpg`;
+  await FileSystem.moveAsync({ from: thumb.uri, to: dest });
+  return dest;
+}
+
 /** Persist a flattened annotated capture (from view-shot) for an asset. */
 export async function persistAnnotatedCapture(tmpUri: string, assetId: string): Promise<string> {
   if (Platform.OS === "web") return tmpUri;

@@ -35,8 +35,23 @@ export function arrowHeadPoints(
   return `${x2},${y2} ${p1x},${p1y} ${p2x},${p2y}`;
 }
 
+export interface SvgRenderOptions {
+  /**
+   * Render privacy-blur elements as fully opaque redaction blocks.
+   * Used for the PDF/export path: the PDF renderer is not guaranteed to
+   * apply CSS/live blur filters, so exported images must never depend on
+   * them — an opaque block can never leak the underlying pixels.
+   */
+  blurAsRedaction?: boolean;
+}
+
 /** Build the inner SVG markup for a set of elements at a given pixel size. */
-export function elementsToSvgInner(elements: AnnotationElement[], w: number, h: number): string {
+export function elementsToSvgInner(
+  elements: AnnotationElement[],
+  w: number,
+  h: number,
+  options?: SvgRenderOptions,
+): string {
   const parts: string[] = [];
   for (const el of elements) {
     switch (el.type) {
@@ -101,39 +116,39 @@ export function elementsToSvgInner(elements: AnnotationElement[], w: number, h: 
         );
         break;
       }
-      case "blur":
-        // Privacy blur is a real image blur, rendered as positioned HTML
-        // regions (see blurRegionsHtml) — not part of the vector overlay.
+      case "blur": {
+        // In-app the blur is a live image blur; in exports it becomes an
+        // opaque redaction block so it can never leak in the PDF.
+        if (!options?.blurAsRedaction) break;
+        const x = el.x * w;
+        const y = el.y * h;
+        const bw = Math.max(2, el.width * w);
+        const bh = Math.max(2, el.height * h);
+        const r = Math.min(8, bw / 6, bh / 6);
+        parts.push(
+          `<rect x="${x}" y="${y}" width="${bw}" height="${bh}" rx="${r}" fill="#565F68"/>`,
+          `<rect x="${x + 1.5}" y="${y + 1.5}" width="${Math.max(1, bw - 3)}" height="${Math.max(1, bh - 3)}" rx="${Math.max(0, r - 1)}" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>`,
+        );
+        const fs = Math.min(bh * 0.34, bw / 8.5, 15);
+        if (fs >= 6.5) {
+          parts.push(
+            `<text x="${x + bw / 2}" y="${y + bh / 2 + fs * 0.36}" fill="rgba(255,255,255,0.72)" font-size="${fs}" font-weight="700" letter-spacing="1.2" text-anchor="middle" font-family="Helvetica, Arial, sans-serif">REDACTED</text>`,
+          );
+        }
         break;
+      }
     }
   }
   return parts.join("");
 }
 
 /** Full absolute-positioned overlay SVG for report HTML. */
-export function elementsToOverlaySvg(elements: AnnotationElement[], w: number, h: number): string {
+export function elementsToOverlaySvg(
+  elements: AnnotationElement[],
+  w: number,
+  h: number,
+  options?: SvgRenderOptions,
+): string {
   if (elements.length === 0) return "";
-  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="position:absolute;left:0;top:0;width:100%;height:100%;">${elementsToSvgInner(elements, w, h)}</svg>`;
-}
-
-/**
- * Real privacy-blur regions for report HTML: each blur element becomes a
- * clipped div containing a CSS-blurred copy of the photo, positioned so it
- * lines up exactly with the underlying image. Percentage-based, so it works
- * at any rendered size.
- */
-export function blurRegionsHtml(elements: AnnotationElement[], src: string): string {
-  const parts: string[] = [];
-  for (const el of elements) {
-    if (el.type !== "blur") continue;
-    const bw = Math.max(0.01, el.width);
-    const bh = Math.max(0.01, el.height);
-    const px = Math.max(4, Math.round(el.intensity / 2.5));
-    parts.push(
-      `<div style="position:absolute;left:${el.x * 100}%;top:${el.y * 100}%;width:${bw * 100}%;height:${bh * 100}%;overflow:hidden;border-radius:4px;">` +
-        `<img src="${src}" alt="" style="position:absolute;width:${100 / bw}%;height:${100 / bh}%;left:${(-el.x / bw) * 100}%;top:${(-el.y / bh) * 100}%;filter:blur(${px}px);-webkit-filter:blur(${px}px);"/>` +
-      `</div>`,
-    );
-  }
-  return parts.join("");
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="position:absolute;left:0;top:0;width:100%;height:100%;">${elementsToSvgInner(elements, w, h, options)}</svg>`;
 }
