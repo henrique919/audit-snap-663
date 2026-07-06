@@ -1,5 +1,6 @@
 /** Capture Mode — the heart of the app. Photo → fast issue sheet → repeat. */
 
+import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -67,6 +68,9 @@ export default function CaptureSession() {
   /** Explicit local-save confirmation — the user should never wonder if it saved. */
   const showSavedToast = useCallback(
     (message: string) => {
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
       setToast(message);
       toastOpacity.setValue(0);
       Animated.sequence([
@@ -112,6 +116,9 @@ export default function CaptureSession() {
 
   const takePhoto = useCallback(async () => {
     try {
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
         Alert.alert("Camera unavailable", "Camera permission is required. You can also add photos from the gallery.");
@@ -160,7 +167,7 @@ export default function CaptureSession() {
         ? findOrCreateLocation(audit.projectId, draft.location).id
         : null;
       const assigneeId = draft.assignee.trim() ? findOrCreateAssignee(draft.assignee).id : null;
-      const issue = createIssue(
+      const saved = createIssue(
         {
           auditId: audit.id,
           projectId: audit.projectId,
@@ -175,13 +182,13 @@ export default function CaptureSession() {
         draft.photos,
       );
       setDraft(null);
-      showSavedToast(`${issueRef(issue.issueNumber)} saved on device`);
+      showSavedToast(`${issueRef(saved.issue.issueNumber)} saved on device`);
       if (next === "photo") {
         takePhoto();
       } else if (next === "review") {
         router.replace({ pathname: "/audit/[id]/hitlist", params: { id: audit.id } });
       }
-      return issue;
+      return saved;
     },
     [draft, audit, createIssue, findOrCreateLocation, findOrCreateAssignee, router, takePhoto, showSavedToast],
   );
@@ -343,17 +350,14 @@ export default function CaptureSession() {
                   variant="secondary"
                   icon={<PenLine color={palette.carbon} size={18} />}
                   onPress={() => {
-                    const issue = saveDraft("markup");
-                    if (issue) {
-                      const asset = db.assets.find((a) => a.issueId === issue.id);
-                      setTimeout(() => {
-                        const created = asset ?? null;
-                        if (created) {
-                          router.push({ pathname: "/markup/[assetId]", params: { assetId: created.id } });
-                        } else {
-                          router.push({ pathname: "/issue/[id]", params: { id: issue.id } });
-                        }
-                      }, 50);
+                    const saved = saveDraft("markup");
+                    if (saved) {
+                      const asset = saved.assets[0];
+                      if (asset) {
+                        router.push({ pathname: "/markup/[assetId]", params: { assetId: asset.id } });
+                      } else {
+                        router.push({ pathname: "/issue/[id]", params: { id: saved.issue.id } });
+                      }
                     }
                   }}
                   style={styles.markupBtn}

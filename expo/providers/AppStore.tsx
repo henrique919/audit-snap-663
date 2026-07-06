@@ -283,7 +283,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
   );
 
   const createIssue = useCallback(
-    (input: CreateIssueInput, photos: ProcessedPhoto[]): Issue => {
+    (input: CreateIssueInput, photos: ProcessedPhoto[]): { issue: Issue; assets: PhotoAsset[] } => {
       const issue: Issue = {
         ...newBase(),
         ...input,
@@ -319,7 +319,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
         lastAssigneeId: input.assigneeId,
         lastPriority: input.priority,
       });
-      return issue;
+      return { issue, assets: newAssets };
     },
     [db.issues, mutateDb, nextIssueNumber, outboxEntry, updateSettings],
   );

@@ -9,10 +9,11 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Alert, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AppButton, Card } from "@/components/ui";
+import { STATUS_COLORS } from "@/components/pills";
 import { BrandConfig, buildEmailBody, buildEmailSubject } from "@/constants/config";
 import { font, palette, radius, spacing } from "@/constants/theme";
 import { fileToDataUri, persistGeneratedPdf } from "@/lib/files";
-import { formatDate } from "@/lib/format";
+import { formatDate, issueRef } from "@/lib/format";
 import { buildReportHtml } from "@/lib/report";
 import { useAppStore, useAudit, useIssuesForAudit, useProject } from "@/providers/AppStore";
 import { DEFAULT_REPORT_OPTIONS, ReportOptions } from "@/types/models";
@@ -239,6 +240,31 @@ export default function ReportPreviewScreen() {
           </View>
         </Card>
 
+        {/* Hit list preview — what the summary table will contain */}
+        {includedIssues.length > 0 ? (
+          <Card style={styles.hitCard}>
+            <Text style={styles.summaryTitle}>Hit list preview</Text>
+            {includedIssues.slice(0, 6).map((issue) => {
+              const loc = db.locations.find((l) => l.id === issue.locationId)?.name ?? "General";
+              return (
+                <View key={issue.id} style={styles.hitRow}>
+                  <View style={[styles.hitDot, { backgroundColor: STATUS_COLORS[issue.status].color }]} />
+                  <Text style={styles.hitNum}>{issueRef(issue.issueNumber)}</Text>
+                  <Text style={styles.hitTitle} numberOfLines={1}>
+                    {issue.title || "Untitled issue"}
+                  </Text>
+                  <Text style={styles.hitLoc} numberOfLines={1}>
+                    {loc}
+                  </Text>
+                </View>
+              );
+            })}
+            {includedIssues.length > 6 ? (
+              <Text style={styles.hitMore}>+ {includedIssues.length - 6} more items in the full report</Text>
+            ) : null}
+          </Card>
+        ) : null}
+
         {pdfUri ? (
           <View style={styles.readyRow}>
             <CheckCircle2 color={palette.green} size={18} />
@@ -324,6 +350,13 @@ const styles = StyleSheet.create({
   statLbl: { fontSize: 9, color: palette.textFaint, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: font.family.bodyBold, marginTop: 1 },
   metaRow: { flexDirection: "row", gap: spacing.lg },
   metaText: { fontSize: font.size.xs, color: palette.textMuted, fontFamily: font.family.bodySemibold },
+  hitCard: { gap: spacing.sm },
+  hitRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  hitDot: { width: 8, height: 8, borderRadius: 4 },
+  hitNum: { fontSize: font.size.xs, fontFamily: font.family.headingHeavy, color: palette.textMuted, width: 36 },
+  hitTitle: { flex: 1, fontSize: font.size.sm, fontFamily: font.family.bodySemibold, color: palette.text },
+  hitLoc: { fontSize: font.size.xs, color: palette.textFaint, maxWidth: 110 },
+  hitMore: { fontSize: font.size.xs, color: palette.textFaint, marginTop: 2 },
   readyRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   readyText: { fontSize: font.size.sm, color: palette.green, fontFamily: font.family.bodyBold },
   btnRow: { flexDirection: "row", gap: spacing.sm },

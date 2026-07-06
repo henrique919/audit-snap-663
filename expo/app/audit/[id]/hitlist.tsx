@@ -1,9 +1,10 @@
 /** Hit List — review, filter and manage all issues in an audit. */
 
+import * as Haptics from "expo-haptics";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Camera, ClipboardList, FileText } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
-import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Platform, StyleSheet, Text, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 
 import { IssueCard } from "@/components/IssueCard";
@@ -71,6 +72,9 @@ export default function HitListScreen() {
   };
 
   const quickActions = (issue: Issue) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
     const firstAsset = db.assets.find((a) => a.issueId === issue.id && !a.deletedAt) ?? null;
     const buttons = [
       { text: "Change status", onPress: () => changeStatus(issue) },

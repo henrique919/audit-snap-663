@@ -221,22 +221,29 @@ export function buildReportHtml(data: ReportData): string {
         const cards = groupIssues
           .map((issue) => {
             const issueAssets = assets.filter((a) => a.issueId === issue.id && !a.deletedAt);
+            // Caption reflects report options: location and capture timestamp.
+            const caption = (base: string, asset: PhotoAsset): string => {
+              const bits = [base];
+              if (options.includePhotoLocations) bits.push(locationName(locations, issue.locationId));
+              if (options.includeTimestamps) bits.push(formatDateTime(asset.capturedAt));
+              return bits.join(" \u00B7 ");
+            };
             const figures: string[] = [];
             for (const asset of issueAssets) {
               const annotation = annotations.find((an) => an.assetId === asset.id);
               const hasMarkup = !!annotation && annotation.elements.length > 0;
               if (options.includeAnnotatedPhotos && hasMarkup) {
                 figures.push(
-                  photoFigure({ asset, annotation, annotated: true, imageSrc, label: "Marked up" }),
+                  photoFigure({ asset, annotation, annotated: true, imageSrc, label: caption("Marked up", asset) }),
                 );
                 if (options.includeOriginalPhotos) {
                   figures.push(
-                    photoFigure({ asset, annotation, annotated: false, imageSrc, label: "Original" }),
+                    photoFigure({ asset, annotation, annotated: false, imageSrc, label: caption("Original", asset) }),
                   );
                 }
               } else if (options.includeOriginalPhotos || options.includeAnnotatedPhotos) {
                 figures.push(
-                  photoFigure({ asset, annotation, annotated: false, imageSrc, label: "Photo" }),
+                  photoFigure({ asset, annotation, annotated: false, imageSrc, label: caption("Photo", asset) }),
                 );
               }
             }
