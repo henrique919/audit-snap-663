@@ -92,7 +92,7 @@ export default function ProjectDashboard() {
               testID="continue-draft"
               label={`Continue “${draftAudit.title}”`}
               variant="secondary"
-              icon={<Play color={palette.navy} size={18} />}
+              icon={<Play color={palette.carbon} size={18} />}
               onPress={() => router.push({ pathname: "/capture-session", params: { auditId: draftAudit.id } })}
             />
           ) : null}
@@ -122,7 +122,7 @@ export default function ProjectDashboard() {
                 style={styles.auditReportBtn}
                 onPress={() => router.push({ pathname: "/audit/[id]/report", params: { id: audit.id } })}
               >
-                <FileText color={palette.navy} size={18} />
+                <FileText color={palette.carbon} size={18} />
               </TouchableOpacity>
             </TouchableOpacity>
           ))
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     alignItems: "center",
   },
-  statNum: { fontSize: font.size.xl, fontWeight: font.weight.heavy, color: palette.text },
+  statNum: { fontSize: font.size.xl, fontFamily: font.family.headingHeavy, color: palette.text },
   statOpen: { color: palette.red },
   statDone: { color: palette.green },
   statLbl: {
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
     color: palette.textFaint,
     textTransform: "uppercase",
     letterSpacing: 0.8,
-    fontWeight: font.weight.bold,
+    fontFamily: font.family.bodyBold,
     marginTop: 2,
   },
   updated: { fontSize: font.size.xs, color: palette.textFaint, marginTop: 6, marginBottom: spacing.lg },
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   auditBody: { flex: 1 },
-  auditTitle: { fontSize: font.size.md, fontWeight: font.weight.bold, color: palette.text },
+  auditTitle: { fontSize: font.size.md, fontFamily: font.family.heading, color: palette.text },
   auditSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 2 },
   auditReportBtn: {
     width: 40,
@@ -234,8 +234,8 @@ const styles = StyleSheet.create({
   setupCard: { gap: spacing.sm },
   setupRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   setupRowSpaced: { marginTop: spacing.sm },
-  setupLabel: { flex: 1, fontSize: font.size.sm, fontWeight: font.weight.bold, color: palette.text },
-  setupValue: { fontSize: font.size.sm, fontWeight: font.weight.heavy, color: palette.textMuted },
+  setupLabel: { flex: 1, fontSize: font.size.sm, fontFamily: font.family.bodyBold, color: palette.text },
+  setupValue: { fontSize: font.size.sm, fontFamily: font.family.headingHeavy, color: palette.textMuted },
   chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   emptyNote: { fontSize: font.size.xs, color: palette.textFaint },
   infoRow: {
@@ -245,8 +245,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     marginTop: spacing.sm,
   },
-  infoLabel: { fontSize: font.size.sm, fontWeight: font.weight.bold, color: palette.textMuted },
+  infoLabel: { fontSize: font.size.sm, fontFamily: font.family.bodyBold, color: palette.textMuted },
   infoLine: { flexDirection: "row", paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: palette.surfaceAlt },
-  infoKey: { width: 90, fontSize: font.size.xs, color: palette.textFaint, fontWeight: font.weight.bold, textTransform: "uppercase", letterSpacing: 0.6 },
-  infoValue: { flex: 1, fontSize: font.size.sm, color: palette.text, fontWeight: font.weight.medium },
+  infoKey: { width: 90, fontSize: font.size.xs, color: palette.textFaint, fontFamily: font.family.bodyBold, textTransform: "uppercase", letterSpacing: 0.6 },
+  infoValue: { flex: 1, fontSize: font.size.sm, color: palette.text, fontFamily: font.family.bodyMedium },
 });

@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
   chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: spacing.lg, marginTop: -6 },
   themeLabel: {
     fontSize: font.size.xs,
-    fontWeight: font.weight.bold,
+    fontFamily: font.family.bodyBold,
     color: palette.textMuted,
     textTransform: "uppercase",
     letterSpacing: 1,

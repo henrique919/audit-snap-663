@@ -88,7 +88,7 @@ export default function SettingsTab() {
         testID="open-sync-centre"
       >
         <View style={styles.linkIcon}>
-          <CloudOff color={palette.navy} size={20} />
+          <CloudOff color={palette.carbon} size={20} />
         </View>
         <View style={styles.linkBody}>
           <Text style={styles.linkTitle}>Sync Centre</Text>
@@ -102,7 +102,7 @@ export default function SettingsTab() {
       <SectionTitle title="Data" />
       <TouchableOpacity style={styles.linkRow} activeOpacity={0.8} onPress={() => confirmReset(true)}>
         <View style={styles.linkIcon}>
-          <RefreshCcw color={palette.navy} size={20} />
+          <RefreshCcw color={palette.carbon} size={20} />
         </View>
         <View style={styles.linkBody}>
           <Text style={styles.linkTitle}>Reset demo data</Text>
@@ -134,10 +134,10 @@ export default function SettingsTab() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: palette.background },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 120 },
-  title: { fontSize: font.size.xxl, fontWeight: font.weight.heavy, color: palette.text, letterSpacing: -0.4, marginBottom: spacing.lg },
+  title: { fontSize: font.size.xxl, fontFamily: font.family.headingHeavy, color: palette.text, letterSpacing: -0.7, marginBottom: spacing.lg },
   brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   brandText: { flex: 1 },
-  brandName: { fontSize: font.size.lg, fontWeight: font.weight.heavy, color: palette.text },
+  brandName: { fontSize: font.size.lg, fontFamily: font.family.headingHeavy, color: palette.text, letterSpacing: -0.4 },
   brandSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 1 },
   brandSite: { fontSize: font.size.xs, color: palette.textFaint, marginTop: 1 },
   note: { fontSize: font.size.xs, color: palette.textFaint, lineHeight: 17 },
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   },
   linkIconDanger: { backgroundColor: palette.redSoft },
   linkBody: { flex: 1 },
-  linkTitle: { fontSize: font.size.md, fontWeight: font.weight.bold, color: palette.text },
+  linkTitle: { fontSize: font.size.md, fontFamily: font.family.bodyBold, color: palette.text },
   dangerText: { color: palette.red },
   linkSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 2 },
   aboutCard: {

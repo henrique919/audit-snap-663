@@ -537,15 +537,15 @@ export default function MarkupStudio() {
   const selectedEl = elements.find((e) => e.id === selectedId) ?? null;
 
   const tools: { key: Tool; icon: React.ReactNode; label: string }[] = [
-    { key: "select", icon: <MousePointer2 color={tool === "select" ? palette.navy : palette.white} size={19} />, label: "Move" },
-    { key: "arrow", icon: <ArrowUpRight color={tool === "arrow" ? palette.navy : palette.white} size={19} />, label: "Arrow" },
-    { key: "ellipse", icon: <Circle color={tool === "ellipse" ? palette.navy : palette.white} size={19} />, label: "Circle" },
-    { key: "rect", icon: <Square color={tool === "rect" ? palette.navy : palette.white} size={19} />, label: "Box" },
-    { key: "pen", icon: <PenLine color={tool === "pen" ? palette.navy : palette.white} size={19} />, label: "Pen" },
-    { key: "text", icon: <Type color={tool === "text" ? palette.navy : palette.white} size={19} />, label: "Text" },
-    { key: "callout", icon: <MessageCircleWarning color={tool === "callout" ? palette.navy : palette.white} size={19} />, label: "Number" },
-    { key: "blur", icon: <Droplets color={tool === "blur" ? palette.navy : palette.white} size={19} />, label: "Blur" },
-    { key: "crop", icon: <Crop color={tool === "crop" ? palette.navy : palette.white} size={19} />, label: "Crop" },
+    { key: "select", icon: <MousePointer2 color={tool === "select" ? palette.carbon : palette.white} size={19} />, label: "Move" },
+    { key: "arrow", icon: <ArrowUpRight color={tool === "arrow" ? palette.carbon : palette.white} size={19} />, label: "Arrow" },
+    { key: "ellipse", icon: <Circle color={tool === "ellipse" ? palette.carbon : palette.white} size={19} />, label: "Circle" },
+    { key: "rect", icon: <Square color={tool === "rect" ? palette.carbon : palette.white} size={19} />, label: "Box" },
+    { key: "pen", icon: <PenLine color={tool === "pen" ? palette.carbon : palette.white} size={19} />, label: "Pen" },
+    { key: "text", icon: <Type color={tool === "text" ? palette.carbon : palette.white} size={19} />, label: "Text" },
+    { key: "callout", icon: <MessageCircleWarning color={tool === "callout" ? palette.carbon : palette.white} size={19} />, label: "Number" },
+    { key: "blur", icon: <Droplets color={tool === "blur" ? palette.carbon : palette.white} size={19} />, label: "Blur" },
+    { key: "crop", icon: <Crop color={tool === "crop" ? palette.carbon : palette.white} size={19} />, label: "Crop" },
   ];
 
   return (
@@ -722,7 +722,7 @@ export default function MarkupStudio() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B1526" },
+  container: { flex: 1, backgroundColor: "#121619" },
   missing: { flex: 1, alignItems: "center", justifyContent: "center" },
   missingText: { color: palette.textMuted },
   topBar: {
@@ -758,9 +758,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
   },
-  selectionText: { flex: 1, color: palette.textFaint, fontSize: font.size.xs, fontWeight: font.weight.bold, textTransform: "capitalize" },
+  selectionText: { flex: 1, color: palette.textFaint, fontSize: font.size.xs, fontFamily: font.family.bodyBold, textTransform: "capitalize" },
   selectionBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 8, paddingHorizontal: 10 },
-  selectionBtnText: { color: palette.white, fontSize: font.size.sm, fontWeight: font.weight.bold },
+  selectionBtnText: { color: palette.white, fontSize: font.size.sm, fontFamily: font.family.bodyBold },
   styleBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -782,7 +782,7 @@ const styles = StyleSheet.create({
   },
   strokeBtnActive: { backgroundColor: palette.white },
   strokeDot: { backgroundColor: palette.white },
-  strokeDotActive: { backgroundColor: palette.navy },
+  strokeDotActive: { backgroundColor: palette.carbon },
   toolBar: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -793,8 +793,8 @@ const styles = StyleSheet.create({
   },
   toolBtn: { alignItems: "center", gap: 3, paddingVertical: 6, paddingHorizontal: 4, borderRadius: radius.sm, minWidth: 38 },
   toolBtnActive: { backgroundColor: palette.white },
-  toolLbl: { color: "rgba(255,255,255,0.55)", fontSize: 9, fontWeight: font.weight.bold },
-  toolLblActive: { color: palette.navy },
+  toolLbl: { color: "rgba(255,255,255,0.55)", fontSize: 9, fontFamily: font.family.bodyBold },
+  toolLblActive: { color: palette.carbon },
   textModalBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
@@ -808,7 +808,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.lg,
   },
-  textModalTitle: { fontSize: font.size.lg, fontWeight: font.weight.heavy, color: palette.text, marginBottom: spacing.md },
+  textModalTitle: { fontSize: font.size.lg, fontFamily: font.family.headingHeavy, color: palette.text, marginBottom: spacing.md },
   textModalInput: {
     borderWidth: 1,
     borderColor: palette.border,
@@ -820,7 +820,7 @@ const styles = StyleSheet.create({
   },
   textModalRow: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm, marginTop: spacing.md },
   textModalBtn: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: radius.md },
-  textModalPrimary: { backgroundColor: palette.navy },
-  textModalCancel: { color: palette.textMuted, fontWeight: font.weight.bold },
-  textModalOk: { color: palette.white, fontWeight: font.weight.bold },
+  textModalPrimary: { backgroundColor: palette.carbon },
+  textModalCancel: { color: palette.textMuted, fontFamily: font.family.bodyBold },
+  textModalOk: { color: palette.white, fontFamily: font.family.bodyBold },
 });

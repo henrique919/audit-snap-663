@@ -154,11 +154,11 @@ const styles = StyleSheet.create({
   missing: { flex: 1, alignItems: "center", justifyContent: "center" },
   missingText: { color: palette.textMuted },
   summary: { fontSize: font.size.md, color: palette.textMuted },
-  summaryStrong: { fontWeight: font.weight.heavy, color: palette.text },
+  summaryStrong: { fontFamily: font.family.bodyHeavy, color: palette.text },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   fieldLbl: {
     fontSize: font.size.xs,
-    fontWeight: font.weight.bold,
+    fontFamily: font.family.bodyBold,
     color: palette.textMuted,
     textTransform: "uppercase",
     letterSpacing: 1,

@@ -77,7 +77,7 @@ export default function ReportsTab() {
             testID={`report-audit-${audit.id}`}
           >
             <View style={styles.rowIcon}>
-              <FileText color={palette.navy} size={20} />
+              <FileText color={palette.carbon} size={20} />
             </View>
             <View style={styles.rowBody}>
               <Text style={styles.rowTitle} numberOfLines={1}>
@@ -110,7 +110,7 @@ export default function ReportsTab() {
               </Text>
             </View>
             <TouchableOpacity style={styles.shareBtn} onPress={() => sharePdf(exp.pdfUri)} testID={`share-export-${exp.id}`}>
-              <Share2 color={palette.navy} size={18} />
+              <Share2 color={palette.carbon} size={18} />
             </TouchableOpacity>
           </View>
         ))
@@ -122,7 +122,7 @@ export default function ReportsTab() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: palette.background },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 120 },
-  title: { fontSize: font.size.xxl, fontWeight: font.weight.heavy, color: palette.text, letterSpacing: -0.4 },
+  title: { fontSize: font.size.xxl, fontFamily: font.family.headingHeavy, color: palette.text, letterSpacing: -0.7 },
   subtitle: { fontSize: font.size.sm, color: palette.textMuted, marginTop: 3 },
   row: {
     flexDirection: "row",
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   },
   rowIconDone: { backgroundColor: palette.greenSoft },
   rowBody: { flex: 1 },
-  rowTitle: { fontSize: font.size.md, fontWeight: font.weight.bold, color: palette.text },
+  rowTitle: { fontSize: font.size.md, fontFamily: font.family.bodyBold, color: palette.text },
   rowSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 2 },
   shareBtn: {
     width: 40,

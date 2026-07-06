@@ -4,6 +4,7 @@
  */
 
 import { BrandConfig, REPORT_THEMES } from "@/constants/config";
+import { reportFontStack } from "@/constants/typography";
 import { escapeHtml, formatDate, formatDateTime, issueRef } from "@/lib/format";
 import { elementsToOverlaySvg } from "@/lib/annotationSvg";
 import type {
@@ -32,17 +33,18 @@ export interface ReportData {
   imageSrc: (uri: string) => string;
 }
 
+/** CleanRun IQ status palette (danger / warning / info / success). */
 const STATUS_COLORS: Record<IssueStatus, string> = {
-  open: "#DC2626",
-  assigned: "#F59E0B",
-  in_progress: "#0EA5E9",
-  completed: "#16A34A",
+  open: "#B42318",
+  assigned: "#C27803",
+  in_progress: "#1D4ED8",
+  completed: "#18A94F",
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
-  low: "#64748B",
-  medium: "#F59E0B",
-  high: "#DC2626",
+  low: "#69747D",
+  medium: "#C27803",
+  high: "#B42318",
 };
 
 function locationName(locations: ProjectLocation[], id: string | null): string {
@@ -123,7 +125,7 @@ export function buildReportHtml(data: ReportData): string {
   const cover = options.coverPage
     ? `
   <section class="page cover">
-    <div class="cover-band" style="background:${theme.primary}">
+    <div class="cover-band" style="background:${theme.primary};border-bottom:3px solid ${theme.accent}">
       <div class="cover-band-inner">
         ${logo}
         <div class="cover-brand">
@@ -169,16 +171,16 @@ export function buildReportHtml(data: ReportData): string {
   const summary = options.includeSummary
     ? `
   <section class="page">
-    <div class="section-head" style="border-color:${theme.primary}">
+    <div class="section-head" style="border-color:${theme.accent}">
       <h2 style="color:${theme.heading}">Audit Summary</h2>
       <div class="section-sub">${escapeHtml(project.name)} · ${formatDate(audit.auditDate)}</div>
     </div>
     <div class="stats">
-      <div class="stat"><div class="stat-num" style="color:${theme.primary}">${issues.length}</div><div class="stat-lbl">Total items</div></div>
-      <div class="stat"><div class="stat-num" style="color:${STATUS_COLORS.open}">${counts.open}</div><div class="stat-lbl">Open</div></div>
-      <div class="stat"><div class="stat-num" style="color:${STATUS_COLORS.assigned}">${counts.assigned}</div><div class="stat-lbl">Assigned</div></div>
-      <div class="stat"><div class="stat-num" style="color:${STATUS_COLORS.in_progress}">${counts.in_progress}</div><div class="stat-lbl">In progress</div></div>
-      <div class="stat"><div class="stat-num" style="color:${STATUS_COLORS.completed}">${counts.completed}</div><div class="stat-lbl">Completed</div></div>
+      <div class="stat" style="border-left-color:${theme.primary}"><div class="stat-num" style="color:${theme.primary}">${issues.length}</div><div class="stat-lbl">Total items</div></div>
+      <div class="stat" style="border-left-color:${STATUS_COLORS.open}"><div class="stat-num" style="color:${STATUS_COLORS.open}">${counts.open}</div><div class="stat-lbl">Open</div></div>
+      <div class="stat" style="border-left-color:${STATUS_COLORS.assigned}"><div class="stat-num" style="color:${STATUS_COLORS.assigned}">${counts.assigned}</div><div class="stat-lbl">Assigned</div></div>
+      <div class="stat" style="border-left-color:${STATUS_COLORS.in_progress}"><div class="stat-num" style="color:${STATUS_COLORS.in_progress}">${counts.in_progress}</div><div class="stat-lbl">In progress</div></div>
+      <div class="stat" style="border-left-color:${STATUS_COLORS.completed}"><div class="stat-num" style="color:${STATUS_COLORS.completed}">${counts.completed}</div><div class="stat-lbl">Completed</div></div>
     </div>
     <div class="priority-row">
       <span class="pr-lbl">Priority breakdown:</span>
@@ -252,7 +254,7 @@ export function buildReportHtml(data: ReportData): string {
             }
 
             return `
-            <article class="item">
+            <article class="item" style="border-left-color:${STATUS_COLORS[issue.status]}">
               <div class="item-head">
                 <div class="item-num" style="background:${theme.primary}">${issueRef(issue.issueNumber)}</div>
                 <div class="item-title">${escapeHtml(issue.title || "Untitled issue")}</div>
@@ -277,7 +279,7 @@ export function buildReportHtml(data: ReportData): string {
 
     detailHtml = `
   <section class="page details">
-    <div class="section-head" style="border-color:${theme.primary}">
+    <div class="section-head" style="border-color:${theme.accent}">
       <h2 style="color:${theme.heading}">Item Details</h2>
       <div class="section-sub">${escapeHtml(project.name)} · ${formatDate(audit.auditDate)}</div>
     </div>
@@ -308,7 +310,7 @@ export function buildReportHtml(data: ReportData): string {
     : "";
 
   const pageNumberCss = options.includePageNumbers
-    ? `@page { margin: 14mm 12mm 16mm 12mm; @bottom-right { content: counter(page); font-family: Helvetica; font-size: 9px; color: #8A98AC; } }`
+    ? `@page { margin: 14mm 12mm 16mm 12mm; @bottom-right { content: counter(page); font-family: Helvetica; font-size: 9px; color: #96A0A9; } }`
     : `@page { margin: 14mm 12mm 16mm 12mm; }`;
 
   return `<!DOCTYPE html>
@@ -316,9 +318,11 @@ export function buildReportHtml(data: ReportData): string {
 <head>
 <meta charset="utf-8"/>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
   ${pageNumberCss}
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, Helvetica, Arial, sans-serif; color: #0E1B2E; font-size: 11px; line-height: 1.45; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: ${reportFontStack.body}; color: #161A1D; font-size: 11px; line-height: 1.45; }
+  h1, h2, h3, .stat-num, .item-num, .cover-app, .cover-brand, .hitlist .num { font-family: ${reportFontStack.heading}; }
   .page { page-break-after: always; }
   .page:last-of-type { page-break-after: auto; }
 
@@ -337,60 +341,62 @@ export function buildReportHtml(data: ReportData): string {
   .cover-photo { margin-top: 22px; border-radius: 10px; overflow: hidden; max-height: 240px; }
   .cover-photo img { width: 100%; height: 240px; object-fit: cover; display: block; }
   .cover-meta { margin-top: 30px; width: 100%; border-collapse: collapse; }
-  .cover-meta td { padding: 9px 2px; border-bottom: 1px solid #E3E8F0; font-size: 12px; }
-  .cover-meta td:first-child { color: #8A98AC; text-transform: uppercase; font-size: 9.5px; letter-spacing: 1.2px; width: 130px; font-weight: 700; }
+  .cover-meta td { padding: 9px 2px; border-bottom: 1px solid #DDE3E8; font-size: 12px; }
+  .cover-meta td:first-child { color: #69747D; text-transform: uppercase; font-size: 9.5px; letter-spacing: 1.2px; width: 130px; font-weight: 800; }
   .cover-meta td:last-child { font-weight: 600; }
-  .cover-footer { display: flex; justify-content: space-between; padding: 16px 4px 0; color: #8A98AC; font-size: 9.5px; border-top: 1px solid #E3E8F0; margin-top: 30px; }
+  .cover-footer { display: flex; justify-content: space-between; padding: 16px 4px 0; color: #69747D; font-size: 9.5px; letter-spacing: 0.4px; font-weight: 700; border-top: 1px solid #DDE3E8; margin-top: 30px; }
 
-  /* Sections */
-  .section-head { border-left: 4px solid; padding: 2px 0 2px 12px; margin-bottom: 18px; }
-  .section-head h2 { font-size: 19px; font-weight: 800; letter-spacing: -0.2px; }
-  .section-sub { color: #8A98AC; font-size: 10.5px; margin-top: 2px; }
+  /* Sections — CleanRun IQ title block: heading over a strong accent rule */
+  .section-head { border-bottom: 3px solid; padding: 0 0 8px; margin-bottom: 18px; }
+  .section-head h2 { font-size: 20px; font-weight: 800; letter-spacing: -0.4px; }
+  .section-sub { color: #69747D; font-size: 10.5px; margin-top: 3px; font-weight: 600; }
 
-  /* Summary */
+  /* Summary — stat cards with status-coloured left spines */
   .stats { display: flex; gap: 8px; margin-bottom: 14px; }
-  .stat { flex: 1; border: 1px solid #E3E8F0; border-radius: 9px; padding: 12px 8px; text-align: center; background: #FAFBFD; }
-  .stat-num { font-size: 22px; font-weight: 800; }
-  .stat-lbl { color: #8A98AC; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; font-weight: 700; }
-  .priority-row { margin: 4px 0 18px; color: #5A6B82; font-size: 10.5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .pr-lbl { font-weight: 700; color: #33415C; }
-  .hitlist-title { font-size: 14px; font-weight: 800; margin-bottom: 8px; }
+  .stat { flex: 1; border: 1px solid #DDE3E8; border-left: 3px solid #161A1D; border-radius: 8px; padding: 11px 9px; background: #F4F6F8; }
+  .stat-num { font-size: 22px; font-weight: 800; line-height: 1; }
+  .stat-lbl { color: #69747D; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; font-weight: 800; }
+  .priority-row { margin: 4px 0 18px; color: #69747D; font-size: 10.5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .pr-lbl { font-weight: 700; color: #283238; }
+  .hitlist-title { font-size: 14px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.2px; }
   .hitlist { width: 100%; border-collapse: collapse; font-size: 10px; }
-  .hitlist th { color: #fff; text-align: left; padding: 7px 8px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; }
+  .hitlist th { color: #fff; text-align: left; padding: 7px 8px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 800; }
   .hitlist th:first-child { border-radius: 6px 0 0 6px; }
   .hitlist th:last-child { border-radius: 0 6px 6px 0; }
-  .hitlist td { padding: 7px 8px; border-bottom: 1px solid #E9EDF3; vertical-align: top; }
-  .hitlist tr:nth-child(even) td { background: #FAFBFD; }
+  .hitlist td { padding: 7px 8px; border-bottom: 1px solid #E7ECF0; vertical-align: top; }
+  .hitlist tr:nth-child(even) td { background: #F8FAFB; }
   .hitlist .num { font-weight: 800; white-space: nowrap; }
   .hitlist .ttl { font-weight: 600; }
-  .hitlist .empty { text-align: center; color: #8A98AC; padding: 18px; }
+  .hitlist .empty { text-align: center; color: #96A0A9; padding: 18px; }
 
-  .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; white-space: nowrap; }
+  .chip { display: inline-block; padding: 2.5px 8px; border-radius: 999px; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
 
-  /* Item details */
+  /* Item details — CleanRun IQ item card with status spine */
   .group { margin-bottom: 18px; }
-  .group-head { color: #fff; border-radius: 7px; padding: 7px 12px; font-weight: 800; font-size: 11.5px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; letter-spacing: 0.3px; }
+  .group-head { color: #fff; border-radius: 7px; padding: 7px 12px; font-weight: 800; font-size: 11.5px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; letter-spacing: 0.3px; font-family: ${reportFontStack.heading}; }
   .group-count { font-weight: 600; font-size: 9.5px; opacity: 0.8; }
-  .item { border: 1px solid #E3E8F0; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; page-break-inside: avoid; background: #fff; }
+  .item { border: 1px solid #DDE3E8; border-left: 5px solid #B8C0C8; border-radius: 9px; padding: 12px 14px; margin-bottom: 12px; page-break-inside: avoid; background: #fff; }
   .item-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .item-num { color: #fff; font-weight: 800; font-size: 10px; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.5px; }
-  .item-title { font-weight: 700; font-size: 13px; flex: 1; }
-  .item-meta { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #EEF1F6; }
+  .item-title { font-weight: 700; font-size: 13px; flex: 1; letter-spacing: -0.1px; }
+  .item-meta { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #EDF0F3; }
   .meta { font-size: 10px; font-weight: 600; }
-  .meta span { display: block; color: #8A98AC; font-size: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; margin-bottom: 1px; }
-  .item-desc { font-size: 10.5px; color: #33415C; margin-bottom: 9px; white-space: pre-wrap; }
+  .meta span { display: block; color: #69747D; font-size: 8px; text-transform: uppercase; letter-spacing: 0.45px; font-weight: 800; margin-bottom: 1px; }
+  .item-desc { font-size: 10.5px; color: #283238; margin-bottom: 9px; white-space: pre-wrap; }
   .photos { display: flex; flex-wrap: wrap; gap: 2.5%; }
-  .photo { width: var(--pw, 48.5%); margin-bottom: 8px; }
-  .photo-frame { position: relative; width: 100%; border-radius: 7px; overflow: hidden; background: #EEF1F6; }
+  .photo { width: var(--pw, 48.5%); margin-bottom: 8px; background: #fff; border: 1px solid #DDE3E8; border-radius: 8px; padding: 5px; page-break-inside: avoid; }
+  .photo-frame { position: relative; width: 100%; border-radius: 5px; overflow: hidden; background: #EDF0F3; }
   .photo-frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-  figcaption { color: #8A98AC; font-size: 8.5px; text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; font-weight: 700; }
+  figcaption { color: #69747D; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.45px; margin-top: 4px; font-weight: 800; }
 
   /* Signature */
   .signoff { display: flex; gap: 26px; margin-top: 26px; page-break-inside: avoid; }
   .sig-col { flex: 1; }
-  .sig-line { border-bottom: 1.2px solid #33415C; height: 34px; }
-  .sig-lbl { color: #8A98AC; font-size: 8.5px; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 700; margin-top: 5px; }
+  .sig-line { border-bottom: 1.2px solid #283238; height: 34px; }
+  .sig-lbl { color: #69747D; font-size: 8.5px; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; margin-top: 5px; }
   .sig-name { font-size: 11px; font-weight: 600; margin-top: 2px; }
+
+  .report-footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #DDE3E8; text-align: center; color: #69747D; font-size: 9px; letter-spacing: 0.4px; font-weight: 800; }
 </style>
 </head>
 <body>
@@ -398,6 +404,7 @@ export function buildReportHtml(data: ReportData): string {
   ${summary}
   ${detailHtml}
   ${signature}
+  ${BrandConfig.reportFooter ? `<div class="report-footer">${escapeHtml(BrandConfig.reportFooter)}</div>` : ""}
 </body>
 </html>`;
 }

@@ -5,8 +5,8 @@ export default {
   light: {
     text: palette.text,
     background: palette.background,
-    tint: palette.navy,
+    tint: palette.carbon,
     tabIconDefault: palette.textFaint,
-    tabIconSelected: palette.navy,
+    tabIconSelected: palette.carbon,
   },
 };

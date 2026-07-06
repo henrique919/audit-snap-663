@@ -156,7 +156,7 @@ export default function IssueDetailScreen() {
                   onPress={() => router.push({ pathname: "/markup/[assetId]", params: { assetId: asset.id } })}
                   testID={`markup-${asset.id}`}
                 >
-                  <PenLine color={palette.navy} size={16} />
+                  <PenLine color={palette.carbon} size={16} />
                   <Text style={styles.photoBtnText}>{hasMarkup ? "Edit markup" : "Mark up"}</Text>
                 </TouchableOpacity>
                 {hasMarkup ? <Text style={styles.markupNote}>Original preserved · markup stored separately</Text> : null}
@@ -168,7 +168,7 @@ export default function IssueDetailScreen() {
           <AppButton
             label="Take Photo"
             variant="secondary"
-            icon={<Camera color={palette.navy} size={16} />}
+            icon={<Camera color={palette.carbon} size={16} />}
             onPress={() => addPhoto(true)}
             style={styles.addPhotoBtn}
           />
@@ -286,7 +286,7 @@ export default function IssueDetailScreen() {
               if (copy) router.replace({ pathname: "/issue/[id]", params: { id: copy.id } });
             }}
           >
-            <Copy color={palette.navy} size={16} />
+            <Copy color={palette.carbon} size={16} />
             <Text style={styles.dangerBtnText}>Duplicate</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.dangerBtn} onPress={confirmDelete}>
@@ -305,11 +305,11 @@ const styles = StyleSheet.create({
   missing: { flex: 1, alignItems: "center", justifyContent: "center" },
   missingText: { color: palette.textMuted },
   pillRow: { flexDirection: "row", gap: 8, marginBottom: spacing.md },
-  title: { fontSize: font.size.xxl, fontWeight: font.weight.heavy, color: palette.text, letterSpacing: -0.3 },
+  title: { fontSize: font.size.xxl, fontFamily: font.family.headingHeavy, color: palette.text, letterSpacing: -0.5 },
   editHint: { fontSize: font.size.xs, color: palette.textFaint, marginTop: 3 },
   titleInput: {
     fontSize: font.size.xl,
-    fontWeight: font.weight.bold,
+    fontFamily: font.family.bodyBold,
     color: palette.text,
     backgroundColor: palette.surface,
     borderWidth: 1,
@@ -331,20 +331,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
   },
-  photoBtnText: { fontSize: font.size.sm, fontWeight: font.weight.bold, color: palette.navy },
+  photoBtnText: { fontSize: font.size.sm, fontFamily: font.family.bodyBold, color: palette.carbon },
   markupNote: { flex: 1, fontSize: font.size.xs, color: palette.textFaint },
   addPhotoRow: { flexDirection: "row", gap: spacing.sm },
   addPhotoBtn: { flex: 1, minHeight: 44 },
   fieldLbl: {
     fontSize: font.size.xs,
-    fontWeight: font.weight.bold,
+    fontFamily: font.family.bodyBold,
     color: palette.textMuted,
     textTransform: "uppercase",
     letterSpacing: 1,
     marginBottom: 4,
   },
   fieldSpacing: { marginTop: spacing.md },
-  fieldValue: { fontSize: font.size.md, color: palette.text, fontWeight: font.weight.medium, paddingVertical: 2 },
+  fieldValue: { fontSize: font.size.md, color: palette.text, fontFamily: font.family.bodyMedium, paddingVertical: 2 },
   fieldInput: {
     backgroundColor: palette.background,
     borderWidth: 1,
@@ -378,6 +378,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: 13,
   },
-  dangerBtnText: { fontSize: font.size.sm, fontWeight: font.weight.bold, color: palette.navy },
+  dangerBtnText: { fontSize: font.size.sm, fontFamily: font.family.bodyBold, color: palette.carbon },
   deleteText: { color: palette.red },
 });

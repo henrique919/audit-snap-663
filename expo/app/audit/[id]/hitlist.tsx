@@ -3,12 +3,13 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Camera, ClipboardList, FileText } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 
 import { IssueCard } from "@/components/IssueCard";
 import { AppButton, Chip, EmptyState } from "@/components/ui";
 import { font, palette, spacing } from "@/constants/theme";
+import { issueRef } from "@/lib/format";
 import { useAppStore, useAudit, useIssuesForAudit } from "@/providers/AppStore";
 import type { Issue, IssueStatus } from "@/types/models";
 import { STATUS_LABEL } from "@/types/models";
@@ -18,7 +19,7 @@ type ViewMode = "all" | "location" | "assignee" | "status";
 export default function HitListScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { db } = useAppStore();
+  const { db, updateIssue, duplicateIssue, deleteIssue } = useAppStore();
   const audit = useAudit(id);
   const issues = useIssuesForAudit(id);
 
@@ -59,6 +60,54 @@ export default function HitListScreen() {
   const openCount = issues.filter((i) => i.status !== "completed").length;
   const doneCount = issues.length - openCount;
 
+  const changeStatus = (issue: Issue) => {
+    Alert.alert("Change status", `${issueRef(issue.issueNumber)} · ${issue.title || "Untitled issue"}`, [
+      ...(Object.keys(STATUS_LABEL) as IssueStatus[]).map((s) => ({
+        text: s === issue.status ? `${STATUS_LABEL[s]} ✓` : STATUS_LABEL[s],
+        onPress: () => updateIssue(issue.id, { status: s }),
+      })),
+      { text: "Cancel", style: "cancel" as const },
+    ]);
+  };
+
+  const quickActions = (issue: Issue) => {
+    const firstAsset = db.assets.find((a) => a.issueId === issue.id && !a.deletedAt) ?? null;
+    const buttons = [
+      { text: "Change status", onPress: () => changeStatus(issue) },
+      ...(firstAsset
+        ? [
+            {
+              text: "Mark up photo",
+              onPress: () =>
+                router.push({ pathname: "/markup/[assetId]" as const, params: { assetId: firstAsset.id } }),
+            },
+          ]
+        : []),
+      {
+        text: issue.includeInReport ? "Exclude from report" : "Include in report",
+        onPress: () => updateIssue(issue.id, { includeInReport: !issue.includeInReport }),
+      },
+      {
+        text: "Duplicate",
+        onPress: () => {
+          const copy = duplicateIssue(issue.id);
+          if (copy) router.push({ pathname: "/issue/[id]" as const, params: { id: copy.id } });
+        },
+      },
+      {
+        text: "Delete",
+        style: "destructive" as const,
+        onPress: () =>
+          Alert.alert("Delete issue?", `${issueRef(issue.issueNumber)} will be removed from the audit and report.`, [
+            { text: "Cancel", style: "cancel" },
+            { text: "Delete", style: "destructive", onPress: () => deleteIssue(issue.id) },
+          ]),
+      },
+      { text: "Cancel", style: "cancel" as const },
+    ];
+    Alert.alert(issueRef(issue.issueNumber), issue.title || "Untitled issue", buttons);
+  };
+
   if (!audit) {
     return (
       <View style={styles.missing}>
@@ -83,6 +132,7 @@ export default function HitListScreen() {
             <Text style={[styles.summaryStrong, styles.openColor]}>{openCount}</Text> open ·{" "}
             <Text style={[styles.summaryStrong, styles.doneColor]}>{doneCount}</Text> completed
           </Text>
+          <Text style={styles.summaryHint}>Hold an issue for quick actions</Text>
         </View>
 
         <View style={styles.filterBar}>
@@ -131,6 +181,7 @@ export default function HitListScreen() {
                 assigneeName={assigneeName(issue.assigneeId)}
                 hasMarkup={hasMarkup}
                 onPress={() => router.push({ pathname: "/issue/[id]", params: { id: issue.id } })}
+                onLongPress={() => quickActions(issue)}
               />
             );
           }}
@@ -147,7 +198,7 @@ export default function HitListScreen() {
           <AppButton
             label="Capture"
             variant="secondary"
-            icon={<Camera color={palette.navy} size={18} />}
+            icon={<Camera color={palette.carbon} size={18} />}
             onPress={() => router.push({ pathname: "/capture-session", params: { auditId: audit.id } })}
             style={styles.footerBtn}
           />
@@ -170,7 +221,8 @@ const styles = StyleSheet.create({
   missingText: { color: palette.textMuted },
   summaryRow: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   summaryText: { fontSize: font.size.sm, color: palette.textMuted },
-  summaryStrong: { fontWeight: font.weight.heavy, color: palette.text },
+  summaryHint: { fontSize: font.size.xs, color: palette.textFaint, marginTop: 2 },
+  summaryStrong: { fontFamily: font.family.bodyHeavy, color: palette.text },
   openColor: { color: palette.red },
   doneColor: { color: palette.green },
   filterBar: { paddingVertical: spacing.sm },
@@ -186,12 +238,12 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: font.size.sm,
-    fontWeight: font.weight.heavy,
+    fontFamily: font.family.bodyHeavy,
     color: palette.textMuted,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
-  sectionCount: { fontSize: font.size.sm, fontWeight: font.weight.heavy, color: palette.textFaint },
+  sectionCount: { fontSize: font.size.sm, fontFamily: font.family.bodyHeavy, color: palette.textFaint },
   footer: {
     position: "absolute",
     left: 0,

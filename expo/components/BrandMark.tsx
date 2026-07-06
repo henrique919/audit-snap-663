@@ -25,13 +25,13 @@ export function BrandMark({ size = 40, style }: { size?: number; style?: ViewSty
 
 const styles = StyleSheet.create({
   tile: {
-    backgroundColor: palette.navy,
+    backgroundColor: palette.carbonDeep,
     alignItems: "center",
     justifyContent: "center",
   },
   monogram: {
     color: palette.white,
-    fontWeight: font.weight.heavy,
+    fontFamily: font.family.headingHeavy,
     letterSpacing: 1,
   },
 });

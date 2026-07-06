@@ -264,9 +264,9 @@ export default function CaptureSession() {
           </TouchableOpacity>
           <TouchableOpacity style={styles.shutter} onPress={takePhoto} disabled={processing} testID="capture-shutter">
             {processing ? (
-              <ActivityIndicator color={palette.navy} size="large" />
+              <ActivityIndicator color={palette.carbon} size="large" />
             ) : (
-              <Camera color={palette.navy} size={34} strokeWidth={2.2} />
+              <Camera color={palette.carbon} size={34} strokeWidth={2.2} />
             )}
           </TouchableOpacity>
           <TouchableOpacity
@@ -306,7 +306,7 @@ export default function CaptureSession() {
                 <AppButton
                   label="Save & Mark Up Photo"
                   variant="secondary"
-                  icon={<PenLine color={palette.navy} size={18} />}
+                  icon={<PenLine color={palette.carbon} size={18} />}
                   onPress={() => {
                     const issue = saveDraft("markup");
                     if (issue) {
@@ -417,7 +417,7 @@ export default function CaptureSession() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: palette.navyDeep, paddingHorizontal: spacing.lg },
+  container: { flex: 1, backgroundColor: palette.carbonDeep, paddingHorizontal: spacing.lg },
   missing: { flex: 1, alignItems: "center", justifyContent: "center" },
   missingText: { color: palette.textMuted },
   header: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.md },
@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
   },
   doneBtn: { backgroundColor: palette.green },
   headerCenter: { flex: 1, alignItems: "center" },
-  headerTitle: { color: palette.white, fontSize: font.size.md, fontWeight: font.weight.bold },
+  headerTitle: { color: palette.white, fontSize: font.size.md, fontFamily: font.family.heading },
   headerSub: { color: "rgba(255,255,255,0.55)", fontSize: font.size.xs, marginTop: 1 },
   chipRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   countChip: {
@@ -443,8 +443,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  countNum: { color: palette.white, fontSize: font.size.lg, fontWeight: font.weight.heavy },
-  countLbl: { color: "rgba(255,255,255,0.6)", fontSize: font.size.xs, fontWeight: font.weight.bold },
+  countNum: { color: palette.white, fontSize: font.size.lg, fontFamily: font.family.headingHeavy },
+  countLbl: { color: "rgba(255,255,255,0.6)", fontSize: font.size.xs, fontFamily: font.family.bodyBold },
   metaChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -455,15 +455,15 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     maxWidth: 150,
   },
-  metaChipText: { color: palette.white, fontSize: font.size.xs, fontWeight: font.weight.semibold },
+  metaChipText: { color: palette.white, fontSize: font.size.xs, fontFamily: font.family.bodySemibold },
   offlineChip: { flexDirection: "row", alignItems: "center", gap: 5 },
-  offlineText: { color: palette.greenBright, fontSize: font.size.xs, fontWeight: font.weight.bold },
+  offlineText: { color: palette.greenBright, fontSize: font.size.xs, fontFamily: font.family.bodyBold },
   recentWrap: { flexGrow: 0, marginTop: spacing.xl },
   recentContent: { gap: spacing.sm },
   recentItem: { alignItems: "center", gap: 3 },
   recentImg: { width: 64, height: 64, borderRadius: radius.md },
   recentPlaceholder: { backgroundColor: "rgba(255,255,255,0.08)", alignItems: "center", justifyContent: "center" },
-  recentNum: { color: "rgba(255,255,255,0.6)", fontSize: 10, fontWeight: font.weight.bold },
+  recentNum: { color: "rgba(255,255,255,0.6)", fontSize: 10, fontFamily: font.family.bodyBold },
   controls: {
     flex: 1,
     flexDirection: "row",
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
     ...shadow.floating,
   },
   sideBtn: { alignItems: "center", gap: 5, paddingBottom: spacing.lg, minWidth: 70 },
-  sideLbl: { color: palette.white, fontSize: font.size.xs, fontWeight: font.weight.bold },
+  sideLbl: { color: palette.white, fontSize: font.size.xs, fontFamily: font.family.bodyBold },
   sideLblMuted: { color: palette.textFaint },
 
   sheetFlex: { flex: 1 },
@@ -494,7 +494,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.sm,
   },
-  sheetTitle: { fontSize: font.size.xl, fontWeight: font.weight.heavy, color: palette.text },
+  sheetTitle: { fontSize: font.size.xl, fontFamily: font.family.headingHeavy, color: palette.text, letterSpacing: -0.4 },
   sheetContent: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   previewRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md, flexWrap: "wrap" },
   preview: { width: 84, height: 84, borderRadius: radius.md },
@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 13,
     fontSize: font.size.lg,
-    fontWeight: font.weight.semibold,
+    fontFamily: font.family.bodySemibold,
     color: palette.text,
     marginBottom: spacing.sm,
   },
@@ -525,7 +525,7 @@ const styles = StyleSheet.create({
   },
   fieldLbl: {
     fontSize: font.size.xs,
-    fontWeight: font.weight.bold,
+    fontFamily: font.family.bodyBold,
     color: palette.textMuted,
     textTransform: "uppercase",
     letterSpacing: 1,

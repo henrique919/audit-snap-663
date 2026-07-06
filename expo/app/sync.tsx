@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
   },
-  heroTitle: { fontSize: font.size.lg, fontWeight: font.weight.heavy, color: palette.text, textAlign: "center" },
+  heroTitle: { fontSize: font.size.lg, fontFamily: font.family.heading, color: palette.text, textAlign: "center" },
   heroSub: { fontSize: font.size.sm, color: palette.textMuted, textAlign: "center", lineHeight: 20 },
   listCard: { paddingVertical: spacing.xs },
   row: {
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
     borderBottomColor: palette.surfaceAlt,
   },
   rowLast: { borderBottomWidth: 0 },
-  rowLabel: { flex: 1, fontSize: font.size.md, fontWeight: font.weight.semibold, color: palette.text },
-  rowValue: { fontSize: font.size.md, fontWeight: font.weight.heavy, color: palette.textMuted },
+  rowLabel: { flex: 1, fontSize: font.size.md, fontFamily: font.family.bodySemibold, color: palette.text },
+  rowValue: { fontSize: font.size.md, fontFamily: font.family.bodyHeavy, color: palette.textMuted },
   retryBtn: { marginTop: spacing.md },
 });

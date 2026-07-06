@@ -1,4 +1,0 @@
-[submodule "clean-run-python"]
-	path = clean-run-python
-	url = https://github.com/henrique919/clean-run-python.git
-	branch = main

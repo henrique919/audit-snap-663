@@ -1,42 +1,49 @@
 /**
- * Design system — premium, clean, field-ready.
- * Deep navy primary, restrained green accent, soft neutral surfaces.
+ * Design system — CleanRun IQ design language, lighter product.
+ *
+ * Carbon/charcoal ink, restrained CleanRun green accent, mist neutral
+ * surfaces, steel muted text. Typography: Archivo (headings) + Inter (body)
+ * — see constants/typography.ts.
  */
 
+import { fontFamily } from "@/constants/typography";
+
 export const palette = {
-  navy: "#0E1F3A",
-  navyDeep: "#0A1830",
-  navyMid: "#16294A",
-  navySoft: "#1E3357",
+  /** Primary ink — CleanRun IQ carbon. */
+  carbon: "#161A1D",
+  carbonDeep: "#121619",
+  charcoal: "#283238",
+  charcoalSoft: "#39454D",
 
-  green: "#16A34A",
-  greenBright: "#22C55E",
-  greenSoft: "#DCFCE7",
+  /** CleanRun brand greens. */
+  green: "#18A94F",
+  greenBright: "#20C55E",
+  greenSoft: "#EAFBF1",
 
-  amber: "#F59E0B",
-  amberSoft: "#FEF3C7",
+  amber: "#C27803",
+  amberSoft: "#FFF4DF",
 
-  sky: "#0EA5E9",
-  skySoft: "#E0F2FE",
+  info: "#1D4ED8",
+  infoSoft: "#EAF1FF",
 
-  red: "#DC2626",
-  redSoft: "#FEE2E2",
+  red: "#B42318",
+  redSoft: "#FDECEC",
 
   white: "#FFFFFF",
-  background: "#F4F6F9",
+  background: "#F4F6F8",
   surface: "#FFFFFF",
-  surfaceAlt: "#EEF1F6",
-  border: "#E3E8F0",
-  borderStrong: "#CDD5E1",
+  surfaceAlt: "#EDF0F3",
+  border: "#DDE3E8",
+  borderStrong: "#B8C0C8",
 
-  text: "#0E1B2E",
-  textMuted: "#5A6B82",
-  textFaint: "#8A98AC",
+  text: "#161A1D",
+  textMuted: "#69747D",
+  textFaint: "#96A0A9",
 } as const;
 
 export const radius = {
   sm: 8,
-  md: 12,
+  md: 10,
   lg: 16,
   xl: 22,
   pill: 999,
@@ -61,6 +68,7 @@ export const font = {
     xxl: 26,
     huge: 34,
   },
+  /** Legacy numeric weights — prefer `font.family` (real Archivo/Inter cuts). */
   weight: {
     regular: "400" as const,
     medium: "500" as const,
@@ -68,18 +76,20 @@ export const font = {
     bold: "700" as const,
     heavy: "800" as const,
   },
+  /** CleanRun IQ font families (Archivo headings / Inter body). */
+  family: fontFamily,
 } as const;
 
 export const shadow = {
   card: {
-    shadowColor: "#0E1B2E",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
+    shadowColor: "#161A1D",
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
     elevation: 2,
   },
   floating: {
-    shadowColor: "#0E1B2E",
+    shadowColor: "#161A1D",
     shadowOpacity: 0.18,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
@@ -91,9 +101,9 @@ export const shadow = {
 export const MARKUP_COLORS = [
   "#E53935",
   "#F59E0B",
-  "#16A34A",
-  "#0EA5E9",
+  "#18A94F",
+  "#1D4ED8",
   "#7C3AED",
-  "#0E1F3A",
+  "#161A1D",
   "#FFFFFF",
 ] as const;

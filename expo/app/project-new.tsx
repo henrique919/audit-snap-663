@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   mediaImg: { width: "100%", height: "100%" },
-  mediaLabel: { fontSize: font.size.xs, fontWeight: font.weight.bold, color: palette.textMuted },
+  mediaLabel: { fontSize: font.size.xs, fontFamily: font.family.bodyBold, color: palette.textMuted },
   mediaNote: { fontSize: font.size.xs, color: palette.textFaint, marginTop: 6 },
   saveBtn: { marginTop: spacing.xl },
 });

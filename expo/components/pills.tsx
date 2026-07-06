@@ -10,7 +10,7 @@ import { PRIORITY_LABEL, STATUS_LABEL } from "@/types/models";
 const STATUS_COLORS: Record<IssueStatus, { color: string; soft: string }> = {
   open: { color: palette.red, soft: palette.redSoft },
   assigned: { color: palette.amber, soft: palette.amberSoft },
-  in_progress: { color: palette.sky, soft: palette.skySoft },
+  in_progress: { color: palette.info, soft: palette.infoSoft },
   completed: { color: palette.green, soft: palette.greenSoft },
 };
 
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   dot: { width: 6, height: 6, borderRadius: 3 },
   label: {
     fontSize: font.size.xs,
-    fontWeight: font.weight.bold,
+    fontFamily: font.family.bodyBold,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },

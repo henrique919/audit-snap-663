@@ -25,10 +25,10 @@ export const BrandConfig = {
   logoUri: null as string | null,
   /** Two-letter monogram used for the logo placeholder tile. */
   monogram: "CA",
-  /** Primary brand color (deep navy). */
-  brandPrimary: "#0E1F3A",
-  /** Accent color (restrained green). */
-  brandAccent: "#16A34A",
+  /** Primary brand color (CleanRun IQ carbon). */
+  brandPrimary: "#161A1D",
+  /** Accent color (CleanRun IQ green). */
+  brandAccent: "#18A94F",
 } as const;
 
 /** Report themes available in the report builder. */
@@ -38,9 +38,9 @@ export const REPORT_THEMES: Record<
   ReportThemeKey,
   { label: string; primary: string; accent: string; heading: string }
 > = {
-  navy: { label: "Classic Navy", primary: "#0E1F3A", accent: "#16A34A", heading: "#0E1F3A" },
-  slate: { label: "Minimal Slate", primary: "#1F2937", accent: "#0EA5E9", heading: "#111827" },
-  forest: { label: "Field Forest", primary: "#14342B", accent: "#D97706", heading: "#14342B" },
+  navy: { label: "CleanRun Carbon", primary: "#161A1D", accent: "#20C55E", heading: "#161A1D" },
+  slate: { label: "Minimal Slate", primary: "#1F2937", accent: "#1D4ED8", heading: "#111827" },
+  forest: { label: "Field Forest", primary: "#14342B", accent: "#C27803", heading: "#14342B" },
 };
 
 /** Default email templates used by the share flow. */

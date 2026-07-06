@@ -224,7 +224,7 @@ export default function ReportPreviewScreen() {
               <Text style={styles.statLbl}>Assigned</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={[styles.statNum, { color: palette.sky }]}>{counts.inProgress}</Text>
+              <Text style={[styles.statNum, { color: palette.info }]}>{counts.inProgress}</Text>
               <Text style={styles.statLbl}>In prog.</Text>
             </View>
             <View style={styles.statBox}>
@@ -257,7 +257,7 @@ export default function ReportPreviewScreen() {
           <AppButton
             label="Share"
             variant="secondary"
-            icon={<Share2 color={palette.navy} size={17} />}
+            icon={<Share2 color={palette.carbon} size={17} />}
             onPress={share}
             style={styles.halfBtn}
             disabled={generating}
@@ -265,7 +265,7 @@ export default function ReportPreviewScreen() {
           <AppButton
             label="Email"
             variant="secondary"
-            icon={<Mail color={palette.navy} size={17} />}
+            icon={<Mail color={palette.carbon} size={17} />}
             onPress={email}
             style={styles.halfBtn}
             disabled={generating}
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    backgroundColor: palette.navy,
+    backgroundColor: palette.carbon,
     padding: spacing.lg,
   },
   coverMark: {
@@ -301,11 +301,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  coverMarkText: { color: palette.white, fontWeight: font.weight.heavy, fontSize: font.size.md },
-  coverBrand: { color: palette.white, fontSize: font.size.md, fontWeight: font.weight.heavy },
-  coverTag: { color: "rgba(255,255,255,0.65)", fontSize: 9, letterSpacing: 1.6, marginTop: 2, fontWeight: font.weight.bold },
-  coverTitle: { fontSize: font.size.xl, fontWeight: font.weight.heavy, color: palette.text, paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
-  coverProject: { fontSize: font.size.md, fontWeight: font.weight.semibold, color: palette.textMuted, paddingHorizontal: spacing.lg, marginTop: 4 },
+  coverMarkText: { color: palette.white, fontFamily: font.family.headingHeavy, fontSize: font.size.md },
+  coverBrand: { color: palette.white, fontSize: font.size.md, fontFamily: font.family.headingHeavy },
+  coverTag: { color: "rgba(255,255,255,0.65)", fontSize: 9, letterSpacing: 1.6, marginTop: 2, fontFamily: font.family.bodyBold },
+  coverTitle: { fontSize: font.size.xl, fontFamily: font.family.headingHeavy, color: palette.text, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, letterSpacing: -0.3 },
+  coverProject: { fontSize: font.size.md, fontFamily: font.family.bodySemibold, color: palette.textMuted, paddingHorizontal: spacing.lg, marginTop: 4 },
   coverAddress: { fontSize: font.size.xs, color: palette.textFaint, paddingHorizontal: spacing.lg, marginTop: 2 },
   coverMeta: {
     marginTop: spacing.md,
@@ -317,15 +317,15 @@ const styles = StyleSheet.create({
   },
   coverMetaText: { fontSize: font.size.xs, color: palette.textMuted },
   summaryCard: { gap: spacing.md },
-  summaryTitle: { fontSize: font.size.sm, fontWeight: font.weight.heavy, color: palette.text, textTransform: "uppercase", letterSpacing: 1 },
+  summaryTitle: { fontSize: font.size.sm, fontFamily: font.family.bodyHeavy, color: palette.text, textTransform: "uppercase", letterSpacing: 1 },
   statRow: { flexDirection: "row", gap: 6 },
   statBox: { flex: 1, alignItems: "center", backgroundColor: palette.surfaceAlt, borderRadius: radius.sm, paddingVertical: spacing.sm },
-  statNum: { fontSize: font.size.lg, fontWeight: font.weight.heavy, color: palette.text },
-  statLbl: { fontSize: 9, color: palette.textFaint, textTransform: "uppercase", letterSpacing: 0.6, fontWeight: font.weight.bold, marginTop: 1 },
+  statNum: { fontSize: font.size.lg, fontFamily: font.family.headingHeavy, color: palette.text },
+  statLbl: { fontSize: 9, color: palette.textFaint, textTransform: "uppercase", letterSpacing: 0.6, fontFamily: font.family.bodyBold, marginTop: 1 },
   metaRow: { flexDirection: "row", gap: spacing.lg },
-  metaText: { fontSize: font.size.xs, color: palette.textMuted, fontWeight: font.weight.semibold },
+  metaText: { fontSize: font.size.xs, color: palette.textMuted, fontFamily: font.family.bodySemibold },
   readyRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  readyText: { fontSize: font.size.sm, color: palette.green, fontWeight: font.weight.bold },
+  readyText: { fontSize: font.size.sm, color: palette.green, fontFamily: font.family.bodyBold },
   btnRow: { flexDirection: "row", gap: spacing.sm },
   halfBtn: { flex: 1 },
   note: { fontSize: font.size.xs, color: palette.textFaint, lineHeight: 17, textAlign: "center", marginTop: spacing.sm },

@@ -124,7 +124,7 @@ export default function CaptureTab() {
         <AppButton
           label="Create a Project First"
           variant="secondary"
-          icon={<FolderPlus color={palette.navy} size={18} />}
+          icon={<FolderPlus color={palette.carbon} size={18} />}
           onPress={() => router.push("/project-new")}
         />
       ) : null}
@@ -135,7 +135,7 @@ export default function CaptureTab() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: palette.background },
   content: { paddingHorizontal: spacing.lg, paddingBottom: 120 },
-  title: { fontSize: font.size.xxl, fontWeight: font.weight.heavy, color: palette.text, letterSpacing: -0.4 },
+  title: { fontSize: font.size.xxl, fontFamily: font.family.headingHeavy, color: palette.text, letterSpacing: -0.7 },
   subtitle: { fontSize: font.size.sm, color: palette.textMuted, marginTop: 3, marginBottom: spacing.lg },
   heroCard: { gap: spacing.md },
   heroTop: { flexDirection: "row", alignItems: "center", gap: spacing.md },
@@ -143,12 +143,12 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: radius.md,
-    backgroundColor: palette.navy,
+    backgroundColor: palette.carbon,
     alignItems: "center",
     justifyContent: "center",
   },
   heroText: { flex: 1 },
-  heroTitle: { fontSize: font.size.lg, fontWeight: font.weight.bold, color: palette.text },
+  heroTitle: { fontSize: font.size.lg, fontFamily: font.family.heading, color: palette.text },
   heroSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 2 },
   row: {
     flexDirection: "row",
@@ -162,6 +162,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   rowBody: { flex: 1 },
-  rowTitle: { fontSize: font.size.md, fontWeight: font.weight.bold, color: palette.text },
+  rowTitle: { fontSize: font.size.md, fontFamily: font.family.bodyBold, color: palette.text },
   rowSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 2 },
 });

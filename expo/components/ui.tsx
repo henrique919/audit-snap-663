@@ -56,7 +56,7 @@ export function AppButton({ label, onPress, icon, disabled, loading, variant = "
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isPrimary || isDanger ? palette.white : palette.navy} />
+        <ActivityIndicator color={isPrimary || isDanger ? palette.white : palette.carbon} />
       ) : (
         <>
           {icon}
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
   },
-  btnPrimary: { backgroundColor: palette.navy },
+  btnPrimary: { backgroundColor: palette.carbon },
   btnSecondary: {
     backgroundColor: palette.surface,
     borderWidth: 1.5,
@@ -238,19 +238,19 @@ const styles = StyleSheet.create({
   btnGhost: { backgroundColor: "transparent" },
   btnDanger: { backgroundColor: palette.red },
   btnDisabled: { opacity: 0.5 },
-  btnLabel: { color: palette.white, fontSize: font.size.md, fontWeight: font.weight.bold },
-  btnLabelDark: { color: palette.navy },
+  btnLabel: { color: palette.white, fontSize: font.size.md, fontFamily: font.family.bodyBold },
+  btnLabelDark: { color: palette.carbon },
 
   field: { marginBottom: spacing.lg },
   fieldLabel: {
     fontSize: font.size.xs,
-    fontWeight: font.weight.bold,
+    fontFamily: font.family.bodyBold,
     color: palette.textMuted,
     textTransform: "uppercase",
     letterSpacing: 1,
     marginBottom: 6,
   },
-  fieldOptional: { color: palette.textFaint, fontWeight: font.weight.medium, textTransform: "none" },
+  fieldOptional: { color: palette.textFaint, fontFamily: font.family.bodyMedium, textTransform: "none" },
   input: {
     backgroundColor: palette.surface,
     borderWidth: 1,
@@ -276,8 +276,8 @@ const styles = StyleSheet.create({
     maxWidth: 220,
   },
   chipSmall: { paddingHorizontal: 10, paddingVertical: 6 },
-  chipActive: { backgroundColor: palette.navy, borderColor: palette.navy },
-  chipLabel: { fontSize: font.size.sm, fontWeight: font.weight.semibold, color: palette.text },
+  chipActive: { backgroundColor: palette.carbon, borderColor: palette.carbon },
+  chipLabel: { fontSize: font.size.sm, fontFamily: font.family.bodySemibold, color: palette.text },
   chipLabelSmall: { fontSize: font.size.xs },
   chipLabelActive: { color: palette.white },
 
@@ -290,14 +290,14 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: font.size.sm,
-    fontWeight: font.weight.heavy,
+    fontFamily: font.family.bodyHeavy,
     color: palette.textMuted,
     textTransform: "uppercase",
     letterSpacing: 1.4,
   },
 
   empty: { alignItems: "center", paddingVertical: 48, paddingHorizontal: 32, gap: 8 },
-  emptyTitle: { fontSize: font.size.lg, fontWeight: font.weight.bold, color: palette.text, marginTop: 8 },
+  emptyTitle: { fontSize: font.size.lg, fontFamily: font.family.bodyBold, color: palette.text, marginTop: 8 },
   emptyMessage: { fontSize: font.size.sm, color: palette.textMuted, textAlign: "center", lineHeight: 20 },
 
   card: {
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   toggleTextWrap: { flex: 1 },
-  toggleLabel: { fontSize: font.size.md, fontWeight: font.weight.semibold, color: palette.text },
+  toggleLabel: { fontSize: font.size.md, fontFamily: font.family.bodySemibold, color: palette.text },
   toggleSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 2 },
   toggleTrack: {
     width: 48,
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: radius.sm,
   },
-  segmentActive: { backgroundColor: palette.navy },
-  segmentLabel: { fontSize: font.size.xs, fontWeight: font.weight.bold, color: palette.textMuted },
+  segmentActive: { backgroundColor: palette.carbon },
+  segmentLabel: { fontSize: font.size.xs, fontFamily: font.family.bodyBold, color: palette.textMuted },
   segmentLabelActive: { color: palette.white },
 });

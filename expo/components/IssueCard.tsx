@@ -17,12 +17,21 @@ interface IssueCardProps {
   assigneeName: string;
   hasMarkup: boolean;
   onPress: () => void;
+  /** Long-press opens the quick actions sheet (status, markup, duplicate…). */
+  onLongPress?: () => void;
 }
 
-function IssueCardInner({ issue, assets, locationName, assigneeName, hasMarkup, onPress }: IssueCardProps) {
+function IssueCardInner({ issue, assets, locationName, assigneeName, hasMarkup, onPress, onLongPress }: IssueCardProps) {
   const thumb = assets[0]?.thumbUri;
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={[styles.card, !issue.includeInReport && styles.excluded]} testID={`issue-card-${issue.id}`}>
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={280}
+      style={[styles.card, !issue.includeInReport && styles.excluded]}
+      testID={`issue-card-${issue.id}`}
+    >
       <View style={styles.thumbWrap}>
         {thumb ? (
           <Image source={{ uri: thumb }} style={styles.thumb} contentFit="cover" />
@@ -94,12 +103,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 4,
     bottom: 4,
-    backgroundColor: "rgba(14,27,46,0.85)",
+    backgroundColor: "rgba(22,26,29,0.85)",
     borderRadius: radius.pill,
     paddingHorizontal: 6,
     paddingVertical: 1,
   },
-  photoCountText: { color: palette.white, fontSize: 10, fontWeight: font.weight.bold },
+  photoCountText: { color: palette.white, fontSize: 10, fontFamily: font.family.bodyBold },
   markupBadge: {
     position: "absolute",
     left: 4,
@@ -115,11 +124,11 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   number: {
     fontSize: font.size.xs,
-    fontWeight: font.weight.heavy,
+    fontFamily: font.family.headingHeavy,
     color: palette.textFaint,
     letterSpacing: 0.5,
   },
-  title: { fontSize: font.size.md, fontWeight: font.weight.bold, color: palette.text, marginTop: 1 },
+  title: { fontSize: font.size.md, fontFamily: font.family.heading, color: palette.text, marginTop: 1 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
   metaText: { fontSize: font.size.xs, color: palette.textMuted, marginRight: 8, maxWidth: 110 },
   pillRow: { flexDirection: "row", gap: 6, marginTop: 6 },

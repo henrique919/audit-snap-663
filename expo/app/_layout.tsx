@@ -4,7 +4,8 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-import { palette } from "@/constants/theme";
+import { font, palette } from "@/constants/theme";
+import { useAppFonts } from "@/constants/typography";
 import { AppStoreProvider } from "@/providers/AppStore";
 
 SplashScreen.preventAutoHideAsync();
@@ -17,8 +18,8 @@ function RootLayoutNav() {
       screenOptions={{
         headerBackTitle: "Back",
         headerStyle: { backgroundColor: palette.background },
-        headerTintColor: palette.navy,
-        headerTitleStyle: { fontWeight: "800", color: palette.text },
+        headerTintColor: palette.carbon,
+        headerTitleStyle: { fontFamily: font.family.heading, color: palette.text },
         headerShadowVisible: false,
         contentStyle: { backgroundColor: palette.background },
       }}
@@ -34,9 +35,17 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  const fontsReady = useAppFonts();
+
   useEffect(() => {
-    SplashScreen.hideAsync();
-  }, []);
+    if (fontsReady) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsReady]);
+
+  if (!fontsReady) {
+    return null;
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

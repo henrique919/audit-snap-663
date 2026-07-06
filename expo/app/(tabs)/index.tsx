@@ -94,7 +94,7 @@ export default function ProjectsScreen() {
             testID="continue-audit"
             label="Continue Audit"
             variant="secondary"
-            icon={<Play color={palette.navy} size={18} />}
+            icon={<Play color={palette.carbon} size={18} />}
             onPress={() => router.push({ pathname: "/capture-session", params: { auditId: lastAudit.id } })}
             style={styles.actionBtn}
           />
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: palette.background, paddingHorizontal: spacing.lg },
   header: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.lg },
   headerText: { flex: 1 },
-  appName: { fontSize: font.size.xl, fontWeight: font.weight.heavy, color: palette.text, letterSpacing: -0.3 },
+  appName: { fontSize: font.size.xl, fontFamily: font.family.headingHeavy, color: palette.text, letterSpacing: -0.7 },
   tagline: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 1 },
   searchWrap: {
     flexDirection: "row",
