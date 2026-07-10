@@ -38,6 +38,9 @@ yarn-error.*
 *.tsbuildinfo
 .vercel
 
+# tests
+coverage/
+
 .rork
 .env
 core
