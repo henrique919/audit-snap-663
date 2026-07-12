@@ -4,7 +4,7 @@
 
 | Done | In Progress | Remaining |
 |------|-------------|-----------|
-| 5    | 0           | 7 (Category A) |
+| 6    | 0           | 6 (Category A) |
 
 > Phase 2 (Sonnet 5): update this table and the per-item checkboxes as you complete items.
 > Process items **strictly in order** A1 → A12 per EXECUTION_PLAYBOOK.md.
@@ -51,7 +51,9 @@
 **Acceptance criteria:** Code-reviewed guard order (hydrated → delay → GC). On web preview boot: no crash, a log line confirming sweep skipped (web) or ran. `mediaRegistry` tests still green.
 
 ### A6. Real web capture pipeline (dims + persistence) — **M**
-- [ ] Done
+- [x] Done — confirmed the exact bug: `expo-image-picker`'s web implementation returns `URL.createObjectURL(file)` (a `blob:` URL, invalid after reload, no real dimensions attached). New `expo/lib/filesWeb.ts` (`fitDimensions`, `processPickedPhotoWeb`) decodes the picked image via an offscreen `<canvas>` and re-encodes report (≤1800px, q0.72) and thumb (≤500px, q0.6) variants as self-contained `data:` URIs — `originalUri` reuses the report variant (web has no real filesystem and localStorage has a strict per-origin quota, so a true full-res copy per photo isn't viable). `lib/files.ts`'s `processPickedPhoto` web branch now delegates to it; native branch untouched (verified: only the 2-line web-branch body changed). 12 new unit tests (pure `fitDimensions` math incl. upscale-never/square/portrait/landscape cases, plus a mocked-DOM orchestration suite for `processPickedPhotoWeb` covering shape, non-upscaling, correct canvas draw target size, and decode-failure rejection). `tsc --noEmit` clean, 124/124 tests pass, lint clean (same 2 pre-existing warnings).
+
+  **Live verification (web preview):** injected a real 900×1400 JPEG via the `<input type=file>` technique (EXECUTION_PLAYBOOK §4.5) into Capture Session → Gallery. Confirmed via localStorage inspection: stored asset has the exact real dimensions (`900×1400`, not the old hardcoded `1600×1200`), `reportUri`/`thumbUri` are `data:image/jpeg;base64,...` (not `blob:`), `originalUri === reportUri`. Visually confirmed correct rendering in all three required surfaces: hit list (thumbnail cropped to fill its fixed square slot, no distortion), Markup Studio (full portrait aspect ratio, test text and color band both in correct proportion), and PDF Preview's item-page preview. Re-navigated (full JS context teardown + rehydration from localStorage) and confirmed the photo still rendered identically — no broken image, proving `data:` URIs survive reload where `blob:` URLs did not. Zero console errors throughout.
 **Problem:** `expo/lib/files.ts` web branch fakes 1600×1200 dims and passes through blob URIs that die on reload — web-added photos render at wrong aspect and vanish.
 **Description:** On web in `processPickedPhoto`: read actual dimensions (create `Image`, await load or `createImageBitmap`), downscale via canvas to ≤1800px, export JPEG data URI (quality ~0.72) for `reportUri`/`thumbUri` (≤500px thumb). Store data URIs (they persist in localStorage-backed records; keep sizes modest). Keep native branch untouched.
 **Acceptance criteria (web preview):**

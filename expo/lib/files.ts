@@ -11,6 +11,8 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ImageManipulator from "expo-image-manipulator";
 import { Platform } from "react-native";
 
+import { processPickedPhotoWeb } from "@/lib/filesWeb";
+
 export const PHOTO_DIR = `${FileSystem.documentDirectory ?? ""}photos/`;
 export const REPORT_DIR = `${FileSystem.documentDirectory ?? ""}reports/`;
 export const BRAND_DIR = `${FileSystem.documentDirectory ?? ""}brand/`;
@@ -114,7 +116,7 @@ export async function processPickedPhoto(
   id: string,
 ): Promise<ProcessedPhoto> {
   if (Platform.OS === "web") {
-    return { originalUri: sourceUri, reportUri: sourceUri, thumbUri: sourceUri, width: 1600, height: 1200 };
+    return processPickedPhotoWeb(sourceUri);
   }
 
   await ensureDir(PHOTO_DIR);

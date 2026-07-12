@@ -29,6 +29,7 @@ module.exports = {
     "lib/saveState.ts",
     "lib/mediaRegistry.ts",
     "lib/files.ts",
+    "lib/filesWeb.ts",
     "lib/store.ts",
     "!lib/persistence/README.md",
   ],
