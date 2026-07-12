@@ -4,7 +4,7 @@
 
 | Done | In Progress | Remaining |
 |------|-------------|-----------|
-| 2    | 0           | 10 (Category A) |
+| 3    | 0           | 9 (Category A) |
 
 > Phase 2 (Sonnet 5): update this table and the per-item checkboxes as you complete items.
 > Process items **strictly in order** A1 → A12 per EXECUTION_PLAYBOOK.md.
@@ -33,7 +33,7 @@
 3. Native code path unchanged (diff review) and tests pass.
 
 ### A3. Merge the dangling durability fix — **S**
-- [ ] Done
+- [x] Done — cherry-picked `20d59277a` ("Preserve pending writes across retry failures") from `hardening/data-durability` cleanly, zero conflicts (touches `AppStore.tsx`/`StorageErrorBanner.tsx`, neither modified by A1/A2). Adds `lib/persistence/pendingWrite.ts` `mergeFailedWrite`: fixes a real race where a failed persist retry could silently overwrite a NEWER pending snapshot (queued while the failed batch was retrying) with the older failed one, discarding the newer mutation; also unions both attempts' dirty-table sets so nothing drops. `StorageErrorBanner` now dismisses per a monotonic `persistFailureVersion` counter instead of string-equality on the error message, fixing the case where two distinct failures with identical wording would leave the banner stuck dismissed after the first. `tsc --noEmit` clean, 101/101 tests pass (incl. both new `pendingWrite.test.ts` cases), lint clean (same 2 pre-existing warnings). Verified live in web preview post-cherry-pick: app boots correctly (screenshot + `get_page_text` show correct computed provider state, no error-boundary fallback, no StorageErrorBanner), a live settings mutation round-trips through the updated `flushPersist`/`markPersistFailure` path into localStorage correctly. Note: a stale Fast-Refresh console artifact from the mid-session hot-reload transition (see EXECUTION_PLAYBOOK §4.4) was investigated and ruled out as a live issue — documented so it isn't misread as a regression later.
 **Description:** `git fetch origin && git cherry-pick 20d5927` ("Preserve pending writes across retry failures", branch `hardening/data-durability`). Resolve conflicts if any (touches `StorageErrorBanner.tsx`, `providers/AppStore.tsx`, adds `lib/persistence/pendingWrite.ts` + test).
 **Acceptance criteria:** cherry-pick applied; `bun run test` green including `pendingWrite.test.ts`; typecheck clean; app boots in web preview with no banner regressions.
 

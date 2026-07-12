@@ -109,6 +109,19 @@ After every flow: `read_console_messages {onlyErrors:true}` must be clean (the t
 deprecation warnings disappear after A8). Remote demo photos come from unsplash/picsum —
 if offline they 404; that is environmental, not a defect.
 
+**Console buffer persists stale entries across navigation.** Confirmed in A3: editing a
+provider/component that changes its hook count/order (e.g. adding a `useState`) while the
+dev server has been hot-reloading for a while can trigger a real but STALE React "hook
+order changed" / Fast Refresh error in the console — importantly, `read_console_messages`
+keeps returning that same buffered error on every subsequent check, even after a full
+`navigate` reload and even when the live app is provably healthy. Do not trust
+`read_console_messages` alone as evidence of a live defect after any edit that changes a
+component's hook list. Cross-check with `get_page_text`/a screenshot showing correct
+rendered data (not an error-boundary fallback) before concluding something is broken. If
+you genuinely suspect a stale Fast-Refresh artifact: `preview_stop` + `preview_start` to
+get a new server process, THEN `navigate` the tab (both steps — stopping the server alone
+does not reload the browser tab, which keeps its live WebSocket/fiber tree).
+
 ### 4.5 Injecting files into the web file picker (for A6/A11 testing)
 The OS file dialog cannot be driven. Instead, after clicking Gallery, locate the hidden
 `<input type="file">` and inject programmatically:
