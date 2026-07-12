@@ -13,6 +13,7 @@ import { AppState, type AppStateStatus } from "react-native";
 
 import { newId, nowIso } from "@/lib/ids";
 import { appendOutbox } from "@/lib/persistence/outbox";
+import { mergeFailedWrite } from "@/lib/persistence/pendingWrite";
 import { type PersistStatus } from "@/lib/persistence/types";
 import { computeReportFreshness } from "@/lib/reportFreshness";
 import { buildDemoDb } from "@/lib/seed";
@@ -114,6 +115,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
   const [hydrated, setHydrated] = useState<boolean>(false);
   const [persistStatus, setPersistStatus] = useState<PersistStatus>("idle");
   const [lastPersistError, setLastPersistError] = useState<string | null>(null);
+  const [persistFailureVersion, setPersistFailureVersion] = useState(0);
 
   const hydratedRef = useRef<boolean>(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -127,6 +129,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
   const markPersistFailure = useCallback((error: string) => {
     setPersistStatus("error");
     setLastPersistError(error);
+    setPersistFailureVersion((version) => version + 1);
   }, []);
 
   const markPersistSuccess = useCallback(() => {
@@ -154,10 +157,19 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
         if (!result.ok) {
           if (batchEpoch !== persistEpochRef.current) return false;
           markPersistFailure(result.error);
-          // Re-queue unsaved state so next mutation / background flush retries full dirty set.
-          pendingDbRef.current = batchDb;
-          pendingEpochRef.current = batchEpoch;
-          for (const table of batchTables) pendingTablesRef.current.add(table);
+          // Re-queue the failed tables, but never replace a newer snapshot that
+          // arrived while this batch was retrying.
+          const requeued = mergeFailedWrite(
+            {
+              snapshot: pendingDbRef.current,
+              epoch: pendingEpochRef.current,
+              tables: pendingTablesRef.current,
+            },
+            { snapshot: batchDb, epoch: batchEpoch, tables: batchTables },
+          );
+          pendingDbRef.current = requeued.snapshot;
+          pendingEpochRef.current = requeued.epoch;
+          pendingTablesRef.current = requeued.tables;
           return false;
         }
         wrote = true;
@@ -188,6 +200,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       for (const table of tables) pendingTablesRef.current.add(table);
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => {
+        saveTimer.current = null;
         void flushPersist();
       }, 250);
     },
@@ -640,6 +653,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       settings,
       persistStatus,
       lastPersistError,
+      persistFailureVersion,
       updateSettings,
       createProject,
       updateProject,
@@ -663,6 +677,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       settings,
       persistStatus,
       lastPersistError,
+      persistFailureVersion,
       updateSettings,
       createProject,
       updateProject,
