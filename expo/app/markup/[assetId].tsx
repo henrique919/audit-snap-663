@@ -67,11 +67,17 @@ import {
   resizeElement,
   translateElement,
 } from "@/lib/annotationGeometry";
-import { cropWorkingImage, persistAnnotatedCapture, regenerateThumbnail, rotateWorkingImage } from "@/lib/files";
+import {
+  annotatedCaptureOptions,
+  cropWorkingImage,
+  deleteUriIfUnreferenced,
+  persistAnnotatedCapture,
+  regenerateThumbnail,
+  rotateWorkingImage,
+} from "@/lib/files";
 import { newId } from "@/lib/ids";
 import { useAppStore } from "@/providers/AppStore";
-import type { AnnotationElement } from "@/types/models";
-
+import type { AnnotationElement, PhotoAsset } from "@/types/models";
 type Tool = "select" | "arrow" | "ellipse" | "rect" | "pen" | "text" | "callout" | "blur" | "crop";
 
 const STROKE_SIZES = [4, 8, 14] as const;
@@ -631,6 +637,7 @@ export default function MarkupStudio() {
   const rotate = async () => {
     try {
       setSaving(true);
+      const previousUri = imageUri;
       const rotated = await rotateWorkingImage(imageUri, asset.id);
       setWorkingUri(rotated.uri);
       setWorkingDims({ width: rotated.width, height: rotated.height });
@@ -659,6 +666,9 @@ export default function MarkupStudio() {
       redoRef.current = [];
       setSelectedId(null);
       setDirty(true);
+      // Drop intermediate working files from earlier rotates/crops in this session
+      // (still-referenced DB report paths are left alone until save).
+      await deleteUriIfUnreferenced(previousUri, db.assets, asset.originalUri);
     } catch (e) {
       console.log("[markup] rotate failed", e);
       Alert.alert("Rotate failed", "Could not rotate this image.");
@@ -674,6 +684,7 @@ export default function MarkupStudio() {
     }
     try {
       setSaving(true);
+      const previousUri = imageUri;
       const cropped = await cropWorkingImage(imageUri, asset.id, imgWidth, imgHeight, cropRect);
       setWorkingUri(cropped.uri);
       setWorkingDims({ width: cropped.width, height: cropped.height });
@@ -705,6 +716,7 @@ export default function MarkupStudio() {
       setCropRect(null);
       setTool("select");
       setDirty(true);
+      await deleteUriIfUnreferenced(previousUri, db.assets, asset.originalUri);
     } catch (e) {
       console.log("[markup] crop failed", e);
       Alert.alert("Crop failed", "Could not crop this image.");
@@ -718,19 +730,30 @@ export default function MarkupStudio() {
       setSelectedId(null);
       setDraft(null);
       setSaving(true);
-      // Let the selection overlay unmount before flattening.
-      await new Promise((r) => setTimeout(r, 80));
-      // Read from the ref — a stroke committed milliseconds ago is always included.
+      // Selection/crop chrome live outside canvasRef — no setTimeout hide hack.
       const elementsToSave = elementsRef.current;
+      const previousReportUri = asset.reportUri;
+      const previousThumbUri = asset.thumbUri;
+      const previousAnnotatedUri = asset.annotatedUri;
+
       let annotatedUri: string | null = null;
       if (Platform.OS !== "web" && canvasRef.current && elementsToSave.length > 0) {
         try {
-          const tmp = await captureRef(canvasRef, { format: "jpg", quality: 0.9, result: "tmpfile" });
+          const tmp = await captureRef(
+            canvasRef,
+            annotatedCaptureOptions(imgWidth, imgHeight),
+          );
           annotatedUri = await persistAnnotatedCapture(tmp, asset.id);
         } catch (e) {
           console.log("[markup] flatten failed (annotation JSON still saved)", e);
         }
       }
+
+      let nextReportUri = asset.reportUri;
+      let nextThumbUri = asset.thumbUri;
+      let nextWidth = asset.width;
+      let nextHeight = asset.height;
+
       if (workingUri && workingDims) {
         // The working image was cropped/rotated — refresh the list thumbnail
         // so the hit list matches the new orientation/frame.
@@ -740,6 +763,10 @@ export default function MarkupStudio() {
         } catch (e) {
           console.log("[markup] thumbnail refresh failed", e);
         }
+        nextReportUri = workingUri;
+        nextWidth = workingDims.width;
+        nextHeight = workingDims.height;
+        if (thumbUri) nextThumbUri = thumbUri;
         updateAsset(asset.id, {
           reportUri: workingUri,
           width: workingDims.width,
@@ -748,6 +775,24 @@ export default function MarkupStudio() {
         });
       }
       saveAnnotation(asset.id, asset.issueId, elementsToSave, annotatedUri);
+
+      // After store update: delete superseded files that nothing else references.
+      const assetsAfter: PhotoAsset[] = db.assets.map((a) =>
+        a.id === asset.id
+          ? {
+              ...a,
+              reportUri: nextReportUri,
+              thumbUri: nextThumbUri,
+              width: nextWidth,
+              height: nextHeight,
+              annotatedUri,
+            }
+          : a,
+      );
+      await deleteUriIfUnreferenced(previousReportUri, assetsAfter, asset.originalUri);
+      await deleteUriIfUnreferenced(previousThumbUri, assetsAfter, asset.originalUri);
+      await deleteUriIfUnreferenced(previousAnnotatedUri, assetsAfter, asset.originalUri);
+
       setDirty(false);
       successHaptic();
       if (thenBack) router.back();
@@ -845,6 +890,8 @@ export default function MarkupStudio() {
   const renderBlurRegions = (w: number, h: number) => {
     const blurs = elements.filter((el) => el.type === "blur");
     if (draftEl?.type === "blur") blurs.push(draftEl);
+    // Scale blurRadius by capture ratio so high-res view-shot flattens stay strong.
+    const captureScale = w > 0 ? Math.max(1, imgWidth / w) : 1;
     return blurs.map((el) => {
       if (el.type !== "blur") return null;
       return (
@@ -863,7 +910,7 @@ export default function MarkupStudio() {
         >
           <RNImage
             source={{ uri: imageUri }}
-            blurRadius={el.intensity}
+            blurRadius={el.intensity * captureScale}
             resizeMode="cover"
             style={{ position: "absolute", left: -el.x * w, top: -el.y * h, width: w, height: h }}
           />
@@ -990,21 +1037,31 @@ export default function MarkupStudio() {
           </TouchableOpacity>
         </View>
 
-        {/* Canvas */}
+        {/* Canvas — canvasRef captures ONLY image + blur + committed/draft vectors.
+            Selection chrome, crop overlay, and blur draft outline live in a sibling SVG. */}
         <View style={styles.canvasWrap}>
           <View
-            ref={canvasRef}
-            collapsable={false}
             style={[styles.canvas, { aspectRatio: imageAspect }]}
             onLayout={(e) => setCanvas({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
           >
-            <RNImage source={{ uri: imageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-            {canvas.width > 0 ? renderBlurRegions(canvas.width, canvas.height) : null}
+            <View ref={canvasRef} collapsable={false} style={StyleSheet.absoluteFill}>
+              <RNImage source={{ uri: imageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              {canvas.width > 0 ? renderBlurRegions(canvas.width, canvas.height) : null}
+              {canvas.width > 0 ? (
+                <Svg width={canvas.width} height={canvas.height} style={StyleSheet.absoluteFill}>
+                  {elements.map((el) => renderElement(el, canvas.width, canvas.height))}
+                  {draftEl ? renderElement(draftEl, canvas.width, canvas.height) : null}
+                </Svg>
+              ) : null}
+            </View>
             {canvas.width > 0 ? (
-              <Svg width={canvas.width} height={canvas.height} style={StyleSheet.absoluteFill}>
-                {elements.map((el) => renderElement(el, canvas.width, canvas.height))}
-                {draftEl ? renderElement(draftEl, canvas.width, canvas.height) : null}
-                {draftEl?.type === "blur" && !saving ? (
+              <Svg
+                width={canvas.width}
+                height={canvas.height}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              >
+                {draftEl?.type === "blur" ? (
                   <Rect
                     x={draftEl.x * canvas.width}
                     y={draftEl.y * canvas.height}
@@ -1018,7 +1075,7 @@ export default function MarkupStudio() {
                     opacity={0.9}
                   />
                 ) : null}
-                {selectedEl && !saving ? renderSelection(selectedEl, canvas.width, canvas.height) : null}
+                {selectedEl ? renderSelection(selectedEl, canvas.width, canvas.height) : null}
                 {cropRect && tool === "crop" ? (
                   <Rect
                     x={cropRect.x * canvas.width}

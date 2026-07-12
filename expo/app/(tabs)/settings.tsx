@@ -8,16 +8,32 @@ import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } fr
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BrandMark } from "@/components/BrandMark";
-import { Card, Field, SectionTitle } from "@/components/ui";
+import { AppButton, Card, Field, SectionTitle } from "@/components/ui";
 import { BrandConfig, REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/constants/config";
 import { font, palette, radius, spacing } from "@/constants/theme";
 import { persistBrandLogo } from "@/lib/files";
+import { estimateMediaStorage, formatBytes, runMediaGc } from "@/lib/mediaRegistry";
 import { useAppStore } from "@/providers/AppStore";
 
 export default function SettingsTab() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { settings, updateSettings, resetAllData, db } = useAppStore();
+  const [mediaStats, setMediaStats] = React.useState<{ fileCount: number; totalBytes: number } | null>(null);
+  const [cleaning, setCleaning] = React.useState(false);
+
+  const refreshMediaStats = React.useCallback(async () => {
+    try {
+      const stats = await estimateMediaStorage();
+      setMediaStats(stats);
+    } catch (e) {
+      console.log("[settings] media stats failed", e);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void refreshMediaStats();
+  }, [refreshMediaStats, db.assets.length, db.reports.length, settings.logoUri]);
 
   const pendingCount = [
     ...db.projects,
@@ -176,6 +192,44 @@ export default function SettingsTab() {
         <ChevronRight color={palette.textFaint} size={18} />
       </TouchableOpacity>
 
+      <SectionTitle title="Storage" />
+      <Card>
+        <Text style={styles.note}>
+          {mediaStats
+            ? `About ${mediaStats.fileCount} media files · ${formatBytes(mediaStats.totalBytes)} on this device`
+            : "Measuring media storage…"}
+        </Text>
+        <AppButton
+          testID="cleanup-media"
+          label="Clean up unused files"
+          variant="secondary"
+          loading={cleaning}
+          onPress={async () => {
+            try {
+              setCleaning(true);
+              const result = await runMediaGc(db, settings);
+              await refreshMediaStats();
+              Alert.alert(
+                "Cleanup complete",
+                result.deleted === 0
+                  ? `No unused files found (${result.scanned} scanned).`
+                  : `Removed ${result.deleted} unused file${result.deleted === 1 ? "" : "s"} · freed ${formatBytes(result.freedBytes)}.`,
+              );
+            } catch (e) {
+              console.log("[settings] media gc failed", e);
+              Alert.alert("Cleanup failed", "Could not clean up unused files. Please try again.");
+            } finally {
+              setCleaning(false);
+            }
+          }}
+          style={styles.cleanupBtn}
+        />
+        <Text style={styles.note}>
+          Removes orphaned photos and reports older than 24 hours that are not referenced by any
+          project, issue, or export.
+        </Text>
+      </Card>
+
       <SectionTitle title="Data" />
       <TouchableOpacity style={styles.linkRow} activeOpacity={0.8} onPress={() => confirmReset(true)}>
         <View style={styles.linkIcon}>
@@ -285,6 +339,7 @@ const styles = StyleSheet.create({
   linkTitle: { fontSize: font.size.md, fontFamily: font.family.bodyBold, color: palette.text },
   dangerText: { color: palette.red },
   linkSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 2 },
+  cleanupBtn: { marginTop: spacing.sm, marginBottom: spacing.sm },
   aboutCard: {
     flexDirection: "row",
     gap: spacing.sm,
