@@ -17,8 +17,10 @@ import {
 
 import { AppButton, Field } from "@/components/ui";
 import { font, palette, radius, spacing } from "@/constants/theme";
-import { showAlert } from "@/lib/dialogs";
 import { useAppStore } from "@/providers/AppStore";
+
+const TITLE_MAX_LENGTH = 120;
+const NAME_MAX_LENGTH = 80;
 
 export default function ProjectNewScreen() {
   const router = useRouter();
@@ -32,6 +34,9 @@ export default function ProjectNewScreen() {
   const [inspectorName, setInspectorName] = useState<string>(settings.inspectorName);
   const [coverPhotoUri, setCoverPhotoUri] = useState<string | null>(null);
   const [logoUri, setLogoUri] = useState<string | null>(null);
+  const [attempted, setAttempted] = useState<boolean>(false);
+
+  const nameError = attempted && !name.trim() ? "Give the project a name so it appears on reports." : undefined;
 
   const pickImage = async (target: "cover" | "logo") => {
     try {
@@ -51,8 +56,8 @@ export default function ProjectNewScreen() {
   };
 
   const save = () => {
+    setAttempted(true);
     if (!name.trim()) {
-      showAlert("Project name required", "Give the project a name so it appears on reports.");
       return;
     }
     const project = createProject({
@@ -74,12 +79,21 @@ export default function ProjectNewScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Field label="Project name" value={name} onChangeText={setName} placeholder="e.g. Harbourview Apartments" autoFocus testID="project-name" />
-        <Field label="Client / prepared for" value={clientName} onChangeText={setClientName} placeholder="Client or organisation" optional />
-        <Field label="Reference number" value={reference} onChangeText={setReference} placeholder="Job or contract reference" optional />
-        <Field label="Site address" value={siteAddress} onChangeText={setSiteAddress} placeholder="Street, suburb, state" optional />
-        <Field label="Company name" value={companyName} onChangeText={setCompanyName} placeholder="Your company on report covers" optional />
-        <Field label="Inspector name" value={inspectorName} onChangeText={setInspectorName} placeholder="Who prepares the reports" optional />
+        <Field
+          label="Project name"
+          value={name}
+          onChangeText={setName}
+          placeholder="e.g. Harbourview Apartments"
+          autoFocus
+          testID="project-name"
+          error={nameError}
+          maxLength={TITLE_MAX_LENGTH}
+        />
+        <Field label="Client / prepared for" value={clientName} onChangeText={setClientName} placeholder="Client or organisation" optional maxLength={NAME_MAX_LENGTH} />
+        <Field label="Reference number" value={reference} onChangeText={setReference} placeholder="Job or contract reference" optional maxLength={NAME_MAX_LENGTH} />
+        <Field label="Site address" value={siteAddress} onChangeText={setSiteAddress} placeholder="Street, suburb, state" optional maxLength={160} />
+        <Field label="Company name" value={companyName} onChangeText={setCompanyName} placeholder="Your company on report covers" optional maxLength={NAME_MAX_LENGTH} />
+        <Field label="Inspector name" value={inspectorName} onChangeText={setInspectorName} placeholder="Who prepares the reports" optional maxLength={NAME_MAX_LENGTH} />
 
         <View style={styles.mediaRow}>
           <TouchableOpacity style={styles.mediaBox} activeOpacity={0.8} onPress={() => pickImage("logo")}>

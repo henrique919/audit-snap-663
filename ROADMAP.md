@@ -4,7 +4,7 @@
 
 | Done | In Progress | Remaining |
 |------|-------------|-----------|
-| 6    | 0           | 6 (Category A) |
+| 7    | 0           | 5 (Category A) |
 
 > Phase 2 (Sonnet 5): update this table and the per-item checkboxes as you complete items.
 > Process items **strictly in order** A1 → A12 per EXECUTION_PLAYBOOK.md.
@@ -61,7 +61,9 @@
 2. The photo renders with correct aspect ratio in hit list, markup studio, and report preview; after a full page reload it still renders.
 
 ### A7. Form validation states (audit-new, project-new, issue sheet) — **M**
-- [ ] Done
+- [x] Done — extended the shared `Field` component (`components/ui.tsx`) with `error`/`maxLength` props (red border + helper text below, benefits every current and future consumer). Both screens use an `attempted` flag (set true on first submit attempt) with the error derived reactively (`attempted && !value.trim()`) rather than manually cleared — simpler and can't drift out of sync. Removed the now-redundant `showAlert(...)` dialog calls for the empty-title/empty-name cases (dead `lib/dialogs` import removed from both files) since the inline error fully supersedes them — no more double feedback for one failure. Applied `maxLength`: title-tier fields (Audit Title, Project Name) 120; name-tier fields (Prepared For/By, Default Location/Assignee, Client, Reference, Company/Inspector Name) 80; Site Address 160 (a deliberate middle value — plain "name" tier is too tight for a full postal address, and the description tier is unreasonably generous). Both files already trimmed on save consistently before this change — confirmed, no further action needed there. Scope held to the 2 files ROADMAP names (the capture issue sheet's auto-title fallback is explicitly a feature, left untouched) rather than sweeping every form in the app. `tsc --noEmit` clean (had to drop an `accessibilityInvalid`/`accessibilityState.invalid` a11y prop — not present in this RN version's `TextInput`/`AccessibilityState` types; not in the acceptance criteria, not worth fighting the type system for), 124/124 tests pass (no new pure logic to test — this is UI/form-state wiring), lint clean (same 2 pre-existing warnings).
+
+  **Verification note:** live-tested both screens independently in the web preview. Empty-submit → inline red border + exact expected error text, URL unchanged (no navigation) — confirmed via `location.pathname` before/after, not just visual inspection. Typing into the field → error clears reactively (confirmed `null` immediately after a programmatic value+input-event). `maxLength` genuinely enforced (not just wired): confirmed the DOM `<input maxLength>` attribute is set, then typed 125 real characters via the `computer` tool's keyboard events (not a programmatic `.value` assignment, which would bypass native truncation) and confirmed the field topped out at exactly 120 characters. Zero console errors throughout.
 **Description:** Inline validation (not dialog-only): required-field highlight + helper text for Audit Title (`audit-new.tsx`), Project Name (`project-new.tsx`); sensible maxLengths (title 120, names 80, description 2000); trim-on-save everywhere (several sites already trim — make consistent). Keep the existing auto-title fallback for the capture issue sheet (it is a feature, not a bug).
 **Acceptance criteria (web preview):** Submitting audit-new/project-new with empty required fields shows an inline error state on the field AND does not navigate; filling it clears the error; typing 121st char in title is prevented.
 
