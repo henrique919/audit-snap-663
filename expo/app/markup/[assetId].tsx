@@ -907,7 +907,6 @@ export default function MarkupStudio() {
       return (
         <View
           key={`blur-${el.id}`}
-          pointerEvents="none"
           style={{
             position: "absolute",
             left: el.x * w,
@@ -916,6 +915,7 @@ export default function MarkupStudio() {
             height: Math.max(1, el.height * h),
             overflow: "hidden",
             borderRadius: 6,
+            pointerEvents: "none",
           }}
         >
           <RNImage
@@ -1071,8 +1071,7 @@ export default function MarkupStudio() {
               <Svg
                 width={canvas.width}
                 height={canvas.height}
-                style={StyleSheet.absoluteFill}
-                pointerEvents="none"
+                style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}
               >
                 {draftEl?.type === "blur" ? (
                   <Rect

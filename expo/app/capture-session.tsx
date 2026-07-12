@@ -297,7 +297,7 @@ export default function CaptureSession() {
 
         {/* Saved toast */}
         {toast ? (
-          <Animated.View style={[styles.toast, { opacity: toastOpacity }]} pointerEvents="none">
+          <Animated.View style={[styles.toast, { opacity: toastOpacity, pointerEvents: "none" }]}>
             <Check color={palette.greenBright} size={15} strokeWidth={3} />
             <Text style={styles.toastText}>{toast}</Text>
           </Animated.View>

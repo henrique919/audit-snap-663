@@ -29,7 +29,7 @@ export function StorageErrorBanner() {
     lastPersistError.toLowerCase().includes("storage full");
 
   return (
-    <View style={styles.wrap} pointerEvents="box-none" testID="storage-error-banner" accessibilityRole="alert">
+    <View style={[styles.wrap, { pointerEvents: "box-none" }]} testID="storage-error-banner" accessibilityRole="alert">
       <View style={styles.banner}>
         <View style={styles.messageWrap}>
           <Text style={styles.title}>{"Couldn't save your latest changes — retrying"}</Text>

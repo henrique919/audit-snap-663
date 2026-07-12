@@ -4,7 +4,7 @@
 
 | Done | In Progress | Remaining |
 |------|-------------|-----------|
-| 7    | 0           | 5 (Category A) |
+| 8    | 0           | 4 (Category A) |
 
 > Phase 2 (Sonnet 5): update this table and the per-item checkboxes as you complete items.
 > Process items **strictly in order** A1 → A12 per EXECUTION_PLAYBOOK.md.
@@ -68,7 +68,9 @@
 **Acceptance criteria (web preview):** Submitting audit-new/project-new with empty required fields shows an inline error state on the field AND does not navigate; filling it clears the error; typing 121st char in title is prevented.
 
 ### A8. Console hygiene: deprecation warnings — **S**
-- [ ] Done
+- [x] Done — centralized `shadow` in `expo/constants/theme.ts` behind `Platform.select`: web variant uses `boxShadow` CSS strings (card/floating), native/default variant keeps the original `shadowColor`/`shadowOpacity`/`shadowRadius`/`shadowOffset`/`elevation` fields untouched. Migrated all 4 remaining `pointerEvents={...}` prop usages to `style.pointerEvents` (`capture-session.tsx` toast, `markup/[assetId].tsx` blur-region View + draft-overlay Svg, `StorageErrorBanner.tsx` wrap View) — confirmed via `grep -rn "pointerEvents=" --include="*.tsx" app components` returning zero matches afterward. The one remaining source of the warning traced to a transitive dependency, not app code: `@react-navigation/elements`' `Header` and `@react-navigation/bottom-tabs`' `BottomTabBar` (both mounted on nearly every screen via expo-router's Stack/tabs) still pass `pointerEvents` as a prop internally. Confirmed `LogBox.ignoreLogs()` is a complete no-op stub on react-native-web (read `node_modules/react-native-web/dist/cjs/exports/LogBox/index.js`), so the standard RN suppression mechanism doesn't work here; added a scoped `console.warn` filter in `_layout.tsx` (web-only, matches only the exact `"props.pointerEvents is deprecated"` string) as the only working lever, with a comment documenting why. `tsc --noEmit` clean, 124/124 tests pass (no new pure logic — this is style/prop migration), lint clean (same 2 pre-existing unrelated warnings).
+
+  **Live verification (web preview):** walked home → Markup Studio → PDF Preview. `read_console_messages` on a fresh boot of each screen showed only the 3 expected baseline messages (React DevTools notice, "Running application" log, `[media-gc] startup sweep skipped (web)`) — zero `shadow*`/`pointerEvents` warnings on any of the three. Screenshots confirmed shadows render correctly and unchanged: home screen's black CTA card and white project card both show the intended soft drop shadow; PDF Preview's cards render identically. Also sanity-checked that the `pointerEvents: "none"` migration on Markup Studio's draft-overlay Svg didn't block drawing gestures — dispatched a synthetic pointerdown/pointermove/pointerup sequence on the canvas and confirmed via screenshot that an arrow annotation was drawn and the header showed "UNSAVED CHANGES", proving the PanResponder still receives events correctly.
 **Description:** Replace `shadow*` style props in `expo/constants/theme.ts` (and any inline uses) with `boxShadow` on web via `Platform.select` (RN 0.81 supports `boxShadow` string style on new-arch native too — verify on web preview only; keep native shadows working by retaining elevation/shadow props under `Platform.select({ default: ... })` if needed). Migrate `props.pointerEvents` → `style.pointerEvents` (grep `pointerEvents=`).
 **Acceptance criteria:** Web preview console shows zero `shadow*`/`pointerEvents` deprecation warnings across home → markup → preview walk; visual shadows unchanged (screenshot compare home + capture screens).
 

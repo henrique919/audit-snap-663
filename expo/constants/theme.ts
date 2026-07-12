@@ -6,6 +6,8 @@
  * — see constants/typography.ts.
  */
 
+import { Platform } from "react-native";
+
 import { fontFamily } from "@/constants/typography";
 
 export const palette = {
@@ -80,22 +82,34 @@ export const font = {
   family: fontFamily,
 } as const;
 
-export const shadow = {
-  card: {
-    shadowColor: "#161A1D",
-    shadowOpacity: 0.07,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 2,
+/**
+ * `shadow*`/`elevation` are the native (iOS/Android) shadow API; react-native-web
+ * warns on them and wants the standard CSS `boxShadow` string instead. Both
+ * render the same visual card/floating shadow — this is the one place that
+ * needs to know the difference (every consumer just spreads `shadow.card`).
+ */
+export const shadow = Platform.select({
+  web: {
+    card: { boxShadow: "0px 5px 12px rgba(22,26,29,0.07)" },
+    floating: { boxShadow: "0px 8px 16px rgba(22,26,29,0.18)" },
   },
-  floating: {
-    shadowColor: "#161A1D",
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
+  default: {
+    card: {
+      shadowColor: "#161A1D",
+      shadowOpacity: 0.07,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 2,
+    },
+    floating: {
+      shadowColor: "#161A1D",
+      shadowOpacity: 0.18,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 8,
+    },
   },
-} as const;
+})!;
 
 /** Colors available in the markup studio palette. */
 export const MARKUP_COLORS = [
