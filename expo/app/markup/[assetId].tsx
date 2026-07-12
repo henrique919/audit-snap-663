@@ -40,7 +40,7 @@ import {
   Undo2,
   X,
 } from "lucide-react-native";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image as RNImage,
@@ -149,7 +149,7 @@ export default function MarkupStudio() {
   const { assetId } = useLocalSearchParams<{ assetId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { db, saveAnnotation, updateAsset, persistStatus } = useAppStore();
+  const { db, saveAnnotation, updateAsset, persistStatus, hydrated } = useAppStore();
 
   const asset = useMemo(() => db.assets.find((a) => a.id === assetId) ?? null, [db.assets, assetId]);
   const existing = useMemo(
@@ -204,6 +204,25 @@ export default function MarkupStudio() {
     elementsRef.current = next;
     setElements(next);
   }, []);
+
+  /**
+   * `elements`/`elementsRef` above snapshot `existing?.elements` only once,
+   * at mount — if AppStore hydration (async AsyncStorage/localStorage read)
+   * hasn't finished by the first render, that snapshot is `[]` and never
+   * self-corrects, since nothing else re-derives it from `existing`. A saved
+   * annotation would then render as invisible AND, worse, a subsequent save
+   * would overwrite it with just the newly-drawn elements — silently
+   * discarding the persisted ones. Re-sync once, the first time hydration
+   * completes with real data, before any local edit (`dirty`) exists to lose.
+   */
+  const hydrationSynced = useRef<boolean>(false);
+  useEffect(() => {
+    if (hydrationSynced.current || !hydrated || dirty) return;
+    hydrationSynced.current = true;
+    if (existing && existing.elements.length > 0) {
+      applyElements(existing.elements);
+    }
+  }, [hydrated, existing, dirty, applyElements]);
 
   /** Mirror draft into a ref so commit-on-release never uses a stale closure. */
   const setDraft = useCallback((el: AnnotationElement | null) => {

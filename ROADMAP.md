@@ -112,6 +112,32 @@
 
 ---
 
+## FINAL QA LOOP (EXECUTION_PLAYBOOK.md §1, §6)
+
+Executed after all Category A items are done. Walk every core flow end-to-end per the §6
+checklist, log and fix every defect, repeat until one complete pass finds zero.
+
+### Pass 1 — in progress
+
+Flow checklist progress (EXECUTION_PLAYBOOK §6, steps 1–9):
+- [x] 1. Fresh data → home renders demo, no console errors.
+- [x] 2. New Project (all fields) → New Audit (defaults verified) → Start Capture.
+- [x] 3. Add photo (filechooser technique, DECISIONS.md #17/#18) → issue sheet → fill → Save & Next → Save & Review.
+- [x] 4. Hit list: filters, group modes, quick actions (status change, duplicate, exclude, delete with confirm).
+- [x] 5. Markup: draw arrow + box + text + blur → save → reopen → hit-list thumbnail badge.
+- [ ] 6. Report Builder: each theme; toggle originals; Preview → Generate; modify → stale-report warning → regenerate.
+- [ ] 7. Reports tab shows history. Settings: edit branding fields, reset demo.
+- [ ] 8. Edge cases: empty audit report guard, 0-photo issue, 120-char title, 2000-char description, 12+ issues, search no-results.
+- [ ] 9. `bun run test` + typecheck + lint — all green.
+
+**Defects found and fixed this pass:**
+
+1. **Markup Studio: saved annotations invisible after a fresh page load, with a real risk of silently discarding them on the next save.** Found at flow-checklist step 5. Root cause, fix, and live-verification detail in DECISIONS.md #19. Fixed in `app/markup/[assetId].tsx` (one-shot hydration-resync `useEffect`).
+
+_(This section is updated as the loop continues; a pass with zero new defects closes it out.)_
+
+---
+
 ## CATEGORY B — EXTERNALLY BLOCKED (do not start; keep slots clean per ARCHITECTURE.md)
 
 | Item | Blocked by | Prepared slot |
