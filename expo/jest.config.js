@@ -1,22 +1,24 @@
 /** @type {import('jest').Config} */
 module.exports = {
+  preset: "jest-expo",
   testEnvironment: "node",
   roots: ["<rootDir>/lib"],
   testMatch: ["**/__tests__/**/*.test.ts"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
+    "^@react-native-async-storage/async-storage$":
+      "@react-native-async-storage/async-storage/jest/async-storage-mock",
     "^@expo-google-fonts/.+$": "<rootDir>/lib/__tests__/mocks/expoGoogleFonts.js",
     "^expo-font$": "<rootDir>/lib/__tests__/mocks/expoFont.js",
   },
-  transform: {
-    "^.+\\.[jt]sx?$": [
-      "babel-jest",
-      {
-        presets: [["babel-preset-expo", { unstable_transformImportMeta: true }]],
-      },
-    ],
-  },
+  transformIgnorePatterns: [
+    "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg))",
+  ],
   collectCoverageFrom: [
+    "lib/annotationGeometry.ts",
+    "lib/annotationSvg.ts",
+    "lib/format.ts",
+    "lib/issueIndex.ts",
     "lib/persistence/**/*.ts",
     "lib/reportFreshness.ts",
     "lib/report.ts",
