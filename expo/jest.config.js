@@ -5,6 +5,8 @@ module.exports = {
   testMatch: ["**/__tests__/**/*.test.ts"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
+    "^@expo-google-fonts/.+$": "<rootDir>/lib/__tests__/mocks/expoGoogleFonts.js",
+    "^expo-font$": "<rootDir>/lib/__tests__/mocks/expoFont.js",
   },
   transform: {
     "^.+\\.[jt]sx?$": [
@@ -17,6 +19,9 @@ module.exports = {
   collectCoverageFrom: [
     "lib/persistence/**/*.ts",
     "lib/reportFreshness.ts",
+    "lib/report.ts",
+    "lib/reportImages.ts",
+    "lib/reportFonts.ts",
     "lib/store.ts",
     "!lib/persistence/README.md",
   ],
