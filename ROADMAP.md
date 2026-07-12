@@ -4,7 +4,7 @@
 
 | Done | In Progress | Remaining |
 |------|-------------|-----------|
-| 12   | 0           | 0 (Category A) — proceeding to FINAL QA LOOP |
+| 12   | 0           | 0 — Category A complete, FINAL QA LOOP complete (2 passes, 1 defect found and fixed, Pass 2 clean). Phase 2 done. |
 
 > Phase 2 (Sonnet 5): update this table and the per-item checkboxes as you complete items.
 > Process items **strictly in order** A1 → A12 per EXECUTION_PLAYBOOK.md.
@@ -112,29 +112,44 @@
 
 ---
 
-## FINAL QA LOOP (EXECUTION_PLAYBOOK.md §1, §6)
+## FINAL QA LOOP (EXECUTION_PLAYBOOK.md §1, §6) — ✅ DONE
 
-Executed after all Category A items are done. Walk every core flow end-to-end per the §6
-checklist, log and fix every defect, repeat until one complete pass finds zero.
+Executed after all Category A items were done. Walked every core flow end-to-end per the §6
+checklist, logged and fixed every defect, repeated until one complete pass found zero.
 
-### Pass 1 — in progress
+### Pass 1 — 1 defect found and fixed
 
-Flow checklist progress (EXECUTION_PLAYBOOK §6, steps 1–9):
+Flow checklist (EXECUTION_PLAYBOOK §6, steps 1–9), all walked live in the web preview via the
+Playwright harness (DECISIONS.md #14):
 - [x] 1. Fresh data → home renders demo, no console errors.
 - [x] 2. New Project (all fields) → New Audit (defaults verified) → Start Capture.
 - [x] 3. Add photo (filechooser technique, DECISIONS.md #17/#18) → issue sheet → fill → Save & Next → Save & Review.
-- [x] 4. Hit list: filters, group modes, quick actions (status change, duplicate, exclude, delete with confirm).
-- [x] 5. Markup: draw arrow + box + text + blur → save → reopen → hit-list thumbnail badge.
-- [ ] 6. Report Builder: each theme; toggle originals; Preview → Generate; modify → stale-report warning → regenerate.
-- [ ] 7. Reports tab shows history. Settings: edit branding fields, reset demo.
-- [ ] 8. Edge cases: empty audit report guard, 0-photo issue, 120-char title, 2000-char description, 12+ issues, search no-results.
-- [ ] 9. `bun run test` + typecheck + lint — all green.
+- [x] 4. Hit list: filters, group modes, quick actions (status change, duplicate, exclude/include, delete with confirm) — all effective, counts verified via localStorage at each step.
+- [x] 5. Markup: draw arrow + box + text + blur → save (4/4 elements persisted) → reopen → hit-list thumbnail badge present.
+- [x] 6. Report Builder: cycled all 3 themes (executive/sitewalk/handover), toggled "Original photos" (confirmed HTML size changed), Preview → Generate (A2 print-window path); edited an issue → stale-report warning appeared → regenerated → new HTML contained the edit.
+- [x] 7. Reports tab shows history (A9 behavior); Settings: branding fields (inspector/company name) save to `caiq:settings`; Reset demo data returns to the canonical 1-project seed.
+- [x] 8. Edge cases: 0-included-issues report guard (dialog fires, zero side effects — A10), 0-photo issue note (A10), 120-char title cap (A7), a 1919-char description typed through the real tap-to-edit UI and persisted byte-exact, 18 issues in one audit via repeated Duplicate (hit list/report/CSV all scaled correctly — CSV rows matched issue count + 1 exactly), search-no-match on Home (A10).
+- [x] 9. `bun run test` (142/142) + `tsc --noEmit` + `bun run lint` (0 errors, same 2 pre-existing unrelated warnings) — all green.
 
-**Defects found and fixed this pass:**
+**Defect found and fixed this pass:**
 
-1. **Markup Studio: saved annotations invisible after a fresh page load, with a real risk of silently discarding them on the next save.** Found at flow-checklist step 5. Root cause, fix, and live-verification detail in DECISIONS.md #19. Fixed in `app/markup/[assetId].tsx` (one-shot hydration-resync `useEffect`).
+1. **Markup Studio: saved annotations invisible after a fresh page load, with a real risk of silently discarding them on the next save.** Found at flow-checklist step 5. Root cause, fix, and live-verification detail in DECISIONS.md #19. Fixed in `app/markup/[assetId].tsx` (one-shot hydration-resync `useEffect`), commit `84cfa8c`.
 
-_(This section is updated as the loop continues; a pass with zero new defects closes it out.)_
+### Pass 2 — zero defects, loop closed
+
+A full second walkthrough (fresh data → new project/audit/capture/two-photo-issues → hit-list
+quick action → markup draw/save/**reload**/select/drag-edit (re-proving the Pass 1 fix
+specifically) → hit-list badge → report theme/generate/stale/regenerate → Reports tab →
+Settings → 0-issue guard), scripted as 19 explicit assertions in one continuous session.
+**Result: 19/19 pass, zero defects, zero unexpected console errors.** Two apparent failures on
+the first run of this pass were both confirmed to be test-script bugs, not product bugs, before
+being counted: (a) a `testID` selector assumed a wrapper `<input>` when the `Field` component
+puts the `testID` directly on the `TextInput` — the default-title feature itself was already
+proven working twice over (this pass and Pass 1's step 2); (b) `element.innerText` (unlike
+`.textContent`) reflects the CSS `text-transform: uppercase` applied to the "Marked up" badge
+label, so the raw-cased string comparison undercounted — the badge was present and correct.
+Per EXECUTION_PLAYBOOK.md §1 ("repeat until one complete pass finds exactly zero defects"),
+this closes the Final QA Loop.
 
 ---
 
