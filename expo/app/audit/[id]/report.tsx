@@ -119,7 +119,10 @@ export default function ReportBuilderScreen() {
         <SectionTitle title="Content" />
         <Card>
           <ToggleRow label="Timestamps" value={options.includeTimestamps} onToggle={(v) => set({ includeTimestamps: v })} />
-          <ToggleRow label="Page numbers" value={options.includePageNumbers} onToggle={(v) => set({ includePageNumbers: v })} />
+          {/* Page-number toggle removed: CSS Paged Media counters are ignored by
+              expo-print WebViews on iOS and Android. includePageNumbers remains
+              on ReportOptions for stored-settings compatibility; report.ts
+              forces the CSS off. TODO(wave2): footer-based page numbers. */}
           <ToggleRow label="Photo locations" value={options.includePhotoLocations} onToggle={(v) => set({ includePhotoLocations: v })} />
           <ToggleRow
             label="Completed issues"

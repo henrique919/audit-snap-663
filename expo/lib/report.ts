@@ -110,10 +110,12 @@ function photoFigure({ asset, annotation, annotated, imageSrc, label }: IssuePho
   // padding-top ratio box instead of CSS aspect-ratio — reliable in the
   // print/PDF renderer across platforms.
   const framePad = ((asset.height / Math.max(1, asset.width)) * 100).toFixed(2);
+  // Missing/unreadable files resolve to "" — keep the grey frame, skip <img>.
+  const imgTag = src ? `<img src="${src}" alt=""/>` : "";
   return `
     <figure class="photo">
       <div class="photo-frame" style="padding-top:${framePad}%">
-        <img src="${src}" alt=""/>
+        ${imgTag}
         ${overlay}
       </div>
       <figcaption>${escapeHtml(label)}</figcaption>
@@ -153,12 +155,14 @@ export function buildReportHtml(data: ReportData): string {
 
   /* ------------------------------- Cover page ------------------------------- */
   const logoUri = project.logoUri ?? branding.logoUri;
-  const logo = logoUri
-    ? `<img class="cover-logo" src="${imageSrc(logoUri)}" alt=""/>`
+  const logoSrc = logoUri ? imageSrc(logoUri) : "";
+  const logo = logoSrc
+    ? `<img class="cover-logo" src="${logoSrc}" alt=""/>`
     : `<div class="cover-mark">${escapeHtml(BrandConfig.monogram)}</div>`;
 
-  const coverPhoto = project.coverPhotoUri
-    ? `<div class="cover-photo"><img src="${imageSrc(project.coverPhotoUri)}" alt=""/></div>`
+  const coverPhotoSrc = project.coverPhotoUri ? imageSrc(project.coverPhotoUri) : "";
+  const coverPhoto = coverPhotoSrc
+    ? `<div class="cover-photo"><img src="${coverPhotoSrc}" alt=""/></div>`
     : "";
 
   const coverMeta = `
@@ -426,16 +430,20 @@ export function buildReportHtml(data: ReportData): string {
   </section>`
     : "";
 
-  const pageNumberCss = options.includePageNumbers
-    ? `@page { margin: 14mm 12mm 16mm 12mm; @bottom-right { content: counter(page); font-family: Helvetica; font-size: 9px; color: #96A0A9; } }`
-    : `@page { margin: 14mm 12mm 16mm 12mm; }`;
+  // TODO(wave2): footer-based page numbers. CSS Paged Media
+  // `@page { @bottom-right { content: counter(page) } }` is ignored by
+  // expo-print's WKWebView (iOS) and Android WebView print engines — verified
+  // against Expo Print docs + WebView CSS Paged Media support matrix. Keep
+  // `includePageNumbers` on ReportOptions for stored-settings compatibility
+  // but never emit the unsupported CSS.
+  const pageNumberCss = `@page { margin: 14mm 12mm 16mm 12mm; }`;
 
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8"/>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
+  /* Offline fonts: no Google Fonts @import — see lib/reportFonts.ts */
   ${pageNumberCss}
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { font-family: ${reportFontStack.body}; color: #161A1D; font-size: ${dense ? "10.5px" : "11px"}; line-height: 1.45; }

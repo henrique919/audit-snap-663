@@ -52,7 +52,10 @@ export const fontFamily = {
   bodyHeavy: "Inter_800ExtraBold",
 } as const;
 
-/** CSS font stacks for HTML/PDF output (report generation). */
+/** CSS font stacks for HTML/PDF output (report generation).
+ * PDF path ships these system stacks only — see lib/reportFonts.ts.
+ * (Embedding Archivo+Inter TTFs exceeds the ~2 MB offline-font budget.)
+ */
 export const reportFontStack = {
   heading: `Archivo, -apple-system, "Segoe UI", Roboto, Arial, sans-serif`,
   body: `Inter, -apple-system, "Segoe UI", Roboto, Arial, sans-serif`,

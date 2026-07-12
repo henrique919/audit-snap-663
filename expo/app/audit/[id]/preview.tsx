@@ -5,19 +5,25 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { AlertTriangle, CheckCircle2, FileText, Mail, Share2, ShieldCheck } from "lucide-react-native";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Alert, Image, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AppButton, Card } from "@/components/ui";
 import { STATUS_COLORS, StatusPill } from "@/components/pills";
 import { BrandConfig, REPORT_THEMES, buildEmailBody, buildEmailSubject, resolveThemeKey } from "@/constants/config";
 import { font, palette, radius, spacing } from "@/constants/theme";
-import { fileToDataUri, persistGeneratedPdf } from "@/lib/files";
+import { persistGeneratedPdf } from "@/lib/files";
 import { formatDate, formatDateTime, issueRef } from "@/lib/format";
 import { buildReportHtml } from "@/lib/report";
+import { getReportFontFaceCss } from "@/lib/reportFonts";
+import { resolveReportImages } from "@/lib/reportImages";
 import { useAppStore, useAudit, useIssuesForAudit, useProject, useReportFreshness } from "@/providers/AppStore";
 import { DEFAULT_REPORT_OPTIONS, ReportOptions } from "@/types/models";
 
+function isLargeReportError(error: unknown): boolean {
+  const msg = String(error instanceof Error ? `${error.name} ${error.message}` : error).toLowerCase();
+  return /memory|oom|heap|enospc|no space|disk|storage|quota|too large|allocation|out of memory/.test(msg);
+}
 export default function ReportPreviewScreen() {
   const { id, options: optionsParam } = useLocalSearchParams<{ id: string; options?: string }>();
   const { db, settings, addReportExport } = useAppStore();
@@ -36,7 +42,9 @@ export default function ReportPreviewScreen() {
   }, [optionsParam, settings.defaultReportOptions]);
 
   const [generating, setGenerating] = useState<boolean>(false);
+  const [generationPhase, setGenerationPhase] = useState<string | null>(null);
   const [pdfUri, setPdfUri] = useState<string | null>(null);
+  const generatingRef = useRef(false);
 
   const theme = REPORT_THEMES[resolveThemeKey(options.themeKey)];
   const brandLogoUri = project?.logoUri ?? settings.logoUri;
@@ -95,25 +103,39 @@ export default function ReportPreviewScreen() {
 
   const generate = useCallback(async (): Promise<string | null> => {
     if (!audit || !project) return null;
+    if (generatingRef.current) return null;
+    generatingRef.current = true;
     try {
       setGenerating(true);
+      setGenerationPhase("Preparing photos…");
 
-      // Resolve local images to data URIs so they embed in the PDF.
-      const uriMap = new Map<string, string>();
+      // Resolve local images with bounded concurrency — do NOT retain the
+      // base64 map in React state; let it fall out of scope after print.
       const relevantAssets = db.assets.filter(
         (a) => includedIssues.some((i) => i.id === a.issueId) && !a.deletedAt,
       );
       const urisToResolve = new Set<string>();
-      relevantAssets.forEach((a) => urisToResolve.add(a.reportUri));
+      relevantAssets.forEach((a) => {
+        urisToResolve.add(a.reportUri);
+        if (a.annotatedUri) urisToResolve.add(a.annotatedUri);
+      });
       if (project.coverPhotoUri) urisToResolve.add(project.coverPhotoUri);
       if (project.logoUri) urisToResolve.add(project.logoUri);
       if (settings.logoUri) urisToResolve.add(settings.logoUri);
-      await Promise.all(
-        Array.from(urisToResolve).map(async (uri) => {
-          const resolved = await fileToDataUri(uri);
-          if (resolved) uriMap.set(uri, resolved);
-        }),
-      );
+
+      // Warm offline font CSS cache (system-stack path — see reportFonts.ts).
+      await getReportFontFaceCss();
+
+      const uriMap = await resolveReportImages(Array.from(urisToResolve), {
+        concurrency: 3,
+        onProgress: (done, total) => {
+          setGenerationPhase(
+            total === 0 ? "Preparing photos…" : `Preparing photos (${done}/${total})…`,
+          );
+        },
+      });
+
+      setGenerationPhase("Rendering PDF…");
 
       const html = buildReportHtml({
         project,
@@ -130,10 +152,11 @@ export default function ReportPreviewScreen() {
           logoUri: settings.logoUri,
           footerText: settings.reportFooterText,
         },
-        imageSrc: (uri) => uriMap.get(uri) ?? uri,
+        imageSrc: (uri) => uriMap.get(uri) ?? "",
       });
 
       const result = await Print.printToFileAsync({ html, base64: false });
+      // html + uriMap released when this frame returns — not stored in state.
       const persisted = await persistGeneratedPdf(
         result.uri,
         `${BrandConfig.reportName}_${project.name}_${audit.auditDate}`,
@@ -150,10 +173,19 @@ export default function ReportPreviewScreen() {
       return persisted;
     } catch (e) {
       console.log("[preview] generate failed", e);
-      Alert.alert("Generation failed", "Could not generate the PDF. Please try again.");
+      if (isLargeReportError(e)) {
+        Alert.alert(
+          "Report too large",
+          "Report too large — try Compact image size or fewer issues",
+        );
+      } else {
+        Alert.alert("Generation failed", "Could not generate the PDF. Please try again.");
+      }
       return null;
     } finally {
+      generatingRef.current = false;
       setGenerating(false);
+      setGenerationPhase(null);
     }
   }, [audit, project, db.assets, db.locations, db.assignees, db.annotations, includedIssues, options, settings, photoCount, addReportExport]);
 
@@ -436,6 +468,11 @@ export default function ReportPreviewScreen() {
           onPress={generate}
           loading={generating}
         />
+        {generating && generationPhase ? (
+          <Text style={styles.phaseText} testID="pdf-generation-phase">
+            {generationPhase}
+          </Text>
+        ) : null}
         <View style={styles.btnRow}>
           <AppButton
             label="Share"
@@ -561,6 +598,13 @@ const styles = StyleSheet.create({
   statusStaleText: { fontSize: font.size.sm, color: palette.amber, fontFamily: font.family.bodyBold },
   statusNoneText: { fontSize: font.size.sm, color: palette.textMuted, fontFamily: font.family.bodyBold },
   readyText: { fontSize: font.size.sm, color: palette.green, fontFamily: font.family.bodyBold },
+  phaseText: {
+    fontSize: font.size.xs,
+    color: palette.textMuted,
+    fontFamily: font.family.bodySemibold,
+    textAlign: "center",
+    marginTop: -4,
+  },
   btnRow: { flexDirection: "row", gap: spacing.sm },
   halfBtn: { flex: 1 },
   note: { fontSize: font.size.xs, color: palette.textFaint, lineHeight: 17, textAlign: "center", marginTop: spacing.sm },
