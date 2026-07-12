@@ -4,7 +4,7 @@
 
 | Done | In Progress | Remaining |
 |------|-------------|-----------|
-| 4    | 0           | 8 (Category A) |
+| 5    | 0           | 7 (Category A) |
 
 > Phase 2 (Sonnet 5): update this table and the per-item checkboxes as you complete items.
 > Process items **strictly in order** A1 → A12 per EXECUTION_PLAYBOOK.md.
@@ -46,7 +46,7 @@
 **Acceptance criteria:** Add a dev-only forced-failure hook (e.g. `setStorageDriver` with a failing driver behind `__DEV__` toggle in Settings, or a unit test at minimum) demonstrating: on write failure the markup header does NOT claim "Saved on device". Normal path unchanged in web preview.
 
 ### A5. Automatic media GC sweep on startup — **S**
-- [ ] Done
+- [x] Done — new `expo/components/MediaGcScheduler.tsx`, mounted in `_layout.tsx` alongside `StorageErrorBanner`/`ActionSheetHost` (the established pattern for provider-scoped, UI-less side-effect components). Guard order: `hydrated` (from `useAppStore()`) → 5s `setTimeout` → `runMediaGc`, gated by a `ranRef` so it fires at most once per app launch. `db`/`settings` are read via refs updated every render (not effect dependencies) specifically so a routine mutation during the 5s window can't cancel-and-drop the pending timer — the effect itself depends only on `[hydrated]`, which changes exactly once. Explicit `console.log` on both the web-skip and native-ran/failed paths so the outcome is always observable, not just relying on `runMediaGc`'s own internal web no-op. `tsc --noEmit` clean, 112/112 tests pass (`mediaRegistry.test.ts` untouched/green), lint clean. Verified live: fresh web boot shows `[media-gc] startup sweep skipped (web)`, zero console errors, home screen renders normally.
 **Description:** After hydration completes in `providers/AppStore.tsx` (or `app/_layout.tsx`), schedule `runMediaGc(db, settings)` once per app launch on native (`Platform.OS !== "web"`), ≥5s after interactive, fire-and-forget with try/catch, log result. Respect existing 24h age gate; never run before hydration.
 **Acceptance criteria:** Code-reviewed guard order (hydrated → delay → GC). On web preview boot: no crash, a log line confirming sweep skipped (web) or ran. `mediaRegistry` tests still green.
 

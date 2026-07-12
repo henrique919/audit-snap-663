@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ActionSheetHost } from "@/components/ActionSheet";
+import { MediaGcScheduler } from "@/components/MediaGcScheduler";
 import { StorageErrorBanner } from "@/components/StorageErrorBanner";
 import { font, palette } from "@/constants/theme";
 import { useAppFonts } from "@/constants/typography";
@@ -57,6 +58,7 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <StorageErrorBanner />
             <ActionSheetHost />
+            <MediaGcScheduler />
             <RootLayoutNav />
           </GestureHandlerRootView>
         </AppStoreProvider>
