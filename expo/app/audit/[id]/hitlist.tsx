@@ -206,11 +206,19 @@ export default function HitListScreen() {
             );
           }}
           ListEmptyComponent={
-            <EmptyState
-              icon={<ClipboardList color={palette.textFaint} size={36} />}
-              title="No issues yet"
-              message="Capture photos on your site walk to build the hit list."
-            />
+            issues.length === 0 ? (
+              <EmptyState
+                icon={<ClipboardList color={palette.textFaint} size={36} />}
+                title="No issues yet"
+                message="Capture photos on your site walk to build the hit list."
+              />
+            ) : (
+              <EmptyState
+                icon={<ClipboardList color={palette.textFaint} size={36} />}
+                title="No issues match this filter"
+                message={`No ${statusFilter ? STATUS_LABEL[statusFilter].toLowerCase() : ""} issues yet — try a different status filter above.`}
+              />
+            )
           }
         />
 

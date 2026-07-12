@@ -139,6 +139,9 @@ export default function IssueDetailScreen() {
         )}
 
         <SectionTitle title="Photos" />
+        {assets.length === 0 ? (
+          <Text style={styles.emptyNote}>No photos on this issue — add one below.</Text>
+        ) : null}
         {assets.map((asset) => {
           const annotation = db.annotations.find((an) => an.assetId === asset.id);
           const hasMarkup = !!annotation && annotation.elements.length > 0;
@@ -316,6 +319,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: spacing.md,
   },
+  emptyNote: { fontSize: font.size.xs, color: palette.textFaint, marginBottom: spacing.sm },
   photoBlock: { marginBottom: spacing.md },
   photo: { width: "100%", borderRadius: radius.lg, backgroundColor: palette.surfaceAlt },
   photoActions: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.sm },

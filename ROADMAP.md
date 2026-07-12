@@ -4,7 +4,7 @@
 
 | Done | In Progress | Remaining |
 |------|-------------|-----------|
-| 9    | 0           | 3 (Category A) |
+| 10   | 0           | 2 (Category A) |
 
 > Phase 2 (Sonnet 5): update this table and the per-item checkboxes as you complete items.
 > Process items **strictly in order** A1 → A12 per EXECUTION_PLAYBOOK.md.
@@ -82,7 +82,17 @@
 **Acceptance criteria:** Reports tab renders the export history for the demo audit after generating a report (A2 path); tapping an entry produces a sensible web behavior (re-open print view or an informative dialog); no console errors.
 
 ### A10. Empty/edge-state sweep — **S**
-- [ ] Done
+- [x] Done — swept all six states named in the description plus one more found along the way:
+  1. **Report generation with 0 included issues** — was previously allowed straight through to a pointless empty-ish PDF. `preview.tsx generate()` now guards at the top with the exact copy the roadmap specified (`showAlert("No issues included", "No issues included — check report options")`) and returns before opening the (web) print window or touching `generatingRef`/`ReportExport` — zero side effects on the guarded path.
+  2. **Audit with issues but all photos deleted** — hit list (`IssueCard`) already handled this gracefully (camera-icon placeholder thumbnail, pre-existing, unmodified). Found and fixed the one real gap: `issue/[id].tsx`'s Photos section rendered nothing but blank space between the "Photos" heading and the Take Photo/Gallery buttons when `assets.length === 0`; added a one-line `"No photos on this issue — add one below."` note (same inline-note idiom already used in `project/[id].tsx`).
+  3. **Very long titles/descriptions** — verified live, not fixed (already correct): seeded a 527-char issue title and 3219-char description, walked hit list (IssueCard's existing `numberOfLines` truncates cleanly with ellipsis), issue detail (wraps, scrolls, fully editable — correct for an editable field, not cut), PDF Preview's card previews (existing `numberOfLines` truncate), and the actual generated report HTML rendered in a real page at print width (hit-list table cell and item-detail title/description both wrap normally inside their box, `scrollWidth === clientWidth` confirmed via DOM measurement on every `.ttl`/`.item-title` node — no overflow). `escapeHtml` already applied to every interpolated field in `lib/report.ts` (pre-existing, confirmed via grep, `<script>` stayed escaped in output).
+  4. **Project with no audits** — already implemented (`project/[id].tsx` "No audits yet — start one above."), confirmed live by creating a fresh zero-audit project and visiting it.
+  5. **Search with no matches** — already implemented on Home (`(tabs)/index.tsx` "No matching projects" / "Try a different search term."), confirmed live by typing a non-matching query.
+  6. **Extra state found while sweeping, not in the original list**: Hit List's status-filter chips (Open/Assigned/In Progress/Completed) reused the exact same "No issues yet — capture photos…" `EmptyState` even when the audit clearly has issues and the user just filtered them all out by status — actively misleading (tells the user to go capture photos when they should just clear the filter). Split `ListEmptyComponent` on `issues.length === 0` (true empty audit, unchanged copy) vs. filtered-to-zero (new "No issues match this filter" / "No `<status>` issues yet — try a different status filter above.").
+
+  `tsc --noEmit` clean, 124/124 tests pass (no new pure logic — this is UI copy/guard wiring), lint clean (same 2 pre-existing unrelated warnings).
+
+  **Verification note:** all three code changes were live-tested via the Playwright harness (DECISIONS.md #14) with real state mutations (excluded all issues from report → guard fires, `dialogSeen` captured, zero `window.open` calls, zero new `ReportExport` records; set every issue to `open` status then filtered by Completed → new filtered-empty copy renders; deleted an issue's only photo → new note renders). Hit a **second, unrelated occurrence** of the Metro stale-bundle issue from DECISIONS.md #15 mid-item (this time with no `git stash` involved — confirmed the dev server's file watcher can go stale on its own in this container, not only after out-of-band git operations); caught it early this time by curl-checking the served bundle for a unique string from each edit before trusting any test result, restarted with `--clear`, re-verified clean. See DECISIONS.md #16 for the generalized rule this produced.
 **Description:** Verify + fix: report generation with 0 included issues (guard with dialog "No issues included — check report options"); audit with issues but all photos deleted; very long titles/descriptions in hit list, report HTML (escape + wrap verified by existing tests, check UI truncation); project with no audits; search with no matches.
 **Acceptance criteria:** Each listed state renders a designed empty/guard state in web preview, no blank screens, no console errors.
 
