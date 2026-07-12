@@ -46,15 +46,21 @@ export default function ReportsTab() {
     return [...issues, ...assets, ...annotations].some((r) => r.updatedAt > exp.createdAt);
   };
 
-  const sharePdf = async (uri: string) => {
+  const sharePdf = async (exp: ReportExport) => {
+    if (Platform.OS === "web") {
+      // Web never persists a real PDF file (A2 — WEB_PRINT_SENTINEL); the
+      // sensible action is to reopen Preview with this export's exact
+      // options, where "Regenerate PDF" reprints via the browser dialog.
+      router.push({
+        pathname: "/audit/[id]/preview",
+        params: { id: exp.auditId, options: JSON.stringify(exp.options) },
+      });
+      return;
+    }
     try {
-      if (Platform.OS === "web") {
-        showAlert("Not available", "Sharing saved PDFs is available on device.");
-        return;
-      }
       const available = await Sharing.isAvailableAsync();
       if (available) {
-        await Sharing.shareAsync(uri, { mimeType: "application/pdf", UTI: "com.adobe.pdf" });
+        await Sharing.shareAsync(exp.pdfUri, { mimeType: "application/pdf", UTI: "com.adobe.pdf" });
       }
     } catch (e) {
       console.log("[reports] share failed", e);
@@ -125,7 +131,11 @@ export default function ReportsTab() {
                 </Text>
               ) : null}
             </View>
-            <TouchableOpacity style={styles.shareBtn} onPress={() => sharePdf(exp.pdfUri)} testID={`share-export-${exp.id}`}>
+            <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={() => sharePdf(exp)}
+              testID={`share-export-${exp.id}`}
+            >
               <Share2 color={palette.carbon} size={18} />
             </TouchableOpacity>
           </View>

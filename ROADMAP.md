@@ -4,7 +4,7 @@
 
 | Done | In Progress | Remaining |
 |------|-------------|-----------|
-| 8    | 0           | 4 (Category A) |
+| 9    | 0           | 3 (Category A) |
 
 > Phase 2 (Sonnet 5): update this table and the per-item checkboxes as you complete items.
 > Process items **strictly in order** A1 → A12 per EXECUTION_PLAYBOOK.md.
@@ -75,7 +75,9 @@
 **Acceptance criteria:** Web preview console shows zero `shadow*`/`pointerEvents` deprecation warnings across home → markup → preview walk; visual shadows unchanged (screenshot compare home + capture screens).
 
 ### A9. Reports tab end-to-end verification & repair — **S**
-- [ ] Done
+- [x] Done — walked `expo/app/(tabs)/reports.tsx` live: "Build a report" lists all audits (tap → Report Builder, confirmed working, unmodified), "Generated reports" lists exports with date/issue/photo counts and a stale-content warning (`isExportStale`, unmodified). Found and fixed the actual A2-era gap: the Share icon's web branch unconditionally showed a dead-end `showAlert("Not available", …)` for every export, regardless of content, which is a worse experience than necessary now that A2 exists — the web sentinel (`pdfUri: "web-print"`) means there is no real file to share, but the audit's live data and the export's exact original `ReportOptions` are still available. Changed `sharePdf` to take the whole `ReportExport` record (was just the `pdfUri` string) and, on web, `router.push` to `/audit/[id]/preview` with `options: JSON.stringify(exp.options)` — landing the user back on the one screen that can actually regenerate and print, pre-configured with the same theme/section choices used for that export, instead of a dead end. Native branch is byte-identical to before (still `Sharing.shareAsync(exp.pdfUri, …)`, just reading `.pdfUri` off the passed record instead of a pre-extracted string). `tsc --noEmit` clean, 124/124 tests pass (no new pure logic — this is navigation wiring), lint clean (same 2 pre-existing unrelated warnings).
+
+  **Verification note:** live-tested in the web preview (Playwright harness — see DECISIONS.md #14): generated a report from PDF Preview (fake-`window.open` capture technique, A2-style), navigated to Reports, confirmed the export row rendered with correct counts, tapped the Share icon, and confirmed via `history.pushState` interception + rendered body text that the app landed on PDF Preview showing the SAME issue/photo counts as the original export (8 items, 8 photos) rather than a dead-end alert. Cross-checked the unrelated "Build a report" row navigation (`report-audit-…` → Report Builder) still works, and reran the full suite twice — once discovering a red herring (Metro serving a stale bundle after an in-session `git stash`/`pop`, ~40 min lost chasing a "dead" click handler that was actually just old code — see DECISIONS.md #15) and once clean after restarting the dev server with `--clear`. Zero console errors beyond the expected offline-demo-photo `ERR_TUNNEL_CONNECTION_FAILED` (environmental, STATUS.md §5).
 **Description:** `expo/app/(tabs)/reports.tsx` was not runtime-verified in Phase 1. Walk it in web preview: it should list generated report exports with open/share affordances. Fix whatever is broken on web (likely Share/`Sharing` guards and stale `pdfUri` handling after A2's web sentinel decision).
 **Acceptance criteria:** Reports tab renders the export history for the demo audit after generating a report (A2 path); tapping an entry produces a sensible web behavior (re-open print view or an informative dialog); no console errors.
 
