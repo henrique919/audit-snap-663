@@ -4,12 +4,13 @@ import * as Haptics from "expo-haptics";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Camera, ClipboardList, FileText } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
-import { Alert, FlatList, Platform, StyleSheet, Text, View } from "react-native";
+import { FlatList, Platform, StyleSheet, Text, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 
 import { IssueCard } from "@/components/IssueCard";
 import { AppButton, Chip, EmptyState } from "@/components/ui";
 import { font, palette, spacing } from "@/constants/theme";
+import { showActions, showConfirm } from "@/lib/dialogs";
 import { issueRef } from "@/lib/format";
 import { buildIssueMediaIndex } from "@/lib/issueIndex";
 import { useAppStore, useAudit, useIssuesForAudit } from "@/providers/AppStore";
@@ -68,13 +69,27 @@ export default function HitListScreen() {
   const doneCount = issues.length - openCount;
 
   const changeStatus = (issue: Issue) => {
-    Alert.alert("Change status", `${issueRef(issue.issueNumber)} · ${issue.title || "Untitled issue"}`, [
-      ...(Object.keys(STATUS_LABEL) as IssueStatus[]).map((s) => ({
-        text: s === issue.status ? `${STATUS_LABEL[s]} ✓` : STATUS_LABEL[s],
-        onPress: () => updateIssue(issue.id, { status: s }),
-      })),
-      { text: "Cancel", style: "cancel" as const },
-    ]);
+    showActions(
+      "Change status",
+      `${issueRef(issue.issueNumber)} · ${issue.title || "Untitled issue"}`,
+      [
+        ...(Object.keys(STATUS_LABEL) as IssueStatus[]).map((s) => ({
+          text: s === issue.status ? `${STATUS_LABEL[s]} ✓` : STATUS_LABEL[s],
+          onPress: () => updateIssue(issue.id, { status: s }),
+        })),
+        { text: "Cancel", style: "cancel" as const },
+      ],
+    );
+  };
+
+  const confirmDeleteIssue = async (issue: Issue) => {
+    const ok = await showConfirm(
+      "Delete issue?",
+      `${issueRef(issue.issueNumber)} will be removed from the audit and report.`,
+      "Delete",
+      true,
+    );
+    if (ok) deleteIssue(issue.id);
   };
 
   const quickActions = (issue: Issue) => {
@@ -107,15 +122,11 @@ export default function HitListScreen() {
       {
         text: "Delete",
         style: "destructive" as const,
-        onPress: () =>
-          Alert.alert("Delete issue?", `${issueRef(issue.issueNumber)} will be removed from the audit and report.`, [
-            { text: "Cancel", style: "cancel" },
-            { text: "Delete", style: "destructive", onPress: () => deleteIssue(issue.id) },
-          ]),
+        onPress: () => confirmDeleteIssue(issue),
       },
       { text: "Cancel", style: "cancel" as const },
     ];
-    Alert.alert(issueRef(issue.issueNumber), issue.title || "Untitled issue", buttons);
+    showActions(issueRef(issue.issueNumber), issue.title || "Untitled issue", buttons);
   };
 
   if (!audit) {
@@ -190,6 +201,7 @@ export default function HitListScreen() {
                 hasMarkup={hasMarkup}
                 onPress={() => router.push({ pathname: "/issue/[id]", params: { id: issue.id } })}
                 onLongPress={() => quickActions(issue)}
+                onMore={() => quickActions(issue)}
               />
             );
           }}

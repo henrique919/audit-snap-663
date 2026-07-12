@@ -4,7 +4,7 @@
 
 | Done | In Progress | Remaining |
 |------|-------------|-----------|
-| 0    | 0           | 12 (Category A) |
+| 1    | 0           | 11 (Category A) |
 
 > Phase 2 (Sonnet 5): update this table and the per-item checkboxes as you complete items.
 > Process items **strictly in order** A1 → A12 per EXECUTION_PLAYBOOK.md.
@@ -14,7 +14,7 @@
 ## CATEGORY A — EXECUTABLE NOW (priority order)
 
 ### A1. Cross-platform dialog layer (unblocks everything else) — **M**
-- [ ] Done
+- [x] Done — `expo/lib/dialogs.ts` (showAlert/showConfirm/showActions) + `expo/components/ActionSheet.tsx` host mounted in `_layout.tsx`. All 32 `Alert.alert` call sites converted across 10 files (grep confirms zero remain in app/components); also removed one pre-existing dead `Alert` import in `app/project/[id].tsx`. Added an `onMore` kebab-button trigger on `IssueCard` alongside the existing `onLongPress`, since mouse-hold long-press is unreliable for both real desktop users and automated web testing. 11 new unit tests in `lib/__tests__/dialogs.test.ts` (native Alert delegation, web window.alert/confirm, ActionSheet listener wiring). Verified live in web preview: hit-list kebab → action sheet → Delete → window.confirm → issue removed (localStorage confirmed); New Audit empty-title → window.alert fires, no navigation. `tsc --noEmit` clean, lint clean (only 2 pre-existing unrelated warnings in markup/[assetId].tsx), 91/91 tests pass.
 **Problem:** `Alert.alert` is a no-op on react-native-web. ~24 call sites (confirmations, quick-action menus, validation, error reporting) silently do nothing on web — including the failure path of PDF generation. Web is the Phase 2 verification surface, so this lands first.
 **Description:** Create `expo/lib/dialogs.ts` exporting `showAlert(title, message?)`, `showConfirm(title, message, confirmLabel, destructive?) → Promise<boolean>`, and `showActions(title, message, actions: {text, style?, onPress}[])`. Native: delegate to `Alert.alert` unchanged. Web: `window.alert` / `window.confirm` for the first two; for `showActions` build a minimal RN `Modal` action-sheet component (`expo/components/ActionSheet.tsx`) styled with existing `constants/theme.ts` tokens (web + native can share it; native may keep Alert). Replace every `Alert.alert` import/call in `app/` and `components/` with the shim (grep `Alert.alert`; files include `capture-session.tsx`, `audit/[id]/hitlist.tsx`, `audit/[id]/preview.tsx`, `markup/[assetId].tsx`, `issue/[id].tsx`, `(tabs)/settings.tsx`, `sync.tsx`, `audit-new.tsx`, `project-new.tsx`).
 **Acceptance criteria (web preview):**

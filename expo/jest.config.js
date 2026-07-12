@@ -17,6 +17,7 @@ module.exports = {
   collectCoverageFrom: [
     "lib/annotationGeometry.ts",
     "lib/annotationSvg.ts",
+    "lib/dialogs.ts",
     "lib/format.ts",
     "lib/issueIndex.ts",
     "lib/persistence/**/*.ts",

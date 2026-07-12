@@ -18,7 +18,6 @@ import {
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   KeyboardAvoidingView,
   Modal,
@@ -34,6 +33,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppButton, Chip, Segmented, ToggleRow } from "@/components/ui";
 import { font, palette, radius, shadow, spacing } from "@/constants/theme";
+import { showAlert, showConfirm } from "@/lib/dialogs";
 import { issueRef } from "@/lib/format";
 import { newId } from "@/lib/ids";
 import { ProcessedPhoto, deleteProcessedPhoto, processPickedPhoto } from "@/lib/files";
@@ -131,7 +131,7 @@ export default function CaptureSession() {
       }
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert("Camera unavailable", "Camera permission is required. You can also add photos from the gallery.");
+        showAlert("Camera unavailable", "Camera permission is required. You can also add photos from the gallery.");
         return;
       }
       const result = await ImagePicker.launchCameraAsync({ quality: 0.85 });
@@ -142,7 +142,7 @@ export default function CaptureSession() {
       openDraft([processed]);
     } catch (e) {
       console.log("[capture] camera failed", e);
-      Alert.alert("Camera unavailable", "Could not open the camera on this device. Try the gallery instead.");
+      showAlert("Camera unavailable", "Could not open the camera on this device. Try the gallery instead.");
     } finally {
       setProcessing(false);
     }
@@ -321,7 +321,7 @@ export default function CaptureSession() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sideBtn}
-            onPress={() => Alert.alert("Voice notes", "Voice-to-issue capture is coming in a future update.")}
+            onPress={() => showAlert("Voice notes", "Voice-to-issue capture is coming in a future update.")}
           >
             <View style={[styles.sideChip, styles.sideChipMuted]}>
               <Mic color={palette.textFaint} size={22} />
@@ -346,18 +346,16 @@ export default function CaptureSession() {
               <View style={styles.sheetHeader}>
                 <Text style={styles.sheetTitle}>New Issue</Text>
                 <TouchableOpacity
-                  onPress={() =>
-                    Alert.alert("Discard photo?", "This photo and issue will not be saved.", [
-                      { text: "Keep editing", style: "cancel" },
-                      {
-                        text: "Discard",
-                        style: "destructive",
-                        onPress: () => {
-                          void discardDraft(draft);
-                        },
-                      },
-                    ])
-                  }
+                  onPress={async () => {
+                    const ok = await showConfirm(
+                      "Discard photo?",
+                      "This photo and issue will not be saved.",
+                      "Discard",
+                      true,
+                      "Keep editing",
+                    );
+                    if (ok) void discardDraft(draft);
+                  }}
                 >
                   <X color={palette.textMuted} size={22} />
                 </TouchableOpacity>

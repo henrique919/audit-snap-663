@@ -10,7 +10,7 @@ import {
   UsersRound,
 } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { AppButton, Card, Chip, SectionTitle } from "@/components/ui";
 import { font, palette, radius, spacing } from "@/constants/theme";

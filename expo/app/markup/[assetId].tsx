@@ -41,7 +41,6 @@ import {
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image as RNImage,
   Modal,
   PanResponder,
@@ -57,6 +56,7 @@ import Svg, { Circle as SvgCircle, Ellipse, Line, Polygon, Polyline, Rect, Text 
 import { captureRef } from "react-native-view-shot";
 
 import { MARKUP_COLORS, font, palette, radius, spacing } from "@/constants/theme";
+import { showAlert, showActions, showConfirm } from "@/lib/dialogs";
 import { arrowHeadPoints, estimateTextWidthPx, strokePx } from "@/lib/annotationSvg";
 import {
   HandleId,
@@ -619,19 +619,18 @@ export default function MarkupStudio() {
     }
   };
 
-  const clearAll = () => {
+  const clearAll = async () => {
     if (elements.length === 0) return;
-    Alert.alert("Clear all markup?", "All annotations on this photo will be removed.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Clear",
-        style: "destructive",
-        onPress: () => {
-          pushHistory([]);
-          setSelectedId(null);
-        },
-      },
-    ]);
+    const ok = await showConfirm(
+      "Clear all markup?",
+      "All annotations on this photo will be removed.",
+      "Clear",
+      true,
+    );
+    if (ok) {
+      pushHistory([]);
+      setSelectedId(null);
+    }
   };
 
   const rotate = async () => {
@@ -671,7 +670,7 @@ export default function MarkupStudio() {
       await deleteUriIfUnreferenced(previousUri, db.assets, asset.originalUri);
     } catch (e) {
       console.log("[markup] rotate failed", e);
-      Alert.alert("Rotate failed", "Could not rotate this image.");
+      showAlert("Rotate failed", "Could not rotate this image.");
     } finally {
       setSaving(false);
     }
@@ -679,7 +678,7 @@ export default function MarkupStudio() {
 
   const applyCrop = async () => {
     if (!cropRect || cropRect.width < 0.05 || cropRect.height < 0.05) {
-      Alert.alert("Draw a crop area", "Drag on the photo to select the area to keep.");
+      showAlert("Draw a crop area", "Drag on the photo to select the area to keep.");
       return;
     }
     try {
@@ -719,7 +718,7 @@ export default function MarkupStudio() {
       await deleteUriIfUnreferenced(previousUri, db.assets, asset.originalUri);
     } catch (e) {
       console.log("[markup] crop failed", e);
-      Alert.alert("Crop failed", "Could not crop this image.");
+      showAlert("Crop failed", "Could not crop this image.");
     } finally {
       setSaving(false);
     }
@@ -798,7 +797,7 @@ export default function MarkupStudio() {
       if (thenBack) router.back();
     } catch (e) {
       console.log("[markup] save failed", e);
-      Alert.alert("Save failed", "Could not save markup. Please try again.");
+      showAlert("Save failed", "Could not save markup. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -806,7 +805,7 @@ export default function MarkupStudio() {
 
   const close = () => {
     if (dirty) {
-      Alert.alert("Unsaved markup changes", "You have unsaved markup changes. Save before leaving?", [
+      showActions("Unsaved markup changes", "You have unsaved markup changes. Save before leaving?", [
         { text: "Save & Close", onPress: () => save(true) },
         { text: "Discard", style: "destructive", onPress: () => router.back() },
         { text: "Cancel", style: "cancel" },

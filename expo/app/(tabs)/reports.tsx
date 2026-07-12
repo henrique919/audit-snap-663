@@ -3,12 +3,13 @@
 import { useRouter } from "expo-router";
 import { ChevronRight, FileText, Share2 } from "lucide-react-native";
 import React, { useMemo } from "react";
-import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Sharing from "expo-sharing";
 
 import { EmptyState, SectionTitle } from "@/components/ui";
 import { font, palette, radius, spacing } from "@/constants/theme";
+import { showAlert } from "@/lib/dialogs";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { useAppStore } from "@/providers/AppStore";
 import type { ReportExport } from "@/types/models";
@@ -48,7 +49,7 @@ export default function ReportsTab() {
   const sharePdf = async (uri: string) => {
     try {
       if (Platform.OS === "web") {
-        Alert.alert("Not available", "Sharing saved PDFs is available on device.");
+        showAlert("Not available", "Sharing saved PDFs is available on device.");
         return;
       }
       const available = await Sharing.isAvailableAsync();
@@ -57,7 +58,7 @@ export default function ReportsTab() {
       }
     } catch (e) {
       console.log("[reports] share failed", e);
-      Alert.alert("Share failed", "This report may have been removed from local storage. Regenerate it from the audit.");
+      showAlert("Share failed", "This report may have been removed from local storage. Regenerate it from the audit.");
     }
   };
 

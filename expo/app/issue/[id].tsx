@@ -6,7 +6,6 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Camera, Copy, PenLine, Trash2 } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,6 +17,7 @@ import {
 import { PriorityPill, StatusPill, SyncPill } from "@/components/pills";
 import { AppButton, Card, Segmented, SectionTitle, ToggleRow } from "@/components/ui";
 import { font, palette, radius, spacing } from "@/constants/theme";
+import { showConfirm } from "@/lib/dialogs";
 import { formatDateTime, issueRef } from "@/lib/format";
 import { newId } from "@/lib/ids";
 import { processPickedPhoto } from "@/lib/files";
@@ -74,18 +74,17 @@ export default function IssueDetailScreen() {
     }
   };
 
-  const confirmDelete = () => {
-    Alert.alert("Delete issue?", `${issueRef(issue.issueNumber)} will be removed from the audit and report.`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
-          deleteIssue(issue.id);
-          router.back();
-        },
-      },
-    ]);
+  const confirmDelete = async () => {
+    const ok = await showConfirm(
+      "Delete issue?",
+      `${issueRef(issue.issueNumber)} will be removed from the audit and report.`,
+      "Delete",
+      true,
+    );
+    if (ok) {
+      deleteIssue(issue.id);
+      router.back();
+    }
   };
 
   const saveLocation = () => {

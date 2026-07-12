@@ -6,12 +6,13 @@ import * as Sharing from "expo-sharing";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { AlertTriangle, CheckCircle2, FileText, Mail, Share2, ShieldCheck } from "lucide-react-native";
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Alert, Image, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AppButton, Card } from "@/components/ui";
 import { STATUS_COLORS, StatusPill } from "@/components/pills";
 import { BrandConfig, REPORT_THEMES, buildEmailBody, buildEmailSubject, resolveThemeKey } from "@/constants/config";
 import { font, palette, radius, spacing } from "@/constants/theme";
+import { showAlert, showActions } from "@/lib/dialogs";
 import { persistGeneratedPdf } from "@/lib/files";
 import { formatDate, formatDateTime, issueRef } from "@/lib/format";
 import { buildReportHtml } from "@/lib/report";
@@ -174,12 +175,12 @@ export default function ReportPreviewScreen() {
     } catch (e) {
       console.log("[preview] generate failed", e);
       if (isLargeReportError(e)) {
-        Alert.alert(
+        showAlert(
           "Report too large",
           "Report too large — try Compact image size or fewer issues",
         );
       } else {
-        Alert.alert("Generation failed", "Could not generate the PDF. Please try again.");
+        showAlert("Generation failed", "Could not generate the PDF. Please try again.");
       }
       return null;
     } finally {
@@ -213,7 +214,7 @@ export default function ReportPreviewScreen() {
     async (action: (uri: string) => Promise<void>) => {
       const existingUri = pdfUri ?? freshness.lastExport?.pdfUri ?? null;
       if (freshness.isStale && existingUri) {
-        Alert.alert(
+        showActions(
           "Report out of date",
           "Issues, photos or markup changed since this PDF was generated. Regenerate to include the latest changes?",
           [
@@ -239,7 +240,7 @@ export default function ReportPreviewScreen() {
   const doShare = useCallback(async (uri: string) => {
     try {
       if (Platform.OS === "web") {
-        Alert.alert("PDF ready", "On web, use your browser's print dialog to save the report.");
+        showAlert("PDF ready", "On web, use your browser's print dialog to save the report.");
         return;
       }
       const available = await Sharing.isAvailableAsync();
@@ -248,7 +249,7 @@ export default function ReportPreviewScreen() {
       }
     } catch (e) {
       console.log("[preview] share failed", e);
-      Alert.alert("Share failed", "The saved PDF may have been removed. Regenerate and try again.");
+      showAlert("Share failed", "The saved PDF may have been removed. Regenerate and try again.");
     }
   }, []);
 
@@ -267,14 +268,14 @@ export default function ReportPreviewScreen() {
       if (available) {
         await MailComposer.composeAsync({ subject, body, attachments: [uri] });
       } else {
-        Alert.alert(
+        showAlert(
           "Mail not set up",
           "No mail account is configured on this device. The PDF is saved locally — use Share to send it through another app.",
         );
       }
     } catch (e) {
       console.log("[preview] email failed", e);
-      Alert.alert("Email unavailable", "Could not open the mail composer. Use Share instead.");
+      showAlert("Email unavailable", "Could not open the mail composer. Use Share instead.");
     }
   }, [audit, project, settings.inspectorName]);
 

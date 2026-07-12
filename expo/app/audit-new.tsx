@@ -4,7 +4,6 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Camera } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,6 +15,7 @@ import {
 import { AppButton, Chip, Field } from "@/components/ui";
 import { REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/constants/config";
 import { font, palette, spacing } from "@/constants/theme";
+import { showAlert } from "@/lib/dialogs";
 import { todayIsoDate } from "@/lib/format";
 import { useAppStore, useProject } from "@/providers/AppStore";
 
@@ -50,7 +50,7 @@ export default function AuditNewScreen() {
 
   const start = () => {
     if (!title.trim()) {
-      Alert.alert("Audit title required", "Give the audit a title for the report cover.");
+      showAlert("Audit title required", "Give the audit a title for the report cover.");
       return;
     }
     const locationId = defaultLocation.trim()

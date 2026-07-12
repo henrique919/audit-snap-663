@@ -6,7 +6,6 @@ import { useRouter } from "expo-router";
 import { ImagePlus } from "lucide-react-native";
 import React, { useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -18,6 +17,7 @@ import {
 
 import { AppButton, Field } from "@/components/ui";
 import { font, palette, radius, spacing } from "@/constants/theme";
+import { showAlert } from "@/lib/dialogs";
 import { useAppStore } from "@/providers/AppStore";
 
 export default function ProjectNewScreen() {
@@ -52,7 +52,7 @@ export default function ProjectNewScreen() {
 
   const save = () => {
     if (!name.trim()) {
-      Alert.alert("Project name required", "Give the project a name so it appears on reports.");
+      showAlert("Project name required", "Give the project a name so it appears on reports.");
       return;
     }
     const project = createProject({
