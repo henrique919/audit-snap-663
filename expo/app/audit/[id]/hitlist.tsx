@@ -11,6 +11,7 @@ import { IssueCard } from "@/components/IssueCard";
 import { AppButton, Chip, EmptyState } from "@/components/ui";
 import { font, palette, spacing } from "@/constants/theme";
 import { issueRef } from "@/lib/format";
+import { buildIssueMediaIndex } from "@/lib/issueIndex";
 import { useAppStore, useAudit, useIssuesForAudit } from "@/providers/AppStore";
 import type { Issue, IssueStatus } from "@/types/models";
 import { STATUS_LABEL } from "@/types/models";
@@ -26,6 +27,11 @@ export default function HitListScreen() {
 
   const [viewMode, setViewMode] = useState<ViewMode>("all");
   const [statusFilter, setStatusFilter] = useState<IssueStatus | null>(null);
+
+  const issueMediaIndex = useMemo(
+    () => buildIssueMediaIndex(db.assets, db.annotations),
+    [db.assets, db.annotations],
+  );
 
   const locationName = (locId: string | null) =>
     db.locations.find((l) => l.id === locId)?.name ?? "General";
@@ -75,7 +81,7 @@ export default function HitListScreen() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    const firstAsset = db.assets.find((a) => a.issueId === issue.id && !a.deletedAt) ?? null;
+    const firstAsset = issueMediaIndex.assetsByIssue.get(issue.id)?.[0] ?? null;
     const buttons = [
       { text: "Change status", onPress: () => changeStatus(issue) },
       ...(firstAsset
@@ -173,10 +179,8 @@ export default function HitListScreen() {
               );
             }
             const issue = item.issue;
-            const assets = db.assets.filter((a) => a.issueId === issue.id && !a.deletedAt);
-            const hasMarkup = db.annotations.some(
-              (an) => an.issueId === issue.id && an.elements.length > 0,
-            );
+            const assets = issueMediaIndex.assetsByIssue.get(issue.id) ?? [];
+            const hasMarkup = issueMediaIndex.hasMarkupByIssue.has(issue.id);
             return (
               <IssueCard
                 issue={issue}
