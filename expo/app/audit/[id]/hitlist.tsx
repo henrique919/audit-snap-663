@@ -2,7 +2,7 @@
 
 import * as Haptics from "expo-haptics";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Camera, ClipboardList, FileText } from "lucide-react-native";
+import { Camera, ClipboardList, Download, FileText } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import { FlatList, Platform, StyleSheet, Text, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
@@ -10,7 +10,9 @@ import { ScrollView } from "react-native-gesture-handler";
 import { IssueCard } from "@/components/IssueCard";
 import { AppButton, Chip, EmptyState } from "@/components/ui";
 import { font, palette, spacing } from "@/constants/theme";
-import { showActions, showConfirm } from "@/lib/dialogs";
+import { buildCsv, exportCsv } from "@/lib/csv";
+import { showActions, showAlert, showConfirm } from "@/lib/dialogs";
+import { isEntitled } from "@/lib/entitlements";
 import { issueRef } from "@/lib/format";
 import { buildIssueMediaIndex } from "@/lib/issueIndex";
 import { useAppStore, useAudit, useIssuesForAudit } from "@/providers/AppStore";
@@ -28,6 +30,7 @@ export default function HitListScreen() {
 
   const [viewMode, setViewMode] = useState<ViewMode>("all");
   const [statusFilter, setStatusFilter] = useState<IssueStatus | null>(null);
+  const [exportingCsv, setExportingCsv] = useState<boolean>(false);
 
   const issueMediaIndex = useMemo(
     () => buildIssueMediaIndex(db.assets, db.annotations),
@@ -137,6 +140,28 @@ export default function HitListScreen() {
     );
   }
 
+  const exportHitListCsv = async () => {
+    if (!isEntitled("csv_export")) {
+      showAlert("Not available", "CSV export isn't available on your plan.");
+      return;
+    }
+    if (exportingCsv) return;
+    setExportingCsv(true);
+    try {
+      const csv = buildCsv(issues, db.locations, db.assignees);
+      const safeName = audit.title.replace(/[^a-z0-9-_]+/gi, "_").slice(0, 60) || "audit";
+      const ok = await exportCsv(csv, `${safeName}_hitlist.csv`);
+      if (!ok) {
+        showAlert("Export unavailable", "Sharing isn't available on this device.");
+      }
+    } catch (e) {
+      console.log("[hitlist] CSV export failed", e);
+      showAlert("Export failed", "Could not export the hit list. Please try again.");
+    } finally {
+      setExportingCsv(false);
+    }
+  };
+
   const flatData: ({ type: "header"; title: string; count: number } | { type: "issue"; issue: Issue })[] = [];
   for (const section of sections) {
     if (viewMode !== "all") flatData.push({ type: "header", title: section.key, count: section.data.length });
@@ -231,6 +256,16 @@ export default function HitListScreen() {
             style={styles.footerBtn}
           />
           <AppButton
+            testID="export-csv"
+            label="CSV"
+            variant="secondary"
+            icon={<Download color={palette.carbon} size={18} />}
+            onPress={exportHitListCsv}
+            loading={exportingCsv}
+            disabled={issues.length === 0}
+            style={styles.footerBtnNarrow}
+          />
+          <AppButton
             testID="build-report"
             label="Build Report"
             icon={<FileText color={palette.white} size={18} />}
@@ -286,5 +321,6 @@ const styles = StyleSheet.create({
     borderTopColor: palette.border,
   },
   footerBtn: { flex: 1 },
+  footerBtnNarrow: { flex: 0.7 },
   footerBtnWide: { flex: 1.5 },
 });
