@@ -3,7 +3,9 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { StorageErrorBanner } from "@/components/StorageErrorBanner";
 import { font, palette } from "@/constants/theme";
 import { useAppFonts } from "@/constants/typography";
 import { AppStoreProvider } from "@/providers/AppStore";
@@ -49,11 +51,14 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AppStoreProvider>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <RootLayoutNav />
-        </GestureHandlerRootView>
-      </AppStoreProvider>
+      <SafeAreaProvider>
+        <AppStoreProvider>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <StorageErrorBanner />
+            <RootLayoutNav />
+          </GestureHandlerRootView>
+        </AppStoreProvider>
+      </SafeAreaProvider>
     </QueryClientProvider>
   );
 }

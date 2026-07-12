@@ -217,6 +217,8 @@ export interface OutboxEntry {
   recordId: string;
   op: OutboxOperation;
   at: string;
+  /** Optional canonical timestamp for compaction/back-compat with old entries. */
+  updatedAt?: string;
 }
 
 /* ------------------------------------ Settings ------------------------------------ */

@@ -9,17 +9,23 @@
 import createContextHook from "@nkzw/create-context-hook";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 
 import { newId, nowIso } from "@/lib/ids";
+import { appendOutbox } from "@/lib/persistence/outbox";
+import { type PersistStatus } from "@/lib/persistence/types";
+import { computeReportFreshness } from "@/lib/reportFreshness";
 import { buildDemoDb } from "@/lib/seed";
 import {
   clearAllData,
   Db,
+  dirtyTables,
   EMPTY_DB,
-  loadDb,
+  loadDbDetailed,
   loadSettings,
   saveDb,
   saveSettings,
+  TABLE_NAMES,
 } from "@/lib/store";
 import type { ProcessedPhoto } from "@/lib/files";
 import type {
@@ -31,6 +37,7 @@ import type {
   BaseRecord,
   Issue,
   IssuePriority,
+  OutboxEntry,
   OutboxOperation,
   PhotoAsset,
   Project,
@@ -60,6 +67,11 @@ function touched<T extends BaseRecord>(record: T): T {
     localVersion: record.localVersion + 1,
     syncStatus: record.syncStatus === "synced" ? "pending_upload" : record.syncStatus,
   };
+}
+
+function outboxEntry(table: string, recordId: string, op: OutboxOperation): OutboxEntry {
+  const at = nowIso();
+  return { id: newId(), table, recordId, op, at, updatedAt: at };
 }
 
 export interface CreateProjectInput {
@@ -100,14 +112,93 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
   const [db, setDb] = useState<Db>(EMPTY_DB);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [hydrated, setHydrated] = useState<boolean>(false);
+  const [persistStatus, setPersistStatus] = useState<PersistStatus>("idle");
+  const [lastPersistError, setLastPersistError] = useState<string | null>(null);
+
   const hydratedRef = useRef<boolean>(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const pendingDbRef = useRef<Db | null>(null);
+  const pendingTablesRef = useRef<Set<keyof Db>>(new Set());
+  const persistEpochRef = useRef(0);
+  const pendingEpochRef = useRef(0);
+  const persistChainRef = useRef<Promise<boolean>>(Promise.resolve(true));
+
+  const markPersistFailure = useCallback((error: string) => {
+    setPersistStatus("error");
+    setLastPersistError(error);
+  }, []);
+
+  const markPersistSuccess = useCallback(() => {
+    setPersistStatus("idle");
+    setLastPersistError(null);
+  }, []);
+
+  const flushPersist = useCallback(async (): Promise<boolean> => {
+    persistChainRef.current = persistChainRef.current.then(async () => {
+      let wrote = false;
+      while (pendingDbRef.current) {
+        const batchDb = pendingDbRef.current;
+        const batchTables = Array.from(pendingTablesRef.current);
+        const batchEpoch = pendingEpochRef.current;
+
+        pendingDbRef.current = null;
+        pendingTablesRef.current.clear();
+
+        if (batchEpoch !== persistEpochRef.current) {
+          continue;
+        }
+
+        setPersistStatus("saving");
+        const result = await saveDb(batchDb, batchTables);
+        if (!result.ok) {
+          if (batchEpoch !== persistEpochRef.current) return false;
+          markPersistFailure(result.error);
+          // Re-queue unsaved state so next mutation / background flush retries full dirty set.
+          pendingDbRef.current = batchDb;
+          pendingEpochRef.current = batchEpoch;
+          for (const table of batchTables) pendingTablesRef.current.add(table);
+          return false;
+        }
+        wrote = true;
+      }
+
+      if (wrote) {
+        markPersistSuccess();
+      }
+      return true;
+    });
+
+    return persistChainRef.current;
+  }, [markPersistFailure, markPersistSuccess]);
+
+  const flushPersistNow = useCallback(async (): Promise<boolean> => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    return flushPersist();
+  }, [flushPersist]);
+
+  const queuePersist = useCallback(
+    (next: Db, tables: (keyof Db)[]) => {
+      if (tables.length === 0) return;
+      pendingDbRef.current = next;
+      pendingEpochRef.current = persistEpochRef.current;
+      for (const table of tables) pendingTablesRef.current.add(table);
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => {
+        void flushPersist();
+      }, 250);
+    },
+    [flushPersist],
+  );
 
   const hydration = useQuery({
     queryKey: ["local-db"],
     queryFn: async () => {
-      const [loadedDb, loadedSettings] = await Promise.all([loadDb(), loadSettings()]);
-      return { loadedDb, loadedSettings };
+      const [loadedDbResult, loadedSettings] = await Promise.all([loadDbDetailed(), loadSettings()]);
+      return { loadedDbResult, loadedSettings };
     },
     staleTime: Infinity,
     gcTime: Infinity,
@@ -116,7 +207,14 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
   useEffect(() => {
     if (!hydration.data || hydratedRef.current) return;
     hydratedRef.current = true;
-    const { loadedDb, loadedSettings } = hydration.data;
+    const { loadedDbResult, loadedSettings } = hydration.data;
+    const { db: loadedDb, warnings } = loadedDbResult;
+    const hadWarnings = warnings.length > 0;
+
+    if (warnings.length > 0) {
+      markPersistFailure(warnings[0] ?? "Some local data could not be loaded.");
+    }
+
     if (!loadedSettings.demoSeeded && loadedDb.projects.length === 0) {
       const demo = buildDemoDb();
       const seededSettings: AppSettings = {
@@ -127,45 +225,59 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       };
       setDb(demo);
       setSettings(seededSettings);
-      saveDb(demo);
-      saveSettings(seededSettings);
+      queuePersist(demo, TABLE_NAMES);
+      void saveSettings(seededSettings).then((result) => {
+        if (!result.ok) markPersistFailure(result.error);
+        else if (!pendingDbRef.current && !hadWarnings) markPersistSuccess();
+      });
     } else {
       setDb(loadedDb);
       setSettings(loadedSettings);
     }
     setHydrated(true);
-  }, [hydration.data]);
+  }, [hydration.data, markPersistFailure, markPersistSuccess, queuePersist]);
 
-  /** Debounced persistence of the whole db after any mutation. */
-  const persistDb = useCallback((next: Db) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      saveDb(next);
-    }, 250);
-  }, []);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      const prevState = appStateRef.current;
+      appStateRef.current = nextState;
+      if (
+        prevState === "active" &&
+        (nextState === "background" || nextState === "inactive")
+      ) {
+        void flushPersistNow();
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [flushPersistNow]);
 
   const mutateDb = useCallback(
     (fn: (prev: Db) => Db) => {
       setDb((prev) => {
         const next = fn(prev);
-        persistDb(next);
+        queuePersist(next, dirtyTables(prev, next));
         return next;
       });
     },
-    [persistDb],
+    [queuePersist],
   );
 
-  const outboxEntry = useCallback((table: string, recordId: string, op: OutboxOperation) => {
-    return { id: newId(), table, recordId, op, at: nowIso() };
-  }, []);
-
-  const updateSettings = useCallback((patch: Partial<AppSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch };
-      saveSettings(next);
-      return next;
-    });
-  }, []);
+  const updateSettings = useCallback(
+    (patch: Partial<AppSettings>) => {
+      setSettings((prev) => {
+        const next = { ...prev, ...patch };
+        setPersistStatus("saving");
+        void saveSettings(next).then((result) => {
+          if (!result.ok) markPersistFailure(result.error);
+          else markPersistSuccess();
+        });
+        return next;
+      });
+    },
+    [markPersistFailure, markPersistSuccess],
+  );
 
   /* --------------------------------- Projects --------------------------------- */
 
@@ -175,11 +287,11 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       mutateDb((prev) => ({
         ...prev,
         projects: [project, ...prev.projects],
-        outbox: [...prev.outbox, outboxEntry("projects", project.id, "create")].slice(-200),
+        outbox: appendOutbox(prev.outbox, outboxEntry("projects", project.id, "create")),
       }));
       return project;
     },
-    [mutateDb, outboxEntry],
+    [mutateDb],
   );
 
   const updateProject = useCallback(
@@ -187,10 +299,10 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       mutateDb((prev) => ({
         ...prev,
         projects: prev.projects.map((p) => (p.id === id ? touched({ ...p, ...patch, id }) : p)),
-        outbox: [...prev.outbox, outboxEntry("projects", id, "update")].slice(-200),
+        outbox: appendOutbox(prev.outbox, outboxEntry("projects", id, "update")),
       }));
     },
-    [mutateDb, outboxEntry],
+    [mutateDb],
   );
 
   /* --------------------------------- Locations --------------------------------- */
@@ -211,11 +323,11 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       mutateDb((prev) => ({
         ...prev,
         locations: [...prev.locations, location],
-        outbox: [...prev.outbox, outboxEntry("locations", location.id, "create")].slice(-200),
+        outbox: appendOutbox(prev.outbox, outboxEntry("locations", location.id, "create")),
       }));
       return location;
     },
-    [db.locations, mutateDb, outboxEntry],
+    [db.locations, mutateDb],
   );
 
   /* --------------------------------- Assignees --------------------------------- */
@@ -231,11 +343,11 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       mutateDb((prev) => ({
         ...prev,
         assignees: [...prev.assignees, assignee],
-        outbox: [...prev.outbox, outboxEntry("assignees", assignee.id, "create")].slice(-200),
+        outbox: appendOutbox(prev.outbox, outboxEntry("assignees", assignee.id, "create")),
       }));
       return assignee;
     },
-    [db.assignees, mutateDb, outboxEntry],
+    [db.assignees, mutateDb],
   );
 
   /* ----------------------------------- Audits ----------------------------------- */
@@ -253,12 +365,12 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       mutateDb((prev) => ({
         ...prev,
         audits: [audit, ...prev.audits],
-        outbox: [...prev.outbox, outboxEntry("audits", audit.id, "create")].slice(-200),
+        outbox: appendOutbox(prev.outbox, outboxEntry("audits", audit.id, "create")),
       }));
       updateSettings({ lastAuditId: audit.id });
       return audit;
     },
-    [mutateDb, outboxEntry, updateSettings],
+    [mutateDb, updateSettings],
   );
 
   const updateAudit = useCallback(
@@ -266,10 +378,10 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       mutateDb((prev) => ({
         ...prev,
         audits: prev.audits.map((a) => (a.id === id ? touched({ ...a, ...patch, id }) : a)),
-        outbox: [...prev.outbox, outboxEntry("audits", id, "update")].slice(-200),
+        outbox: appendOutbox(prev.outbox, outboxEntry("audits", id, "update")),
       }));
     },
-    [mutateDb, outboxEntry],
+    [mutateDb],
   );
 
   /* ----------------------------------- Issues ----------------------------------- */
@@ -307,11 +419,10 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
         ...prev,
         issues: [...prev.issues, issue],
         assets: [...prev.assets, ...newAssets],
-        outbox: [
-          ...prev.outbox,
+        outbox: appendOutbox(prev.outbox, [
           outboxEntry("issues", issue.id, "create"),
           ...newAssets.map((a) => outboxEntry("assets", a.id, "create")),
-        ].slice(-200),
+        ]),
       }));
       updateSettings({
         lastAuditId: input.auditId,
@@ -321,7 +432,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       });
       return { issue, assets: newAssets };
     },
-    [db.issues, mutateDb, nextIssueNumber, outboxEntry, updateSettings],
+    [db.issues, mutateDb, nextIssueNumber, updateSettings],
   );
 
   const updateIssue = useCallback(
@@ -329,10 +440,10 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       mutateDb((prev) => ({
         ...prev,
         issues: prev.issues.map((i) => (i.id === id ? touched({ ...i, ...patch, id }) : i)),
-        outbox: [...prev.outbox, outboxEntry("issues", id, "update")].slice(-200),
+        outbox: appendOutbox(prev.outbox, outboxEntry("issues", id, "update")),
       }));
     },
-    [mutateDb, outboxEntry],
+    [mutateDb],
   );
 
   const deleteIssue = useCallback(
@@ -342,10 +453,10 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
         ...prev,
         issues: prev.issues.map((i) => (i.id === id ? touched({ ...i, deletedAt: now }) : i)),
         assets: prev.assets.map((a) => (a.issueId === id ? touched({ ...a, deletedAt: now }) : a)),
-        outbox: [...prev.outbox, outboxEntry("issues", id, "delete")].slice(-200),
+        outbox: appendOutbox(prev.outbox, outboxEntry("issues", id, "delete")),
       }));
     },
-    [mutateDb, outboxEntry],
+    [mutateDb],
   );
 
   const duplicateIssue = useCallback(
@@ -383,11 +494,11 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
         issues: [...prev.issues, copy],
         assets: [...prev.assets, ...copiedAssets],
         annotations: [...prev.annotations, ...copiedAnnotations],
-        outbox: [...prev.outbox, outboxEntry("issues", copy.id, "create")].slice(-200),
+        outbox: appendOutbox(prev.outbox, outboxEntry("issues", copy.id, "create")),
       }));
       return copy;
     },
-    [db.annotations, db.assets, db.issues, mutateDb, nextIssueNumber, outboxEntry],
+    [db.annotations, db.assets, db.issues, mutateDb, nextIssueNumber],
   );
 
   /* ----------------------------------- Assets ----------------------------------- */
@@ -412,10 +523,10 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       mutateDb((prev) => ({
         ...prev,
         assets: [...prev.assets, ...newAssets],
-        outbox: [...prev.outbox, ...newAssets.map((a) => outboxEntry("assets", a.id, "create"))].slice(-200),
+        outbox: appendOutbox(prev.outbox, newAssets.map((a) => outboxEntry("assets", a.id, "create"))),
       }));
     },
-    [db.issues, mutateDb, outboxEntry],
+    [db.issues, mutateDb],
   );
 
   const updateAsset = useCallback(
@@ -423,10 +534,10 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       mutateDb((prev) => ({
         ...prev,
         assets: prev.assets.map((a) => (a.id === id ? touched({ ...a, ...patch, id }) : a)),
-        outbox: [...prev.outbox, outboxEntry("assets", id, "update")].slice(-200),
+        outbox: appendOutbox(prev.outbox, outboxEntry("assets", id, "update")),
       }));
     },
-    [mutateDb, outboxEntry],
+    [mutateDb],
   );
 
   /* -------------------------------- Annotations -------------------------------- */
@@ -457,11 +568,14 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
           ...prev,
           annotations,
           assets,
-          outbox: [...prev.outbox, outboxEntry("annotations", assetId, existing ? "update" : "create")].slice(-200),
+          outbox: appendOutbox(
+            prev.outbox,
+            outboxEntry("annotations", assetId, existing ? "update" : "create"),
+          ),
         };
       });
     },
-    [mutateDb, outboxEntry],
+    [mutateDb],
   );
 
   /* ---------------------------------- Reports ---------------------------------- */
@@ -475,30 +589,57 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
         audits: prev.audits.map((a) =>
           a.id === input.auditId ? touched({ ...a, reportIssuedAt: nowIso() }) : a,
         ),
-        outbox: [...prev.outbox, outboxEntry("reports", record.id, "create")].slice(-200),
+        outbox: appendOutbox(prev.outbox, outboxEntry("reports", record.id, "create")),
       }));
       return record;
     },
-    [mutateDb, outboxEntry],
+    [mutateDb],
   );
 
   /* ----------------------------------- Danger ----------------------------------- */
 
   const resetAllData = useCallback(async (reseedDemo: boolean) => {
-    await clearAllData();
+    await flushPersistNow();
+
+    persistEpochRef.current += 1;
+    pendingDbRef.current = null;
+    pendingTablesRef.current.clear();
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+
+    const clearResult = await clearAllData();
+    if (!clearResult.ok) {
+      markPersistFailure(clearResult.error);
+      return;
+    }
+
     const freshDb = reseedDemo ? buildDemoDb() : EMPTY_DB;
     const freshSettings: AppSettings = { ...DEFAULT_SETTINGS, demoSeeded: true };
     setDb(freshDb);
     setSettings(freshSettings);
-    await saveDb(freshDb);
-    await saveSettings(freshSettings);
-  }, []);
+
+    const dbResult = await saveDb(freshDb, TABLE_NAMES);
+    const settingsResult = await saveSettings(freshSettings);
+    if (!dbResult.ok) {
+      markPersistFailure(dbResult.error);
+      return;
+    }
+    if (!settingsResult.ok) {
+      markPersistFailure(settingsResult.error);
+      return;
+    }
+    markPersistSuccess();
+  }, [flushPersistNow, markPersistFailure, markPersistSuccess]);
 
   return useMemo(
     () => ({
       hydrated,
       db,
       settings,
+      persistStatus,
+      lastPersistError,
       updateSettings,
       createProject,
       updateProject,
@@ -520,6 +661,8 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       hydrated,
       db,
       settings,
+      persistStatus,
+      lastPersistError,
       updateSettings,
       createProject,
       updateProject,
@@ -577,22 +720,17 @@ export function useIssuesForAudit(auditId: string | undefined) {
  */
 export function useReportFreshness(auditId: string | undefined) {
   const { db } = useAppStore();
-  return useMemo(() => {
-    const lastExport =
-      db.reports
-        .filter((r) => r.auditId === auditId && !r.deletedAt)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
-    const issues = db.issues.filter((i) => i.auditId === auditId);
-    const issueIds = new Set(issues.map((i) => i.id));
-    const assets = db.assets.filter((a) => a.auditId === auditId);
-    const annotations = db.annotations.filter((an) => issueIds.has(an.issueId));
-    const contentUpdatedAt = [...issues, ...assets, ...annotations].reduce<string | null>(
-      (acc, r) => (acc === null || r.updatedAt > acc ? r.updatedAt : acc),
-      null,
-    );
-    const isStale = !!lastExport && !!contentUpdatedAt && contentUpdatedAt > lastExport.createdAt;
-    return { lastExport, contentUpdatedAt, isStale };
-  }, [db.reports, db.issues, db.assets, db.annotations, auditId]);
+  return useMemo(
+    () =>
+      computeReportFreshness({
+        reports: db.reports,
+        issues: db.issues,
+        assets: db.assets,
+        annotations: db.annotations,
+        auditId,
+      }),
+    [db.reports, db.issues, db.assets, db.annotations, auditId],
+  );
 }
 
 export function useProjectStats(projectId: string | undefined) {
