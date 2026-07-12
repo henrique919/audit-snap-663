@@ -22,6 +22,8 @@ module.exports = {
     "lib/report.ts",
     "lib/reportImages.ts",
     "lib/reportFonts.ts",
+    "lib/mediaRegistry.ts",
+    "lib/files.ts",
     "lib/store.ts",
     "!lib/persistence/README.md",
   ],

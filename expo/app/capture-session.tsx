@@ -36,7 +36,7 @@ import { AppButton, Chip, Segmented, ToggleRow } from "@/components/ui";
 import { font, palette, radius, shadow, spacing } from "@/constants/theme";
 import { issueRef } from "@/lib/format";
 import { newId } from "@/lib/ids";
-import { ProcessedPhoto, processPickedPhoto } from "@/lib/files";
+import { ProcessedPhoto, deleteProcessedPhoto, processPickedPhoto } from "@/lib/files";
 import { useAppStore, useAudit, useIssuesForAudit, useProject } from "@/providers/AppStore";
 import type { IssuePriority, IssueStatus } from "@/types/models";
 
@@ -113,6 +113,16 @@ export default function CaptureSession() {
     },
     [lastLocationName, lastAssigneeName, settings.lastPriority],
   );
+
+  /** Discard an unsaved draft and delete its processed photo variants (never touches saved issues). */
+  const discardDraft = useCallback(async (current: DraftIssue | null) => {
+    if (current) {
+      for (const photo of current.photos) {
+        await deleteProcessedPhoto(photo);
+      }
+    }
+    setDraft(null);
+  }, []);
 
   const takePhoto = useCallback(async () => {
     try {
@@ -322,7 +332,14 @@ export default function CaptureSession() {
       </View>
 
       {/* Fast issue sheet */}
-      <Modal visible={draft !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setDraft(null)}>
+      <Modal
+        visible={draft !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          void discardDraft(draft);
+        }}
+      >
         {draft ? (
           <KeyboardAvoidingView style={styles.sheetFlex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <View style={styles.sheet}>
@@ -332,7 +349,13 @@ export default function CaptureSession() {
                   onPress={() =>
                     Alert.alert("Discard photo?", "This photo and issue will not be saved.", [
                       { text: "Keep editing", style: "cancel" },
-                      { text: "Discard", style: "destructive", onPress: () => setDraft(null) },
+                      {
+                        text: "Discard",
+                        style: "destructive",
+                        onPress: () => {
+                          void discardDraft(draft);
+                        },
+                      },
                     ])
                   }
                 >

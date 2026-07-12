@@ -11,9 +11,9 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ImageManipulator from "expo-image-manipulator";
 import { Platform } from "react-native";
 
-const PHOTO_DIR = `${FileSystem.documentDirectory ?? ""}photos/`;
-const REPORT_DIR = `${FileSystem.documentDirectory ?? ""}reports/`;
-const BRAND_DIR = `${FileSystem.documentDirectory ?? ""}brand/`;
+export const PHOTO_DIR = `${FileSystem.documentDirectory ?? ""}photos/`;
+export const REPORT_DIR = `${FileSystem.documentDirectory ?? ""}reports/`;
+export const BRAND_DIR = `${FileSystem.documentDirectory ?? ""}brand/`;
 
 export interface ProcessedPhoto {
   originalUri: string;
@@ -21,6 +21,84 @@ export interface ProcessedPhoto {
   thumbUri: string;
   width: number;
   height: number;
+}
+
+/** Idempotent file delete — missing files are fine; other errors are logged. Web: no-op. */
+export async function deleteFileQuiet(uri: string | null | undefined): Promise<void> {
+  if (!uri || Platform.OS === "web") return;
+  try {
+    const info = await FileSystem.getInfoAsync(uri);
+    if (!info.exists) return;
+    await FileSystem.deleteAsync(uri, { idempotent: true });
+  } catch (e) {
+    const msg = String(e instanceof Error ? e.message : e).toLowerCase();
+    if (msg.includes("not found") || msg.includes("no such file") || msg.includes("does not exist")) {
+      return;
+    }
+    console.log("[files] deleteFileQuiet failed", uri, e);
+  }
+}
+
+/** Delete orig/report/thumb variants for a processed photo. Web: no-op. */
+export async function deleteProcessedPhoto(p: ProcessedPhoto): Promise<void> {
+  if (Platform.OS === "web") return;
+  await deleteFileQuiet(p.originalUri);
+  await deleteFileQuiet(p.reportUri);
+  await deleteFileQuiet(p.thumbUri);
+}
+
+/**
+ * True when any asset row still references `uri` on original/report/thumb/annotated.
+ * Used before superseding files so duplicated issues that share the same paths are safe.
+ */
+export function isUriReferencedByAssets(
+  assets: ReadonlyArray<{
+    originalUri: string;
+    reportUri: string;
+    thumbUri: string;
+    annotatedUri: string | null;
+  }>,
+  uri: string,
+): boolean {
+  return assets.some(
+    (a) =>
+      a.originalUri === uri ||
+      a.reportUri === uri ||
+      a.thumbUri === uri ||
+      a.annotatedUri === uri,
+  );
+}
+
+/**
+ * Delete `uri` only when no asset still references it, and never when it equals
+ * `protectOriginalUri` (the archive original must never be removed by supersede).
+ */
+export async function deleteUriIfUnreferenced(
+  uri: string | null | undefined,
+  assets: ReadonlyArray<{
+    originalUri: string;
+    reportUri: string;
+    thumbUri: string;
+    annotatedUri: string | null;
+  }>,
+  protectOriginalUri?: string | null,
+): Promise<boolean> {
+  if (!uri || Platform.OS === "web") return false;
+  if (protectOriginalUri && uri === protectOriginalUri) return false;
+  if (isUriReferencedByAssets(assets, uri)) return false;
+  await deleteFileQuiet(uri);
+  return true;
+}
+
+/** Options for high-resolution annotated flatten via react-native-view-shot. */
+export function annotatedCaptureOptions(width: number, height: number) {
+  return {
+    format: "jpg" as const,
+    quality: 0.9,
+    result: "tmpfile" as const,
+    width,
+    height,
+  };
 }
 
 async function ensureDir(dir: string): Promise<void> {
