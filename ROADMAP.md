@@ -4,7 +4,7 @@
 
 | Done | In Progress | Remaining |
 |------|-------------|-----------|
-| 1    | 0           | 11 (Category A) |
+| 2    | 0           | 10 (Category A) |
 
 > Phase 2 (Sonnet 5): update this table and the per-item checkboxes as you complete items.
 > Process items **strictly in order** A1 → A12 per EXECUTION_PLAYBOOK.md.
@@ -24,7 +24,7 @@
 4. All 80+ existing tests still pass.
 
 ### A2. Web-safe report export — **M**
-- [ ] Done
+- [x] Done — confirmed `expo-print`'s web shim ignores `html` and just calls `window.print()` on the current page, so a real print target must be a separate window. New `expo/lib/reportPrintWeb.ts` opens a blank window synchronously (before any await, for popup-blocker survival) and writes the built report HTML into it once ready, triggering its print dialog (13 new unit tests). `preview.tsx generate()` branches at the print step only — native calls `Print.printToFileAsync` + `persistGeneratedPdf` exactly as before (byte-identical); web writes into the pre-opened window and records a `ReportExport` with sentinel `pdfUri: "web-print"` (decision + rationale in DECISIONS.md #10). `withFreshPdf` always regenerates on web instead of attempting stale-reuse; `doShare`'s old dead-end alert removed since generate() already handled printing; `doEmail` needed no changes (its web branch already opens a working `mailto:` composer). Popup-blocked treated as a first-class, non-destructive failure path (`showAlert`, zero side effects, verified for real — automation clicks aren't trusted gestures in browsers, confirmed empirically, technique documented in EXECUTION_PLAYBOOK §4.6). Verified live in web preview via a fake `window.open` capturing the actual generated HTML: contains cover markup, hit-list table, and the SVG arrow annotation overlay (32KB real HTML, not a stub); Generate/Share/Email all independently confirmed working (3 ReportExport records, correct mailto subject/body); real popup-blocked path separately confirmed (alert fires, 0 records). `tsc --noEmit` clean, lint clean (same 2 pre-existing warnings), 99/99 tests pass.
 **Problem:** On web, `Print.printToFileAsync` is unsupported → TypeError → silent failure (STATUS §3.1).
 **Description:** In `expo/app/audit/[id]/preview.tsx` `generate()`: on `Platform.OS === "web"`, skip printToFileAsync; instead call `Print.printAsync({ html })` (opens the browser print dialog → user saves as PDF), or open the report HTML in a new window (`window.open` + `document.write` + `window.print()`) if `printAsync` proves unreliable. Do not record a `ReportExport` row with a fake pdfUri on web — either record with `pdfUri: "web-print"` sentinel and hide Share/Email accordingly, or skip the record; pick one, note it in DECISIONS.md. Keep the native path byte-identical. Failure paths must use `lib/dialogs.ts` (A1).
 **Acceptance criteria (web preview):**

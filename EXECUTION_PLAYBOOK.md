@@ -125,6 +125,27 @@ input.files = dt.files; input.dispatchEvent(new Event('change', {bubbles: true})
 If no input exists in the DOM, expo-image-picker creates one on demand — trigger the
 Gallery button first, then look again (it may be detached; query within 2s).
 
+### 4.6 Verifying popup-gated browser APIs (window.open, etc.)
+Confirmed in A2: real browsers require a *trusted* user gesture to allow `window.open()`.
+Neither the synthetic `dispatchEvent`-based `window.__tap` helper (§4.2) nor this Browser
+pane's `computer left_click`/ref-click reliably produce one here — clicks land (confirmed
+via `getBoundingClientRect`/`read_page`) but the resulting `window.open()` call is silently
+refused, exactly like a real popup blocker. Do not conclude a feature is broken from this
+alone — it is an environment/browser-security limitation, not an app bug, and is itself
+worth testing (the app's own popup-blocked fallback should fire safely with no side effects).
+To verify the SUCCESS path of code that calls `window.open()`, inject a fake before tapping:
+```js
+window.open = () => ({
+  document: { open(){}, write: (h) => { window.__capturedHtml = h; }, close(){}, readyState: 'complete' },
+  addEventListener(){}, focus(){}, print: () => { window.__printCalled = true; }, close(){},
+});
+```
+Then use `window.__tap(...)` (not `computer` clicks) and assert on `window.__capturedHtml` /
+`window.__printCalled` afterward. This exercises the real app code path (state, data
+resolution, HTML generation) without fighting the browser's popup policy. Separately, verify
+the blocked-path fallback for real by tapping WITHOUT the fake installed and confirming the
+app's own alert/guard fires with no destructive side effects (e.g. no bogus DB record).
+
 ## 5. PER-ITEM NOTES
 
 - **A1:** grep count first (`grep -rn "Alert.alert" app components | wc -l`), convert

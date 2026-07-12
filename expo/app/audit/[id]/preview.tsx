@@ -18,6 +18,7 @@ import { formatDate, formatDateTime, issueRef } from "@/lib/format";
 import { buildReportHtml } from "@/lib/report";
 import { getReportFontFaceCss } from "@/lib/reportFonts";
 import { resolveReportImages } from "@/lib/reportImages";
+import { openBlankPrintWindow, printHtmlInWindow, WEB_PRINT_SENTINEL } from "@/lib/reportPrintWeb";
 import { useAppStore, useAudit, useIssuesForAudit, useProject, useReportFreshness } from "@/providers/AppStore";
 import { DEFAULT_REPORT_OPTIONS, ReportOptions } from "@/types/models";
 
@@ -106,6 +107,16 @@ export default function ReportPreviewScreen() {
     if (!audit || !project) return null;
     if (generatingRef.current) return null;
     generatingRef.current = true;
+    // Web: expo-print's web shim ignores `html` and just calls window.print()
+    // on the CURRENT page (see lib/reportPrintWeb.ts) — a real print target
+    // has to be a separate window, opened SYNCHRONOUSLY before any await or
+    // browsers block it as a popup.
+    const webPrintWindow = Platform.OS === "web" ? openBlankPrintWindow() : null;
+    if (Platform.OS === "web" && !webPrintWindow) {
+      generatingRef.current = false;
+      showAlert("Pop-up blocked", "Allow pop-ups for this site to generate the report, then try again.");
+      return null;
+    }
     try {
       setGenerating(true);
       setGenerationPhase("Preparing photos…");
@@ -156,12 +167,18 @@ export default function ReportPreviewScreen() {
         imageSrc: (uri) => uriMap.get(uri) ?? "",
       });
 
-      const result = await Print.printToFileAsync({ html, base64: false });
-      // html + uriMap released when this frame returns — not stored in state.
-      const persisted = await persistGeneratedPdf(
-        result.uri,
-        `${BrandConfig.reportName}_${project.name}_${audit.auditDate}`,
-      );
+      let persisted: string;
+      if (Platform.OS === "web") {
+        printHtmlInWindow(webPrintWindow as Window, html);
+        persisted = WEB_PRINT_SENTINEL;
+      } else {
+        const result = await Print.printToFileAsync({ html, base64: false });
+        // html + uriMap released when this frame returns — not stored in state.
+        persisted = await persistGeneratedPdf(
+          result.uri,
+          `${BrandConfig.reportName}_${project.name}_${audit.auditDate}`,
+        );
+      }
       setPdfUri(persisted);
       addReportExport({
         auditId: audit.id,
@@ -174,6 +191,7 @@ export default function ReportPreviewScreen() {
       return persisted;
     } catch (e) {
       console.log("[preview] generate failed", e);
+      if (Platform.OS === "web") webPrintWindow?.close();
       if (isLargeReportError(e)) {
         showAlert(
           "Report too large",
@@ -212,6 +230,14 @@ export default function ReportPreviewScreen() {
    */
   const withFreshPdf = useCallback(
     async (action: (uri: string) => Promise<void>) => {
+      if (Platform.OS === "web") {
+        // No persisted file exists on web (see generate()) — always
+        // regenerate and reopen a fresh print window rather than trying to
+        // reuse a reference to an already-closed/printed one.
+        const uri = await generate();
+        if (uri) await action(uri);
+        return;
+      }
       const existingUri = pdfUri ?? freshness.lastExport?.pdfUri ?? null;
       if (freshness.isStale && existingUri) {
         showActions(
@@ -240,7 +266,8 @@ export default function ReportPreviewScreen() {
   const doShare = useCallback(async (uri: string) => {
     try {
       if (Platform.OS === "web") {
-        showAlert("PDF ready", "On web, use your browser's print dialog to save the report.");
+        // withFreshPdf already regenerated and opened the print window
+        // above — that IS the web "share" action (Save as PDF from there).
         return;
       }
       const available = await Sharing.isAvailableAsync();
