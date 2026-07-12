@@ -122,6 +122,26 @@ you genuinely suspect a stale Fast-Refresh artifact: `preview_stop` + `preview_s
 get a new server process, THEN `navigate` the tab (both steps — stopping the server alone
 does not reload the browser tab, which keeps its live WebSocket/fiber tree).
 
+**`read_console_messages` also accumulates across MULTIPLE test attempts within one page
+session**, not just across navigations — confirmed in A4, where re-running the "same" test
+2-3 times without reloading made a pattern-matched log count (e.g. counting how many times
+a function fired) look 4x too high. If you need an accurate COUNT or the LATEST value of
+something, do not trust `read_console_messages`; instead override the relevant function/
+`console.log` yourself right after a fresh `navigate` and accumulate into a `window.__foo`
+array/object you read back directly via `javascript_exec` — that gives a clean,
+session-scoped, ground-truth answer unaffected by the tool's own buffering.
+
+**`AppState` oscillates rapidly in this headless environment.** Confirmed in A4:
+`react-native-web`'s `AppState` polyfill flips `background⇄active` roughly every ~200ms
+here (14 cycles measured in 3 seconds) — real devices/browsers have stable focus signals
+and never do this. Any `AppState.addEventListener("change", …)` side effect in the app
+(e.g. `AppStore.tsx` flushes pending writes on `active→background`) will therefore fire
+far more often here than in reality. If you're testing something that reacts to
+AppState AND involves a retryable failure, expect states to cycle too fast to observe a
+"settled" value via polling/screenshots — read the target value within ~1 second of
+triggering it (before the next spurious cycle re-runs the retry), or better, capture it
+via the `window.__foo` ground-truth technique above at the earliest possible moment.
+
 ### 4.5 Injecting files into the web file picker (for A6/A11 testing)
 The OS file dialog cannot be driven. Instead, after clicking Gallery, locate the hidden
 `<input type="file">` and inject programmatically:

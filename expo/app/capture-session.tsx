@@ -37,6 +37,7 @@ import { showAlert, showConfirm } from "@/lib/dialogs";
 import { issueRef } from "@/lib/format";
 import { newId } from "@/lib/ids";
 import { ProcessedPhoto, deleteProcessedPhoto, processPickedPhoto } from "@/lib/files";
+import { savedToastMessage } from "@/lib/saveState";
 import { useAppStore, useAudit, useIssuesForAudit, useProject } from "@/providers/AppStore";
 import type { IssuePriority, IssueStatus } from "@/types/models";
 
@@ -55,7 +56,7 @@ export default function CaptureSession() {
   const { auditId } = useLocalSearchParams<{ auditId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { db, settings, createIssue, findOrCreateLocation, findOrCreateAssignee } = useAppStore();
+  const { db, settings, createIssue, findOrCreateLocation, findOrCreateAssignee, persistStatus } = useAppStore();
   const audit = useAudit(auditId);
   const project = useProject(audit?.projectId);
   const issues = useIssuesForAudit(auditId);
@@ -192,7 +193,7 @@ export default function CaptureSession() {
         draft.photos,
       );
       setDraft(null);
-      showSavedToast(`${issueRef(saved.issue.issueNumber)} saved on device`);
+      showSavedToast(savedToastMessage(issueRef(saved.issue.issueNumber), persistStatus));
       if (next === "photo") {
         takePhoto();
       } else if (next === "review") {
@@ -200,7 +201,7 @@ export default function CaptureSession() {
       }
       return saved;
     },
-    [draft, audit, createIssue, findOrCreateLocation, findOrCreateAssignee, router, takePhoto, showSavedToast],
+    [draft, audit, createIssue, findOrCreateLocation, findOrCreateAssignee, router, takePhoto, showSavedToast, persistStatus],
   );
 
   if (!audit || !project) {

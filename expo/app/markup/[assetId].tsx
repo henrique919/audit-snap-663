@@ -11,7 +11,9 @@
  *
  * Save flow: "Save" commits markup in place (Saving… → Saved on device),
  * then the button becomes "Done" to return. Leaving with unsaved changes
- * prompts Save & Close / Discard / Cancel.
+ * prompts Save & Close / Discard / Cancel. The header indicator defers to
+ * the store's global persistStatus — see lib/saveState.ts — so it never
+ * claims "Saved on device" while the background write is actually failing.
  */
 
 import * as Haptics from "expo-haptics";
@@ -76,6 +78,7 @@ import {
   rotateWorkingImage,
 } from "@/lib/files";
 import { newId } from "@/lib/ids";
+import { saveIndicatorState, SAVE_INDICATOR_LABEL, SaveIndicatorState } from "@/lib/saveState";
 import { useAppStore } from "@/providers/AppStore";
 import type { AnnotationElement, PhotoAsset } from "@/types/models";
 type Tool = "select" | "arrow" | "ellipse" | "rect" | "pen" | "text" | "callout" | "blur" | "crop";
@@ -97,6 +100,14 @@ const ELEMENT_LABEL: Record<AnnotationElement["type"], string> = {
   text: "Text label",
   callout: "Number callout",
   blur: "Privacy blur",
+};
+
+/** Persistence errors always win over local saving/dirty state — see lib/saveState.ts. */
+const SAVE_DOT_COLOR: Record<SaveIndicatorState, string> = {
+  error: palette.red,
+  saving: palette.info,
+  dirty: "#F5A623",
+  saved: palette.greenBright,
 };
 
 function elementSwatchColor(el: AnnotationElement): string {
@@ -138,7 +149,7 @@ export default function MarkupStudio() {
   const { assetId } = useLocalSearchParams<{ assetId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { db, saveAnnotation, updateAsset } = useAppStore();
+  const { db, saveAnnotation, updateAsset, persistStatus } = useAppStore();
 
   const asset = useMemo(() => db.assets.find((a) => a.id === assetId) ?? null, [db.assets, assetId]);
   const existing = useMemo(
@@ -968,6 +979,7 @@ export default function MarkupStudio() {
   const showBlurIntensity = !showTextSizes && (tool === "blur" || selectedEl?.type === "blur");
   const colorsDisabled = showBlurIntensity;
   const sizeValues: readonly number[] = showTextSizes ? TEXT_SIZES : showBlurIntensity ? BLUR_INTENSITIES : STROKE_SIZES;
+  const saveIndicator = saveIndicatorState({ persistStatus, saving, dirty });
 
   return (
     <>
@@ -980,15 +992,17 @@ export default function MarkupStudio() {
           </TouchableOpacity>
           <View style={styles.topCenter}>
             <Text style={styles.topTitle}>Markup Studio</Text>
-            <View style={styles.saveState}>
-              <View
+            <View style={styles.saveState} testID="markup-save-state">
+              <View style={[styles.saveDot, { backgroundColor: SAVE_DOT_COLOR[saveIndicator] }]} />
+              <Text
                 style={[
-                  styles.saveDot,
-                  { backgroundColor: saving ? palette.info : dirty ? "#F5A623" : palette.greenBright },
+                  styles.saveStateText,
+                  saveIndicator === "error" && styles.saveStateError,
+                  saveIndicator === "dirty" && styles.saveStateDirty,
+                  saveIndicator === "saving" && styles.saveStateSaving,
                 ]}
-              />
-              <Text style={[styles.saveStateText, dirty && !saving && styles.saveStateDirty, saving && styles.saveStateSaving]}>
-                {saving ? "Saving\u2026" : dirty ? "Unsaved changes" : "Saved on device"}
+              >
+                {SAVE_INDICATOR_LABEL[saveIndicator]}
               </Text>
             </View>
           </View>
@@ -1278,6 +1292,7 @@ const styles = StyleSheet.create({
   saveStateText: { color: palette.greenBright, fontSize: 10, fontFamily: font.family.bodyBold, textTransform: "uppercase", letterSpacing: 0.6 },
   saveStateDirty: { color: "#F5A623" },
   saveStateSaving: { color: palette.info },
+  saveStateError: { color: palette.red },
   saveBtn: {
     flexDirection: "row",
     alignItems: "center",

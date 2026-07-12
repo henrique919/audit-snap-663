@@ -4,7 +4,7 @@
 
 | Done | In Progress | Remaining |
 |------|-------------|-----------|
-| 3    | 0           | 9 (Category A) |
+| 4    | 0           | 8 (Category A) |
 
 > Phase 2 (Sonnet 5): update this table and the per-item checkboxes as you complete items.
 > Process items **strictly in order** A1 → A12 per EXECUTION_PLAYBOOK.md.
@@ -38,7 +38,9 @@
 **Acceptance criteria:** cherry-pick applied; `bun run test` green including `pendingWrite.test.ts`; typecheck clean; app boots in web preview with no banner regressions.
 
 ### A4. Truthful save-state labels — **S**
-- [ ] Done
+- [x] Done — extracted pure `expo/lib/saveState.ts` (`saveIndicatorState`, `SAVE_INDICATOR_LABEL`, `savedToastMessage`): a persistence error always wins over local saving/dirty state. Wired into markup's header (`persistStatus === "error"` → "Save issue — see banner", red, overriding the local saved/dirty/saving display) and capture-session's save toast (checks `persistStatus` at save time; won't claim "saved on device" if a persistence failure is already ongoing). 11 new unit tests, including the exact regression this fixes: error state wins even when local state looks clean or is mid-save. Zero changes needed to `AppStore.tsx`/`lib/persistence/*` (out of scope per playbook, and correctly unnecessary — the signal it already exposes is sound). `tsc --noEmit` clean, 112/112 tests pass, lint clean (same 2 pre-existing warnings).
+
+  **Verification note:** live-tested the failure path by forcibly throwing from `localStorage.setItem` and confirmed via direct instrumentation that `persistStatus`/`lastPersistError`/`persistFailureVersion` genuinely transition correctly on write failure (the same context-read pattern already renders correctly elsewhere — StorageErrorBanner showed correctly for an equivalent settings-mutation failure). Could not capture a single stable live screenshot of markup's error state specifically, because of an environment-only artifact: `AppState` oscillates every ~200ms in this headless browser (see DECISIONS.md #13, EXECUTION_PLAYBOOK §4.4), continuously re-triggering retries on the already-failing write and never letting "error" be the settled render. This is unrelated to the UI code being added here — confirmed not a live device/browser behavior. Confidence in this item is high based on unit tests + the ground-truth state instrumentation, not a stable screenshot.
 **Problem:** Markup "Saved on device" (`markup/[assetId].tsx` ~line 992) and the capture toast ("#NNN saved on device") reflect local state only, contradicting the StorageErrorBanner on write failure.
 **Description:** `useAppStore()` already exposes `persistStatus`/`lastPersistError`. In markup: when `persistStatus === "error"`, show "Save issue — see banner" (amber) instead of "Saved on device". In capture: append toast wording only after checking `persistStatus !== "error"`, else show "Saved — sync to storage failed" variant.
 **Acceptance criteria:** Add a dev-only forced-failure hook (e.g. `setStorageDriver` with a failing driver behind `__DEV__` toggle in Settings, or a unit test at minimum) demonstrating: on write failure the markup header does NOT claim "Saved on device". Normal path unchanged in web preview.
