@@ -37,6 +37,7 @@ import { showAlert, showConfirm } from "@/lib/dialogs";
 import { issueRef } from "@/lib/format";
 import { newId } from "@/lib/ids";
 import { ProcessedPhoto, deleteProcessedPhoto, processPickedPhoto } from "@/lib/files";
+import { processPhotosBounded } from "@/lib/processPhotos";
 import { savedToastMessage } from "@/lib/saveState";
 import { useAppStore, useAudit, useIssuesForAudit, useProject } from "@/providers/AppStore";
 import type { IssuePriority, IssueStatus } from "@/types/models";
@@ -62,6 +63,7 @@ export default function CaptureSession() {
   const issues = useIssuesForAudit(auditId);
 
   const [processing, setProcessing] = useState<boolean>(false);
+  const [galleryProgress, setGalleryProgress] = useState<{ done: number; total: number } | null>(null);
   const [draft, setDraft] = useState<DraftIssue | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -159,15 +161,17 @@ export default function CaptureSession() {
       });
       if (result.canceled || result.assets.length === 0) return;
       setProcessing(true);
-      const processed: ProcessedPhoto[] = [];
-      for (const asset of result.assets) {
-        processed.push(await processPickedPhoto(asset.uri, newId()));
-      }
+      setGalleryProgress({ done: 0, total: result.assets.length });
+      const processed = await processPhotosBounded(
+        result.assets.map((a) => a.uri),
+        { concurrency: 2, onProgress: (done, total) => setGalleryProgress({ done, total }) },
+      );
       openDraft(processed);
     } catch (e) {
       console.log("[capture] gallery failed", e);
     } finally {
       setProcessing(false);
+      setGalleryProgress(null);
     }
   }, [openDraft]);
 
@@ -303,9 +307,19 @@ export default function CaptureSession() {
           </Animated.View>
         ) : null}
 
+        {/* Gallery multi-select processing feedback */}
+        {galleryProgress ? (
+          <View style={[styles.toast, { pointerEvents: "none" }]} testID="gallery-progress">
+            <ActivityIndicator color={palette.greenBright} size="small" />
+            <Text style={styles.toastText}>
+              Processing {galleryProgress.done}/{galleryProgress.total}…
+            </Text>
+          </View>
+        ) : null}
+
         {/* Capture controls */}
         <View style={[styles.controls, { paddingBottom: insets.bottom + spacing.xl }]}>
-          <TouchableOpacity style={styles.sideBtn} onPress={pickFromGallery} testID="capture-gallery">
+          <TouchableOpacity style={styles.sideBtn} onPress={pickFromGallery} disabled={processing} testID="capture-gallery">
             <View style={styles.sideChip}>
               <Images color={palette.white} size={22} />
             </View>

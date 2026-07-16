@@ -158,6 +158,26 @@ input.files = dt.files; input.dispatchEvent(new Event('change', {bubbles: true})
 If no input exists in the DOM, expo-image-picker creates one on demand — trigger the
 Gallery button first, then look again (it may be detached; query within 2s).
 
+**Addendum (Phase 2 continuation, hand-rolled Playwright harness — see DECISIONS.md #14):**
+the raw-DOM injection above does not reliably work in this remote container's headless
+Chromium against `expo-image-picker`'s web implementation — its picker dispatches an
+*untrusted* `MouseEvent('click')` on the hidden input (not a real `.click()`), which headless
+Chromium auto-cancels before the manual `.files`/`change` injection can land cleanly (confirmed
+via `MutationObserver`: the input is added and removed within one poll tick; racing it further
+crashes the library's own cancel-handling code). **Use Playwright's native file-chooser
+interception instead**, armed *before* the triggering click:
+```js
+const chooserPromise = page.waitForEvent('filechooser');
+await page.click('[data-testid="capture-gallery"]');
+const chooser = await chooserPromise;
+await chooser.setFiles([absolutePath1, absolutePath2, absolutePath3]); // real files on disk
+```
+`setFiles` also accepts `{name, mimeType, buffer}` objects directly — write the test canvas to
+a real temp file first (`fs.writeFileSync` from a `canvas.toDataURL()` base64 payload) rather
+than trying to hand it a Blob/File object. This exercises the exact same app code path
+(`ImagePicker.launchImageLibraryAsync` → `pickFromGallery` → processing → sheet) with zero
+app-code changes required — see DECISIONS.md #17.
+
 ### 4.6 Verifying popup-gated browser APIs (window.open, etc.)
 Confirmed in A2: real browsers require a *trusted* user gesture to allow `window.open()`.
 Neither the synthetic `dispatchEvent`-based `window.__tap` helper (§4.2) nor this Browser

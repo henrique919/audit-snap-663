@@ -106,6 +106,10 @@ export default function ReportPreviewScreen() {
   const generate = useCallback(async (): Promise<string | null> => {
     if (!audit || !project) return null;
     if (generatingRef.current) return null;
+    if (includedIssues.length === 0) {
+      showAlert("No issues included", "No issues included — check report options");
+      return null;
+    }
     generatingRef.current = true;
     // Web: expo-print's web shim ignores `html` and just calls window.print()
     // on the CURRENT page (see lib/reportPrintWeb.ts) — a real print target

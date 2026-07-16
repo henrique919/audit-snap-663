@@ -64,3 +64,56 @@
 ## 6. Code-quality assessment
 
 Wave 1 code is production-grade: typed result surfaces, pure testable modules, honest comments recording spikes/tradeoffs (`reportFonts.ts`, `reportImages.ts`), safety-first GC (age gate, reference checks incl. shared files from issue duplication). Remaining debt is listed above and in ROADMAP.md; the largest architectural liability is still AsyncStorage whole-table JSON at scale (mitigated by dirty-table writes; SQLite driver slot documented in ARCHITECTURE.md §2 and `expo/lib/persistence/README.md`).
+
+## 7. Phase 2 QA summary (Sonnet 5, 2026-07-12)
+
+Phase 2 executed ROADMAP.md Category A (A9–A12; A1–A8 were completed and committed just before
+this handoff) followed by the EXECUTION_PLAYBOOK.md §1/§6 Final QA Loop, entirely against the
+web preview via a hand-rolled Playwright harness (this session's container has no interactive
+browser-pane tool — see DECISIONS.md #14). Full narrative and evidence for every item is in
+ROADMAP.md's per-item entries and DECISIONS.md #14–#19; this section is the launch-readiness
+summary.
+
+**Category A (A9–A12) — all done, one commit each:**
+- **A9** — Reports tab's web Share action was a dead-end alert for every export; now routes to PDF Preview pre-loaded with that export's exact original options, where the existing print flow (A2) already works.
+- **A10** — Added a real guard dialog when a report would generate with 0 included issues (previously allowed through to a pointless empty PDF); gave the hit list a distinct, correct empty-state message when a status filter matches nothing (it was reusing the generic "capture photos" message, which was actively misleading); noted zero-photo issues instead of leaving a blank gap. Verified — not modified, already correct — long titles/descriptions (wrap cleanly everywhere up to 3000+ chars), project-with-no-audits, and search-no-matches.
+- **A11** — Extracted a bounded-concurrency (2) photo processor for multi-select gallery picks with "Processing X/Y…" progress feedback, replacing a serial loop with no feedback. Found along the way that the documented raw-DOM file-injection test technique doesn't work against this library in headless Chromium; the fix (Playwright's `filechooser` API) is now the documented standard technique (EXECUTION_PLAYBOOK §4.5 addendum).
+- **A12** — `lib/entitlements.ts` stub (ARCHITECTURE.md §3 exact spec) and `lib/csv.ts` RFC-4180 hit-list export, gated behind `isEntitled("csv_export")` as the architecture's first real entitlement consumer. Verified against real demo data (8 rows, correct quoting of comma-containing dates/descriptions) and the zero-issues disabled state.
+
+**Final QA Loop — 2 passes, 1 real defect found and fixed, Pass 2 clean (zero defects):**
+- **The defect:** Markup Studio's `elements` state (and its `elementsRef` mirror, the actual
+  source written on Save) snapshotted the saved annotation only once, at component mount. If
+  AppStore's async hydration hadn't finished by that first render — the normal case for any
+  cold navigation to a markup screen, e.g. a deep link, bookmark, or plain page reload — the
+  snapshot was `[]` and never self-corrected. Effect: a previously-saved annotation rendered as
+  a blank canvas even though the data was intact in storage, and — the serious part — if the
+  user then drew one new element and hit Save, the stale-empty ref would silently **overwrite
+  and discard every previously-saved annotation on that photo**, with no error and no warning.
+  This is exactly the class of bug a user bug report post-launch would be expensive and
+  confusing to diagnose from ("my markup disappeared"). Fixed with a one-shot,
+  hydration-gated, dirty-guarded resync effect in `app/markup/[assetId].tsx` (commit `84cfa8c`;
+  full root-cause writeup in DECISIONS.md #19). Verified live: reload → correct shapes render →
+  selectable → draggable → a follow-up save correctly preserves the edit instead of losing data.
+- **Everything else in the 9-step flow checklist** (fresh data, full project/audit/capture flow,
+  hit-list filters/group-modes/quick-actions, all three report themes + generate/regenerate +
+  staleness, Reports tab, Settings branding + reset, and edge cases including 18 issues in one
+  audit via repeated duplication, a 1919-char description typed through the real edit UI, and
+  the 0-issue report guard) passed cleanly in both passes with zero defects and zero unexpected
+  console errors, run as 19 explicit machine-checked assertions in Pass 2's consolidated
+  end-to-end walk.
+
+**Environment/technique notes for whoever runs this next** (full detail in DECISIONS.md
+#14–#18): this container has no browser-pane tool, so web verification used a Playwright
+script against `npx expo start --web`. The dev server **must not** be started with `CI=1` —
+it silently disables Metro's file watcher, which cost significant debugging time before the
+root cause was found (`EXPO_OFFLINE=1 EXPO_NO_TELEMETRY=1 npx expo start --web --port 8091`,
+no `CI`, is the confirmed-working invocation: no network hang, correct live-reload). The
+`expo-image-picker` web file-input injection technique in EXECUTION_PLAYBOOK §4.5 needed a
+documented addendum (Playwright's `filechooser` API) to work reliably here.
+
+**Launch-readiness verdict:** all Category A items and the Final QA Loop are complete. No known
+defects remain open. Category B items are correctly untouched and their integration seams are
+intact (verified by inspection during this pass, not modified). The codebase is in a
+launch-candidate state for everything within Category A's scope; Category B (store submission,
+branding, monetization, cloud sync, etc.) remains externally blocked as documented in
+ROADMAP.md.
