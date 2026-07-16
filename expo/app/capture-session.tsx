@@ -169,6 +169,13 @@ export default function CaptureSession() {
       openDraft(processed);
     } catch (e) {
       console.log("[capture] gallery failed", e);
+      // Batch processing is atomic — one unreadable file discards the whole
+      // pick, so the user must be told rather than left staring at a spinner
+      // that vanished with no result.
+      showAlert(
+        "Couldn't add photos",
+        "One of the selected images could not be read. No photos were added — try selecting them again.",
+      );
     } finally {
       setProcessing(false);
       setGalleryProgress(null);
