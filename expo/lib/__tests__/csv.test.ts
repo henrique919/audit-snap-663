@@ -118,4 +118,49 @@ describe("buildCsv", () => {
     const csv = buildCsv([issue({ issueNumber: 42 })], [], []);
     expect(csv).toContain("#042,");
   });
+
+  describe("formula-injection neutralization", () => {
+    it("neutralizes a leading equals sign", () => {
+      const csv = buildCsv([issue({ title: '=HYPERLINK("http://evil","x")' })], [], []);
+      expect(csv).toContain('"\'=HYPERLINK(""http://evil"",""x"")"');
+      expect(csv).not.toContain(',=HYPERLINK');
+    });
+
+    it("neutralizes a leading plus sign", () => {
+      const csv = buildCsv([issue({ title: "+cmd|calc" })], [], []);
+      expect(csv).toContain(",'+cmd|calc,");
+    });
+
+    it("neutralizes a leading minus sign", () => {
+      const csv = buildCsv([issue({ title: "-2+3+cmd" })], [], []);
+      expect(csv).toContain(",'-2+3+cmd,");
+    });
+
+    it("neutralizes a leading at sign", () => {
+      const csv = buildCsv([issue({ title: "@SUM(1+9)" })], [], []);
+      expect(csv).toContain(",'@SUM(1+9),");
+    });
+
+    it("neutralizes a leading tab", () => {
+      const csv = buildCsv([issue({ title: "\t=1+1" })], [], []);
+      expect(csv).toContain(",'\t=1+1,");
+    });
+
+    it("neutralizes description fields too", () => {
+      const csv = buildCsv([issue({ description: "=1+1" })], [], []);
+      expect(csv.trimEnd().endsWith(",'=1+1")).toBe(true);
+    });
+
+    it("leaves normal fields byte-identical, including internal trigger characters", () => {
+      const csv = buildCsv(
+        [issue({ title: "Door loose — 2+3 near @unit", description: "Grade a=b, re-fix" })],
+        [],
+        [],
+      );
+      expect(csv).toContain(",Door loose — 2+3 near @unit,");
+      expect(csv).toContain('"Grade a=b, re-fix"');
+      expect(csv).not.toContain("'Door");
+      expect(csv).not.toContain("'Grade");
+    });
+  });
 });
