@@ -24,10 +24,16 @@ const CSV_HEADER = [
 ];
 
 function escapeCsvField(value: string): string {
-  if (/[",\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+  // Neutralize spreadsheet formula injection: Excel/Sheets execute cells
+  // starting with = + - @ or tab. Prefixing an apostrophe forces text
+  // interpretation (the apostrophe becomes part of the exported data — the
+  // accepted trade-off for a file meant to be sent to clients; see
+  // DECISIONS.md #20).
+  const neutralized = /^[=+\-@\t]/.test(value) ? `'${value}` : value;
+  if (/[",\r\n]/.test(neutralized)) {
+    return `"${neutralized.replace(/"/g, '""')}"`;
   }
-  return value;
+  return neutralized;
 }
 
 function toRow(fields: string[]): string {
