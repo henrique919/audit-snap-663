@@ -10,7 +10,6 @@ import {
   CloudOff,
   Images,
   MapPin,
-  Mic,
   PenLine,
   UserRound,
   X,
@@ -341,15 +340,8 @@ export default function CaptureSession() {
               )}
             </View>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.sideBtn}
-            onPress={() => showAlert("Voice notes", "Voice-to-issue capture is coming in a future update.")}
-          >
-            <View style={[styles.sideChip, styles.sideChipMuted]}>
-              <Mic color={palette.textFaint} size={22} />
-            </View>
-            <Text style={[styles.sideLbl, styles.sideLblMuted]}>Voice</Text>
-          </TouchableOpacity>
+          {/* Spacer balances Gallery column width at 390×844 (Voice control removed). */}
+          <View style={styles.sideBtn} pointerEvents="none" accessibilityElementsHidden />
         </View>
       </View>
 
@@ -599,9 +591,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  sideChipMuted: { opacity: 0.6 },
   sideLbl: { color: palette.white, fontSize: font.size.xs, fontFamily: font.family.bodyBold },
-  sideLblMuted: { color: palette.textFaint },
   toast: {
     position: "absolute",
     bottom: 170,

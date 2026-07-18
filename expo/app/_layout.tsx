@@ -54,7 +54,6 @@ function RootLayoutNav() {
       <Stack.Screen name="audit-new" options={{ title: "Start Audit" }} />
       <Stack.Screen name="capture-session" options={{ headerShown: false }} />
       <Stack.Screen name="markup/[assetId]" options={{ headerShown: false }} />
-      <Stack.Screen name="sync" options={{ title: "Sync Centre" }} />
     </Stack>
   );
 }

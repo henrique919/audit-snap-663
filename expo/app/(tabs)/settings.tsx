@@ -1,8 +1,7 @@
-/** Settings — inspector defaults, brand info, sync centre, data management. */
+/** Settings — inspector defaults, brand info, storage and data management. */
 
 import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
-import { ChevronRight, CloudOff, Database, ImagePlus, RefreshCcw, Trash2, X } from "lucide-react-native";
+import { Database, ImagePlus, RefreshCcw, Trash2, X } from "lucide-react-native";
 import React from "react";
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,7 +17,6 @@ import { summarizeWipe } from "@/lib/wipe";
 import { useAppStore } from "@/providers/AppStore";
 
 export default function SettingsTab() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { settings, updateSettings, resetAllData, db } = useAppStore();
   const [mediaStats, setMediaStats] = React.useState<{ fileCount: number; totalBytes: number } | null>(null);
@@ -36,13 +34,6 @@ export default function SettingsTab() {
   React.useEffect(() => {
     void refreshMediaStats();
   }, [refreshMediaStats, db.assets.length, db.reports.length, settings.logoUri]);
-
-  const pendingCount = [
-    ...db.projects,
-    ...db.audits,
-    ...db.issues,
-    ...db.assets,
-  ].filter((r) => r.syncStatus !== "synced" && !r.deletedAt).length;
 
   const pickLogo = async () => {
     try {
@@ -193,25 +184,6 @@ export default function SettingsTab() {
         </View>
       </Card>
 
-      <SectionTitle title="Sync" />
-      <TouchableOpacity
-        style={styles.linkRow}
-        activeOpacity={0.8}
-        onPress={() => router.push("/sync")}
-        testID="open-sync-centre"
-      >
-        <View style={styles.linkIcon}>
-          <CloudOff color={palette.carbon} size={20} />
-        </View>
-        <View style={styles.linkBody}>
-          <Text style={styles.linkTitle}>Sync Centre</Text>
-          <Text style={styles.linkSub}>
-            All work saved on device · {pendingCount} records pending future sync
-          </Text>
-        </View>
-        <ChevronRight color={palette.textFaint} size={18} />
-      </TouchableOpacity>
-
       <SectionTitle title="Storage" />
       <Card>
         <Text style={styles.note}>
@@ -273,10 +245,7 @@ export default function SettingsTab() {
       <SectionTitle title="About" />
       <View style={styles.aboutCard}>
         <Database color={palette.textFaint} size={16} />
-        <Text style={styles.aboutText}>
-          Local-first: everything is stored on this device. Cloud backup, multi-device sync and web
-          access arrive in a future update.
-        </Text>
+        <Text style={styles.aboutText}>Local-first: everything is stored on this device.</Text>
       </View>
     </ScrollView>
   );
