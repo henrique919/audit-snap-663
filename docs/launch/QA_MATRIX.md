@@ -14,6 +14,7 @@ Phase 2's final QA (root ROADMAP.md, 2 passes, 19 assertions) provides the basel
 | Issue record (status/priority/dup) | PASS (P2 final QA) | UNTESTED | UNTESTED | |
 | Markup studio (draw/save/reload) | PASS (P2 final QA; reload defect #19 fixed) | UNTESTED | UNTESTED | |
 | Hit list (filter/group/quick actions) | PASS (P2 final QA) | UNTESTED | UNTESTED | |
+| Closeout hub (LP-21) | **WEB-ONLY-PASS** (2026-07-19 Cursor: status counts + completeness warnings + Preview/Generate on hit list; `closeoutHub.test.ts`) | UNTESTED | UNTESTED | Assignee packs omitted (no dead control) |
 | CSV export (incl. formula-injection guard) | PASS (P2 + D#20 tests) | UNTESTED | UNTESTED | |
 | Report builder + preview | PASS (P2 final QA) | UNTESTED | UNTESTED | |
 | PDF generation | PASS (web print-window path, P2 A2) | UNTESTED | UNTESTED | Native `printToFileAsync` path unit-tested only |

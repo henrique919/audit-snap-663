@@ -2,14 +2,20 @@
 
 import * as Haptics from "expo-haptics";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Camera, ClipboardList, Download, FileText } from "lucide-react-native";
+import { AlertTriangle, Camera, ClipboardList, Download, Eye, FileText } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
-import { FlatList, Platform, StyleSheet, Text, View } from "react-native";
+import { FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 
 import { IssueCard } from "@/components/IssueCard";
-import { AppButton, Chip, EmptyState } from "@/components/ui";
-import { font, palette, spacing } from "@/constants/theme";
+import { AppButton, Card, Chip, EmptyState } from "@/components/ui";
+import { resolveThemeKey } from "@/constants/config";
+import { font, palette, radius, spacing } from "@/constants/theme";
+import {
+  countIssuesByStatus,
+  findCompletenessWarnings,
+  formatMissingFields,
+} from "@/lib/closeoutHub";
 import { buildCsv, exportCsv } from "@/lib/csv";
 import { showActions, showAlert, showConfirm } from "@/lib/dialogs";
 import { isEntitled } from "@/lib/entitlements";
@@ -24,9 +30,11 @@ type ViewMode = "all" | "location" | "assignee" | "status";
 export default function HitListScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { db, updateIssue, duplicateIssue, deleteIssue } = useAppStore();
+  const { db, settings, updateIssue, duplicateIssue, deleteIssue } = useAppStore();
   const audit = useAudit(id);
   const issues = useIssuesForAudit(id);
+  const statusCounts = useMemo(() => countIssuesByStatus(issues), [issues]);
+  const completenessWarnings = useMemo(() => findCompletenessWarnings(issues), [issues]);
 
   const [viewMode, setViewMode] = useState<ViewMode>("all");
   const [statusFilter, setStatusFilter] = useState<IssueStatus | null>(null);
@@ -68,8 +76,17 @@ export default function HitListScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered, viewMode, db.locations, db.assignees]);
 
-  const openCount = issues.filter((i) => i.status !== "completed").length;
-  const doneCount = issues.length - openCount;
+  const previewReport = () => {
+    if (!audit) return;
+    const options = {
+      ...settings.defaultReportOptions,
+      themeKey: resolveThemeKey(audit.themeKey ?? settings.defaultReportOptions.themeKey),
+    };
+    router.push({
+      pathname: "/audit/[id]/preview",
+      params: { id: audit.id, options: JSON.stringify(options) },
+    });
+  };
 
   const changeStatus = (issue: Issue) => {
     showActions(
@@ -172,12 +189,78 @@ export default function HitListScreen() {
     <>
       <Stack.Screen options={{ title: audit.title }} />
       <View style={styles.container}>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryText}>
-            <Text style={styles.summaryStrong}>{issues.length}</Text> issues ·{" "}
-            <Text style={[styles.summaryStrong, styles.openColor]}>{openCount}</Text> open ·{" "}
-            <Text style={[styles.summaryStrong, styles.doneColor]}>{doneCount}</Text> completed
-          </Text>
+        <View style={styles.closeoutBlock} testID="closeout-hub">
+          <Text style={styles.closeoutTitle}>Closeout</Text>
+          <View style={styles.countRow}>
+            <View style={styles.countCell}>
+              <Text style={styles.countNum}>{statusCounts.open}</Text>
+              <Text style={styles.countLbl}>Open</Text>
+            </View>
+            <View style={styles.countCell}>
+              <Text style={styles.countNum}>{statusCounts.assigned}</Text>
+              <Text style={styles.countLbl}>Assigned</Text>
+            </View>
+            <View style={styles.countCell}>
+              <Text style={styles.countNum}>{statusCounts.inProgress}</Text>
+              <Text style={styles.countLbl}>In progress</Text>
+            </View>
+            <View style={styles.countCell}>
+              <Text style={[styles.countNum, styles.doneColor]}>{statusCounts.completed}</Text>
+              <Text style={styles.countLbl}>Completed</Text>
+            </View>
+          </View>
+
+          {completenessWarnings.length > 0 ? (
+            <Card style={styles.warningCard}>
+              <View style={styles.warningHeader}>
+                <AlertTriangle color={palette.amber} size={16} />
+                <Text style={styles.warningTitle}>
+                  {completenessWarnings.length} issue
+                  {completenessWarnings.length === 1 ? "" : "s"} need details
+                </Text>
+              </View>
+              {completenessWarnings.slice(0, 6).map((w) => (
+                <TouchableOpacity
+                  key={w.issueId}
+                  style={styles.warningRow}
+                  onPress={() => router.push({ pathname: "/issue/[id]", params: { id: w.issueId } })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${issueRef(w.issueNumber)} missing ${formatMissingFields(w.missing)}`}
+                  testID={`closeout-warning-${w.issueNumber}`}
+                >
+                  <Text style={styles.warningIssue} numberOfLines={1}>
+                    {issueRef(w.issueNumber)} · {w.label}
+                  </Text>
+                  <Text style={styles.warningMissing}>Missing {formatMissingFields(w.missing)}</Text>
+                </TouchableOpacity>
+              ))}
+              {completenessWarnings.length > 6 ? (
+                <Text style={styles.warningMore}>+{completenessWarnings.length - 6} more</Text>
+              ) : null}
+            </Card>
+          ) : issues.length > 0 ? (
+            <Text style={styles.closeoutOk}>All issues have title, location, and assignee.</Text>
+          ) : null}
+
+          <View style={styles.closeoutActions}>
+            <AppButton
+              testID="closeout-preview"
+              label="Preview report"
+              variant="secondary"
+              icon={<Eye color={palette.carbon} size={18} />}
+              onPress={previewReport}
+              style={styles.closeoutBtn}
+              disabled={issues.length === 0}
+            />
+            <AppButton
+              testID="closeout-generate"
+              label="Generate report"
+              icon={<FileText color={palette.white} size={18} />}
+              onPress={() => router.push({ pathname: "/audit/[id]/report", params: { id: audit.id } })}
+              style={styles.closeoutBtn}
+              disabled={issues.length === 0}
+            />
+          </View>
           <Text style={styles.summaryHint}>Hold an issue for quick actions</Text>
         </View>
 
@@ -282,11 +365,40 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: palette.background },
   missing: { flex: 1, alignItems: "center", justifyContent: "center" },
   missingText: { color: palette.textMuted },
-  summaryRow: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
-  summaryText: { fontSize: font.size.sm, color: palette.textMuted },
-  summaryHint: { fontSize: font.size.xs, color: palette.textFaint, marginTop: 2 },
-  summaryStrong: { fontFamily: font.family.bodyHeavy, color: palette.text },
-  openColor: { color: palette.red },
+  closeoutBlock: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm },
+  closeoutTitle: {
+    fontSize: font.size.sm,
+    fontFamily: font.family.bodyHeavy,
+    color: palette.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  countRow: {
+    flexDirection: "row",
+    backgroundColor: palette.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: palette.border,
+    paddingVertical: spacing.sm,
+  },
+  countCell: { flex: 1, alignItems: "center" },
+  countNum: { fontSize: font.size.lg, fontFamily: font.family.headingHeavy, color: palette.text },
+  countLbl: { fontSize: 10, color: palette.textMuted, marginTop: 2 },
+  warningCard: { gap: spacing.xs, paddingVertical: spacing.sm },
+  warningHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
+  warningTitle: { fontSize: font.size.sm, fontFamily: font.family.bodyHeavy, color: palette.text },
+  warningRow: {
+    paddingVertical: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: palette.border,
+  },
+  warningIssue: { fontSize: font.size.sm, fontFamily: font.family.bodyBold, color: palette.cobaltText },
+  warningMissing: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 1 },
+  warningMore: { fontSize: font.size.xs, color: palette.textFaint, marginTop: 4 },
+  closeoutOk: { fontSize: font.size.xs, color: palette.textMuted },
+  closeoutActions: { flexDirection: "row", gap: spacing.sm },
+  closeoutBtn: { flex: 1 },
+  summaryHint: { fontSize: font.size.xs, color: palette.textFaint },
   doneColor: { color: palette.green },
   filterBar: { paddingVertical: spacing.sm },
   filterRow: { gap: 6, paddingHorizontal: spacing.lg, alignItems: "center" },
