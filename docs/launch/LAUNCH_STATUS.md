@@ -3,9 +3,9 @@
 **Single source of truth for task state.** Update after every iteration (Claude) / before reporting completion (Cursor).
 Statuses: `BACKLOG` · `READY` · `IN PROGRESS` · `BLOCKED` · `IN REVIEW` · `PASSED` · `DEFERRED`
 
-**Active gate:** A (controlled web/PWA early access; pilot is free for 30–60 days per EXT-6 decision)
-**Branch:** `claude/punchthis-launch`
-**Last updated:** 2026-07-18 (batch LP-02→LP-08 reviewed — all PASSED; Gate A P0 implementation slice complete pending push + operator confirmations)
+**Active gate:** A (controlled web/PWA early access; pilot is free for 30–60 days per EXT-6 decision) — CONDITIONAL GO on main
+**Branch:** `cursor/batch2-p1-activation` (off `main` @ `a87f19f`)
+**Last updated:** 2026-07-19 (Batch 2 P1 — LP-20 → IN REVIEW)
 
 ## Gate A tasks
 
@@ -32,13 +32,13 @@ Statuses: `BACKLOG` · `READY` · `IN PROGRESS` · `BLOCKED` · `IN REVIEW` · `
 
 ## P1/P2/P3
 
-| ID | Description | Status |
-|---|---|---|
-| LP-20 | Quick Walk (first issue <60s) | BACKLOG (post-Gate A) |
-| LP-21 | Closeout hub on Done | BACKLOG |
-| LP-22 | Preset-first reporting + Advanced | BACKLOG |
-| LP-3x | P2 closeout loop sequence (due dates → verify → contractor links …) | BACKLOG (order fixed in master plan) |
-| LP-4x | P3 cloud foundations | BACKLOG (design constraints only) |
+| ID | Description | Pri | Status | Owner | Branch/commit | Evidence | Next action |
+|---|---|---|---|---|---|---|---|
+| LP-20 | Quick Walk (first issue <60s) | P1 | **IN REVIEW** | Cursor | `cursor/batch2-p1-activation` | Capture Quick Walk → name/pick → capture-session (skips audit-new). Optional post-first-issue client/preset prompt. Pilot metric `lastTimeToFirstIssueMs` + console log. `quickWalk.test.ts`. Gate: 215 · typecheck · lint (2 known) · build:web. Path: Capture → Quick Walk → name → Start → gallery/save. | Claude review |
+| LP-21 | Closeout hub on Done | P1 | READY — Batch 2 | Cursor | — | — | After LP-20 commit |
+| LP-22 | Preset-first reporting + Advanced | P1 | READY — Batch 2 | Cursor | — | — | After LP-21 |
+| LP-3x | P2 closeout loop sequence | P2 | BACKLOG | — | — | — | Needs backend |
+| LP-4x | P3 cloud foundations | P3 | BACKLOG | — | — | — | Design constraints only |
 
 ## Known limitations accepted for Gate A
 
@@ -61,3 +61,5 @@ Local-first only; no team features; no cloud backup; archival export (no in-app 
 | 2026-07-18 | LP-06 impl | A11y primitives/states + contrast token fixes + contrast regression suite. Status → IN REVIEW. Batch LP-02→LP-07 complete for Claude review. |
 | 2026-07-18 | LP-08 impl | Replaced Rork placeholder identity with `com.punchthis.app` / scheme `punchthis`; Expo start scripts; decision L17 upgrade note. Status → IN REVIEW. |
 | 2026-07-18 | **Batch review (LP-02→LP-08)** | Claude independent verification of the whole batch: 209/209 tests, typecheck clean, lint 2 known warnings; full re-review of each commit's diff; fresh preview restart confirming the app boots + bundles on the post-Rork metro config; live checks — sample reseed (Sample label, 0 http URLs, #008 renders sample image not flag), Data & privacy screen wording, a11y tree now populated, real 267KB/30-entry export zip. **All seven → PASSED** (LP-07 push-pending, LP-06 web-scope). Two stray `NUL` artifacts removed. Operator flags: confirm LP-04 support email/publisher; push branch to prove CI green. |
+| 2026-07-19 | Batch 2 start | Fresh branch `cursor/batch2-p1-activation` from `main` @ `a87f19f`. Order LP-20 → LP-21 → LP-22. |
+| 2026-07-19 | LP-20 impl | Quick Walk capture-first path + skippable setup prompt + pilot TTFI metric. Status → IN REVIEW. |

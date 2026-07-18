@@ -7,6 +7,7 @@ Phase 2's final QA (root ROADMAP.md, 2 passes, 19 assertions) provides the basel
 |---|---|---|---|---|
 | Project create/edit | PASS (P2 final QA) | UNTESTED | UNTESTED | |
 | Audit create (defaults, validation) | PASS (P2 final QA) | UNTESTED | UNTESTED | Locale/date fix lands in LP-03 → retest |
+| Quick Walk (LP-20) | **WEB-ONLY-PASS** (2026-07-19 Cursor: Capture → Quick Walk → name → capture-session; skips audit-new; optional setup prompt; `quickWalk.test.ts`) | UNTESTED | UNTESTED | Full Start New Audit path preserved |
 | Capture: camera | N/A (no cam in harness) | UNTESTED | UNTESTED | Permission denial+recovery = LP-09 |
 | Capture: gallery import | PASS (P2 A11 via filechooser) | UNTESTED | UNTESTED | Limited-library permission = LP-09 |
 | Batch import / large photos | UNTESTED | UNTESTED | UNTESTED | |

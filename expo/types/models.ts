@@ -240,6 +240,8 @@ export interface AppSettings {
   keepAwakeWhileUploading: boolean;
   /** ISO timestamp the first-run local-storage notice on Home was dismissed, or null if still showing. */
   storageNoticeDismissedAt: string | null;
+  /** Pilot metric (LP-20): last Quick Walk time-to-first-issue in ms, or null. */
+  lastTimeToFirstIssueMs: number | null;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -256,4 +258,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   uploadWifiOnly: true,
   keepAwakeWhileUploading: false,
   storageNoticeDismissedAt: null,
+  lastTimeToFirstIssueMs: null,
 };
