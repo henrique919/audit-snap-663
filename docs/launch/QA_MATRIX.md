@@ -30,7 +30,11 @@ Phase 2's final QA (root ROADMAP.md, 2 passes, 19 assertions) provides the basel
 | TalkBack | — | — | UNTESTED | Blocked EXT-5 |
 | Large text (200%) | UNTESTED | UNTESTED | UNTESTED | LP-06 |
 | Keyboard navigation (web) | UNTESTED | — | — | LP-06 |
-| Contrast (WCAG AA) | **FAIL → LP-06** (`#96A0A9` 2.66:1, `#4C82FF` 3.53:1, `#E5A016` 2.24:1) | same tokens | same tokens | |
+| Contrast (WCAG AA) | **PASS (web)** — LP-06 `9fd4386`: `contrast.test.ts` computes ≥4.5:1 for fixed text tokens (`textFaint`, `cobaltText`, `amberText`; `textFaintOnDark` split) | same tokens | same tokens | native SR pass = LP-09 |
+| Keyboard navigation (web) | **PARTIAL** — a11y tree now populated with roles/labels (LP-06); full Tab/Enter journey to re-drive at Gate A sign-off | — | — | |
+| Backup / export-all | **PASS (web)** — LP-05 `56eba77`: live export = 267KB zip, 30 entries (records+media+manifest), archival wording | UNTESTED (native share sheet) | UNTESTED | |
+| Sample data integrity | **PASS (web)** — LP-03 `8120aa3`: bundled sample photos match issues (#008 no longer a flag), 0 remote URLs, Sample-labelled | UNTESTED | UNTESTED | |
+| Production identity / app boot | **PASS (web)** — LP-08 `68a86b6`: `com.punchthis.app`, Rork SDK removed, boots on new metro config | UNTESTED (native build) | UNTESTED | LP-09 |
 | Small viewport 320w / tablet | UNTESTED / N/A (supportsTablet:false) | — | UNTESTED | |
 
 Update rule: a launch task PASSING requires updating every row it touches, with evidence (screenshot path, test name, or transcript pointer). Native columns move only on physical-device evidence (LP-09).
