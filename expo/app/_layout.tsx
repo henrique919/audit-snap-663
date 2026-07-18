@@ -43,7 +43,8 @@ function RootLayoutNav() {
       screenOptions={{
         headerBackTitle: "Back",
         headerStyle: { backgroundColor: palette.background },
-        headerTintColor: palette.cobalt,
+        // cobaltText, not cobalt — this colours the back button label too.
+        headerTintColor: palette.cobaltText,
         headerTitleStyle: { fontFamily: font.family.heading, color: palette.text },
         headerShadowVisible: false,
         contentStyle: { backgroundColor: palette.background },

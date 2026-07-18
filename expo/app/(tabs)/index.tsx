@@ -88,6 +88,7 @@ export default function ProjectsScreen() {
           onChangeText={setSearch}
           placeholder="Search projects, clients, references"
           placeholderTextColor={palette.textFaint}
+          accessibilityLabel="Search projects, clients, references"
         />
       </View>
 
@@ -98,7 +99,11 @@ export default function ProjectsScreen() {
           </View>
           <View style={styles.noticeBody}>
             <Text style={styles.noticeText}>{LOCAL_STORAGE_WARNING}</Text>
-            <TouchableOpacity onPress={() => router.push("/data-privacy")}>
+            <TouchableOpacity
+              onPress={() => router.push("/data-privacy")}
+              accessibilityRole="link"
+              accessibilityLabel="Learn more about local storage"
+            >
               <Text style={styles.noticeLink}>Learn more</Text>
             </TouchableOpacity>
           </View>
@@ -120,6 +125,8 @@ export default function ProjectsScreen() {
           activeOpacity={0.88}
           style={styles.continueCard}
           onPress={() => router.push({ pathname: "/capture-session", params: { auditId: lastAudit.id } })}
+          accessibilityRole="button"
+          accessibilityLabel={`Continue last audit, ${lastAudit.title}${lastAuditProject ? `, ${lastAuditProject.name}` : ""}`}
         >
           <View style={styles.continuePlay}>
             <Play color={palette.white} size={18} fill={palette.white} />
@@ -211,7 +218,7 @@ const styles = StyleSheet.create({
   noticeIcon: { marginTop: 1 },
   noticeBody: { flex: 1, gap: 4 },
   noticeText: { fontSize: font.size.xs, color: palette.textMuted, lineHeight: 17 },
-  noticeLink: { fontSize: font.size.xs, fontFamily: font.family.bodyBold, color: palette.cobalt },
+  noticeLink: { fontSize: font.size.xs, fontFamily: font.family.bodyBold, color: palette.cobaltText },
   noticeDismiss: { padding: 2 },
   continueCard: {
     flexDirection: "row",

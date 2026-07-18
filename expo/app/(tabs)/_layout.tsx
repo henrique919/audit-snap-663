@@ -10,7 +10,8 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: palette.cobalt,
+        // cobaltText, not cobalt — this also colours the tab label text.
+        tabBarActiveTintColor: palette.cobaltText,
         tabBarInactiveTintColor: palette.textFaint,
         tabBarStyle: {
           backgroundColor: palette.surface,
@@ -37,7 +38,7 @@ export default function TabLayout() {
               <Camera color={palette.white} size={24} strokeWidth={2.4} />
             </View>
           ),
-          tabBarLabelStyle: { fontSize: 11, fontFamily: font.family.bodyHeavy, color: palette.cobalt },
+          tabBarLabelStyle: { fontSize: 11, fontFamily: font.family.bodyHeavy, color: palette.cobaltText },
         }}
       />
       <Tabs.Screen

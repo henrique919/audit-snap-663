@@ -5,7 +5,7 @@ Statuses: `BACKLOG` · `READY` · `IN PROGRESS` · `BLOCKED` · `IN REVIEW` · `
 
 **Active gate:** A (controlled web/PWA early access; pilot is free for 30–60 days per EXT-6 decision)
 **Branch:** `claude/punchthis-launch`
-**Last updated:** 2026-07-18 (batch: LP-02/07 IN REVIEW; LP-03 → IN REVIEW)
+**Last updated:** 2026-07-18 (batch LP-02→LP-07 complete → all IN REVIEW)
 
 ## Gate A tasks
 
@@ -17,7 +17,7 @@ Statuses: `BACKLOG` · `READY` · `IN PROGRESS` · `BLOCKED` · `IN REVIEW` · `
 | LP-03 | Repair sample data (bundled matching photos, sample labels, device-locale dates) | P0 | **IN REVIEW** | Cursor | claude/punchthis-launch (see log) | Bundled SAMPLE PNGs in `assets/seed/` (8 issues + cover, ≤12KB each, no remote URLs). `buildDemoDb` async via real media pipeline; project “Sample — Harbourview…”; Site Walk theme; `formatShortDate` for audit-new title. Tests: seed.test + dates.test. Web 390×844 reseed shows Sample project on Home. test 165 · typecheck · lint (2 known) · build:web OK. | Claude review |
 | LP-04 | About/support/data-safety surfaces + provisional legal wording | P0 | **IN REVIEW** | Cursor | claude/punchthis-launch (see log) | `legalCopy.ts` + Data & privacy screen; Settings About (version/BUILD_ID/publisher/support mailto); Home first-run storage notice. Web 390×844: notice + About rows + privacy page with Provisional + Clear all data wording. test 171 · typecheck · lint (2 known) · build:web OK. **Flag:** SUPPORT_EMAIL/PUBLISHER_NAME provisional (henrysestak@gmail.com / Henry Sestak). | Claude review |
 | LP-05 | Export-all safety archive (archival, not restore) | P0 | **IN REVIEW** | Cursor | claude/punchthis-launch (see log) | `exportArchive.ts` + Settings Export all data; `EXPORT_FORMAT.md`; jszip dep. Archival/not-restorable wording tested. Scale limit documented (~100MB media risk; JSZip in-memory). test 191 · typecheck · lint (2 known). Note: Settings export row first landed in `a22963b` (mislabeled lp-04); lib/docs/dep in lp-05 commit. | Claude review |
-| LP-06 | Accessibility: shared primitives, states, contrast tokens | P0 | **IN PROGRESS — batch 6/6** | Cursor | — | — | In batch; native SR pass deferred to LP-09 |
+| LP-06 | Accessibility: shared primitives, states, contrast tokens | P0 | **IN REVIEW** | Cursor | claude/punchthis-launch (see log) | Primitives + journey controls: roles/labels/states; announcements; contrast tokens (`textFaint`/`cobaltText`/`amberText`/`cobaltDeep` fill) with `contrast.test.ts` ≥4.5:1. test 209 · typecheck · lint (2 known). Native SR deferred LP-09. Residual: red/green status-pill text ratios noted in tests for later pass. | Claude review |
 | LP-08 | Production app identity — preferred `com.punchthis.app` (no country code) | P0 | **BLOCKED** (LP-10 clearance search + domain check must pass; EXT-3 accounts for store verify) | Cursor when unblocked | — | — | Claude runs LP-10 first |
 | LP-09 | Native release-candidate device matrix | P0 | **BLOCKED** (EXT-3 accounts, EXT-5 devices; simulator/emulator subset allowed meanwhile) | Claude+operator | — | — | LP-13 prepares the script pack |
 
@@ -57,4 +57,5 @@ Local-first only; no team features; no cloud backup; archival export (no in-app 
 | 2026-07-18 | LP-07 impl | Added GitHub Actions CI workflow + honest lockfile refresh for frozen installs. Status → IN REVIEW (GH run pending push). |
 | 2026-07-18 | LP-03 impl | Replaced remote stock photos with bundled SAMPLE seed images + media-pipeline materialisation; Sample labelling; device-locale dates; Site Walk theme coherence. Status → IN REVIEW. |
 | 2026-07-18 | LP-04 impl | About/support/data-privacy surfaces + provisional copy module; first-run storage notice. Status → IN REVIEW (`f22dc45`). |
-| 2026-07-18 | LP-05 impl | Export-all zip archive (archival only) + format doc + jszip. Status → IN REVIEW. |
+| 2026-07-18 | LP-05 impl | Export-all zip archive (archival only) + format doc + jszip. Status → IN REVIEW (`56eba77`; Settings row also in `a22963b`). |
+| 2026-07-18 | LP-06 impl | A11y primitives/states + contrast token fixes + contrast regression suite. Status → IN REVIEW. Batch LP-02→LP-07 complete for Claude review. |
