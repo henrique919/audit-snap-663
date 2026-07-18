@@ -4,15 +4,15 @@
 Statuses: `BACKLOG` · `READY` · `IN PROGRESS` · `BLOCKED` · `IN REVIEW` · `PASSED` · `DEFERRED`
 
 **Active gate:** A (controlled web/PWA early access)
-**Branch:** `claude/punchthis-launch` @ base `d90a38d`
-**Last updated:** 2026-07-18 (program initialised)
+**Branch:** `claude/punchthis-launch`
+**Last updated:** 2026-07-18 (LP-01 implemented → IN REVIEW)
 
 ## Gate A tasks
 
 | ID | Description | Pri | Status | Owner | Branch/commit | Evidence | Next action |
 |---|---|---|---|---|---|---|---|
-| LP-01 | True Clear All Data (records + owned media) | P0 | **READY → assigned to Cursor** | Cursor impl / Claude review | claude/punchthis-launch | — | Cursor executes task prompt LP-01 (see CURSOR_LAUNCH_LOOP.md §Current assignment) |
-| LP-02 | Remove dead Voice control + demote future-sync UI | P0 | READY | Cursor | — | — | Queue after LP-01 |
+| LP-01 | True Clear All Data (records + owned media) | P0 | **IN REVIEW** | Cursor impl / Claude review | `claude/punchthis-launch` (see iteration log for hash) | Unit: `expo/lib/__tests__/wipe.test.ts` (8 tests). Web preview: Clear all data → empty projects + success alert “All projects, audits, and photo/report files…”; Reset demo data → Harbourview restored + “Demo data restored” alert. `bun run test` 157 pass; typecheck clean; lint = 2 known markup warnings only; `bun run build:web` OK. Native file delete covered by mocked FS tests (no device). | Claude reviews LP-01 |
+| LP-02 | Remove dead Voice control + demote future-sync UI | P0 | READY | Cursor | — | — | Queue after LP-01 PASSED |
 | LP-03 | Repair sample data (bundled matching photos, sample labels, locale) | P0 | READY | Cursor | — | — | Queue |
 | LP-04 | About/support/data-safety surfaces + draft legal wording | P0 | READY | Cursor | — | — | Queue |
 | LP-05 | Export-all safety archive (archival, not restore) | P0 | READY (after LP-01 helpers) | Cursor | — | — | Queue |
@@ -44,3 +44,4 @@ Local-first only; no team features; no cloud backup; archival export (no in-app 
 | Date | Iteration | Outcome |
 |---|---|---|
 | 2026-07-18 | Program init | Branch created from `d90a38d`; six launch docs authored; review findings converted to LP backlog; LP-01 assigned to Cursor. |
+| 2026-07-18 | LP-01 impl | Added `expo/lib/wipe.ts` (`wipeOwnedMediaDirs` + `summarizeWipe`); wired into `resetAllData` after driver clear (reseed path included); Settings shows success only on full wipe success, honest partial-failure alert with safe retry. Tests + web preview evidence above. Status → IN REVIEW. |

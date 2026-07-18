@@ -14,6 +14,7 @@ import { font, palette, radius, spacing } from "@/constants/theme";
 import { showAlert, showConfirm } from "@/lib/dialogs";
 import { persistBrandLogo } from "@/lib/files";
 import { estimateMediaStorage, formatBytes, runMediaGc } from "@/lib/mediaRegistry";
+import { summarizeWipe } from "@/lib/wipe";
 import { useAppStore } from "@/providers/AppStore";
 
 export default function SettingsTab() {
@@ -71,8 +72,31 @@ export default function SettingsTab() {
       reseed ? "Reset" : "Delete everything",
       true,
     );
-    if (ok) {
-      resetAllData(reseed);
+    if (!ok) return;
+
+    const result = await resetAllData(reseed);
+    await refreshMediaStats();
+
+    if (result.status === "persist_failed") {
+      showAlert("Could not clear data", result.error || "Storage clear failed. Please try again.");
+      return;
+    }
+
+    if (result.status === "wipe_partial") {
+      const summary = summarizeWipe(result.wipe);
+      showAlert("Some files could not be deleted", summary.message);
+      return;
+    }
+
+    // Full success only — never claim success on partial file wipe.
+    if (reseed) {
+      showAlert(
+        "Demo data restored",
+        "Sample project loaded. Previous records and photo/report files on this device were deleted.",
+      );
+    } else {
+      const summary = summarizeWipe(result.wipe);
+      showAlert("All data cleared", summary.message);
     }
   };
 
