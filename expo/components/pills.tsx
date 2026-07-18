@@ -10,13 +10,13 @@ import { PRIORITY_LABEL, STATUS_LABEL } from "@/types/models";
 export const STATUS_COLORS: Record<IssueStatus, { color: string; soft: string }> = {
   open: { color: palette.red, soft: palette.redSoft },
   assigned: { color: palette.amber, soft: palette.amberSoft },
-  in_progress: { color: palette.info, soft: palette.infoSoft },
+  in_progress: { color: palette.cobalt, soft: palette.cobaltSoft },
   completed: { color: palette.green, soft: palette.greenSoft },
 };
 
 const PRIORITY_COLORS: Record<IssuePriority, { color: string; soft: string }> = {
-  low: { color: palette.textMuted, soft: palette.surfaceAlt },
-  medium: { color: palette.amber, soft: palette.amberSoft },
+  low: { color: "#5A6570", soft: palette.surfaceAlt },
+  medium: { color: palette.amberText, soft: palette.amberSoft },
   high: { color: palette.red, soft: palette.redSoft },
 };
 

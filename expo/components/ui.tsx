@@ -56,7 +56,9 @@ export function AppButton({ label, onPress, icon, disabled, loading, variant = "
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isPrimary || isDanger ? palette.white : palette.carbon} />
+        <ActivityIndicator
+          color={isPrimary || isDanger ? palette.white : palette.carbon}
+        />
       ) : (
         <>
           {icon}
@@ -229,7 +231,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
   },
-  btnPrimary: { backgroundColor: palette.carbon },
+  btnPrimary: { backgroundColor: palette.cobalt },
   btnSecondary: {
     backgroundColor: palette.surface,
     borderWidth: 1.5,
@@ -259,6 +261,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 13,
     fontSize: font.size.md,
+    fontFamily: font.family.body,
     color: palette.text,
   },
   inputMultiline: { minHeight: 90, textAlignVertical: "top" },
@@ -276,7 +279,7 @@ const styles = StyleSheet.create({
     maxWidth: 220,
   },
   chipSmall: { paddingHorizontal: 10, paddingVertical: 6 },
-  chipActive: { backgroundColor: palette.carbon, borderColor: palette.carbon },
+  chipActive: { backgroundColor: palette.cobalt, borderColor: palette.cobalt },
   chipLabel: { fontSize: font.size.sm, fontFamily: font.family.bodySemibold, color: palette.text },
   chipLabelSmall: { fontSize: font.size.xs },
   chipLabelActive: { color: palette.white },
@@ -327,7 +330,7 @@ const styles = StyleSheet.create({
     padding: 3,
     justifyContent: "center",
   },
-  toggleTrackOn: { backgroundColor: palette.green },
+  toggleTrackOn: { backgroundColor: palette.cobalt },
   toggleThumb: {
     width: 23,
     height: 23,
@@ -350,7 +353,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: radius.sm,
   },
-  segmentActive: { backgroundColor: palette.carbon },
+  segmentActive: { backgroundColor: palette.cobalt },
   segmentLabel: { fontSize: font.size.xs, fontFamily: font.family.bodyBold, color: palette.textMuted },
   segmentLabelActive: { color: palette.white },
 });

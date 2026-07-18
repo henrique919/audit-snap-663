@@ -1,44 +1,62 @@
 /**
- * Design system — CleanRun IQ design language, lighter product.
+ * Design system — PunchThis.
  *
- * Carbon/charcoal ink, restrained CleanRun green accent, mist neutral
- * surfaces, steel muted text. Typography: Archivo (headings) + Inter (body)
- * — see constants/typography.ts.
+ * Graphite ink · blueprint cobalt · mist surfaces. Status colours map 1:1
+ * to issue lifecycle. Typography: Space Grotesk (headings) + Hanken Grotesk
+ * (body) — see constants/typography.ts.
  */
 
 import { fontFamily } from "@/constants/typography";
 
 export const palette = {
-  /** Primary ink — CleanRun IQ carbon. */
-  carbon: "#161A1D",
-  carbonDeep: "#121619",
-  charcoal: "#283238",
+  /** Graphite Ink — headings, dark surfaces, secondary buttons, splash. */
+  carbon: "#1C232B",
+  carbonDeep: "#12181F",
+  charcoal: "#22303C",
   charcoalSoft: "#39454D",
 
-  /** CleanRun brand greens. */
-  green: "#18A94F",
-  greenBright: "#20C55E",
-  greenSoft: "#EAFBF1",
+  /** Blueprint Cobalt — primary actions, capture, markers, links, active nav. */
+  cobalt: "#4C82FF",
+  cobaltDeep: "#2F6BFF",
+  cobaltSoft: "#EAF1FF",
 
-  amber: "#C27803",
-  amberSoft: "#FFF4DF",
+  /** Success / verified. */
+  green: "#1E9E5A",
+  greenBright: "#2BB56A",
+  greenSoft: "#E7F3EC",
 
-  info: "#1D4ED8",
+  /** Assigned / warning / medium priority. */
+  amber: "#E5A016",
+  amberSoft: "#FDF3E0",
+  amberText: "#B57709",
+
+  /** Alias for cobalt as info (in-progress). */
+  info: "#4C82FF",
   infoSoft: "#EAF1FF",
 
-  red: "#B42318",
-  redSoft: "#FDECEC",
+  /** Open / high / destructive. */
+  red: "#C93B3B",
+  redSoft: "#FBEBEB",
 
+  /** For-review (reserved for future status). */
+  review: "#7B61E0",
+  reviewSoft: "#EEEAFB",
+  reviewText: "#5B41C0",
+
+  /** Neutrals. */
   white: "#FFFFFF",
-  background: "#F4F6F8",
+  background: "#F2F4F6",
   surface: "#FFFFFF",
-  surfaceAlt: "#EDF0F3",
+  surfaceAlt: "#EEF1F3",
   border: "#DDE3E8",
   borderStrong: "#B8C0C8",
+  steel: "#7E8B96",
 
-  text: "#161A1D",
+  text: "#1C232B",
   textMuted: "#69747D",
   textFaint: "#96A0A9",
+  /** Wordmark “This” weight colour. */
+  textSteel: "#A2ACB5",
 } as const;
 
 export const radius = {
@@ -68,7 +86,7 @@ export const font = {
     xxl: 26,
     huge: 34,
   },
-  /** Legacy numeric weights — prefer `font.family` (real Archivo/Inter cuts). */
+  /** Legacy numeric weights — prefer `font.family` (real Space/Hanken cuts). */
   weight: {
     regular: "400" as const,
     medium: "500" as const,
@@ -76,20 +94,20 @@ export const font = {
     bold: "700" as const,
     heavy: "800" as const,
   },
-  /** CleanRun IQ font families (Archivo headings / Inter body). */
+  /** PunchThis font families (Space Grotesk headings / Hanken Grotesk body). */
   family: fontFamily,
 } as const;
 
 export const shadow = {
   card: {
-    shadowColor: "#161A1D",
+    shadowColor: "#1C232B",
     shadowOpacity: 0.07,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
     elevation: 2,
   },
   floating: {
-    shadowColor: "#161A1D",
+    shadowColor: "#1C232B",
     shadowOpacity: 0.18,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
@@ -99,11 +117,11 @@ export const shadow = {
 
 /** Colors available in the markup studio palette. */
 export const MARKUP_COLORS = [
-  "#E53935",
-  "#F59E0B",
-  "#18A94F",
-  "#1D4ED8",
-  "#7C3AED",
-  "#161A1D",
+  "#C93B3B",
+  "#E5A016",
+  "#1E9E5A",
+  "#4C82FF",
+  "#7B61E0",
+  "#1C232B",
   "#FFFFFF",
 ] as const;

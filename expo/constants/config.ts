@@ -1,34 +1,34 @@
 /**
  * Central brand / product configuration.
  *
- * The working product name is temporary — rename the app by editing THIS file
- * only. Nothing in the app hard-codes the name, report title, or brand colors.
+ * Rename or retheme the product by editing THIS file. Screens and reports
+ * read from BrandConfig / REPORT_THEMES — nothing hard-codes the name.
  */
 
 export const BrandConfig = {
   /** Display name shown in headers, settings and about. */
-  appName: "Clean Audit IQ",
+  appName: "PunchThis",
   /** Short tagline used on the home screen and cover pages. */
-  tagline: "Site photos → professional audit reports",
+  tagline: "Punch it. Prove it. Close it.",
   /** Default title used for generated report documents. */
   reportName: "Site Audit Report",
   /** Footer credit line printed on reports. Leave empty to hide. */
-  reportFooter: "Generated with Clean Audit IQ",
+  reportFooter: "Generated with PunchThis",
   /** Company placeholder used when a project has no company name. */
   defaultCompanyName: "",
   /** Marketing site (shown in Settings › About only). */
-  website: "cleanruniq.com",
+  website: "punchthis.app",
   /**
    * Brand logo placeholder. Set to a require(...) or remote URL later.
-   * When null, the app renders a monogram tile from `monogram` below.
+   * When null, the app renders the Marked Frame symbol from BrandMark.
    */
   logoUri: null as string | null,
-  /** Two-letter monogram used for the logo placeholder tile. */
-  monogram: "CA",
-  /** Primary brand color (CleanRun IQ carbon). */
-  brandPrimary: "#161A1D",
-  /** Accent color (CleanRun IQ green). */
-  brandAccent: "#18A94F",
+  /** Two-letter monogram fallback (rarely shown — SVG mark is preferred). */
+  monogram: "PT",
+  /** Primary brand ink (Graphite Ink). */
+  brandPrimary: "#1C232B",
+  /** Accent color (Blueprint Cobalt). */
+  brandAccent: "#4C82FF",
 } as const;
 
 /**
@@ -55,27 +55,27 @@ export const REPORT_THEMES: Record<ReportThemeKey, ReportTheme> = {
   executive: {
     label: "Executive",
     description: "Polished client handover — strong cover, premium spacing",
-    primary: "#161A1D",
-    accent: "#20C55E",
-    heading: "#161A1D",
+    primary: "#1C232B",
+    accent: "#4C82FF",
+    heading: "#1C232B",
     coverVariant: "executive",
     density: "comfortable",
   },
   sitewalk: {
     label: "Site Walk",
     description: "Fast field report — compact, issue-dense, strong hit list",
-    primary: "#1F2937",
-    accent: "#1D4ED8",
-    heading: "#111827",
+    primary: "#22303C",
+    accent: "#4C82FF",
+    heading: "#1C232B",
     coverVariant: "compact",
     density: "compact",
   },
   handover: {
     label: "Handover",
     description: "Formal closeout — status-focused with sign-off block",
-    primary: "#14342B",
-    accent: "#C27803",
-    heading: "#14342B",
+    primary: "#12181F",
+    accent: "#E5A016",
+    heading: "#1C232B",
     coverVariant: "formal",
     density: "comfortable",
   },
