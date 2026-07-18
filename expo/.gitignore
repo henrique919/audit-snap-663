@@ -41,7 +41,6 @@ yarn-error.*
 # tests
 coverage/
 
-.rork
 .env
 core
 node_modules

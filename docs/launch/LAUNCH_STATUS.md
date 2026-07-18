@@ -5,7 +5,7 @@ Statuses: `BACKLOG` · `READY` · `IN PROGRESS` · `BLOCKED` · `IN REVIEW` · `
 
 **Active gate:** A (controlled web/PWA early access; pilot is free for 30–60 days per EXT-6 decision)
 **Branch:** `claude/punchthis-launch`
-**Last updated:** 2026-07-18 (batch LP-02→LP-07 complete → all IN REVIEW)
+**Last updated:** 2026-07-18 (LP-08 identity → IN REVIEW)
 
 ## Gate A tasks
 
@@ -18,7 +18,7 @@ Statuses: `BACKLOG` · `READY` · `IN PROGRESS` · `BLOCKED` · `IN REVIEW` · `
 | LP-04 | About/support/data-safety surfaces + provisional legal wording | P0 | **IN REVIEW** | Cursor | claude/punchthis-launch (see log) | `legalCopy.ts` + Data & privacy screen; Settings About (version/BUILD_ID/publisher/support mailto); Home first-run storage notice. Web 390×844: notice + About rows + privacy page with Provisional + Clear all data wording. test 171 · typecheck · lint (2 known) · build:web OK. **Flag:** SUPPORT_EMAIL/PUBLISHER_NAME provisional (henrysestak@gmail.com / Henry Sestak). | Claude review |
 | LP-05 | Export-all safety archive (archival, not restore) | P0 | **IN REVIEW** | Cursor | claude/punchthis-launch (see log) | `exportArchive.ts` + Settings Export all data; `EXPORT_FORMAT.md`; jszip dep. Archival/not-restorable wording tested. Scale limit documented (~100MB media risk; JSZip in-memory). test 191 · typecheck · lint (2 known). Note: Settings export row first landed in `a22963b` (mislabeled lp-04); lib/docs/dep in lp-05 commit. | Claude review |
 | LP-06 | Accessibility: shared primitives, states, contrast tokens | P0 | **IN REVIEW** | Cursor | claude/punchthis-launch (see log) | Primitives + journey controls: roles/labels/states; announcements; contrast tokens (`textFaint`/`cobaltText`/`amberText`/`cobaltDeep` fill) with `contrast.test.ts` ≥4.5:1. test 209 · typecheck · lint (2 known). Native SR deferred LP-09. Residual: red/green status-pill text ratios noted in tests for later pass. | Claude review |
-| LP-08 | Production app identity — preferred `com.punchthis.app` (no country code) | P0 | **BLOCKED** (LP-10 clearance search + domain check must pass; EXT-3 accounts for store verify) | Cursor when unblocked | — | — | Claude runs LP-10 first |
+| LP-08 | Production app identity — `com.punchthis.app` | P0 | **IN REVIEW** | Cursor | claude/punchthis-launch `chore(lp-08)` | bundle/package `com.punchthis.app`; scheme+slug `punchthis`; removed rork origin/scripts/toolkit metro wrap. Grep clean for `rork`/`rork-app`/`fsowpwobeaoqe5smtpb03` in expo/. L17 documents new-install upgrade. Gate: test 209 · typecheck · lint (2 known) · build:web OK; web preview :8092 → 200. | Claude review |
 | LP-09 | Native release-candidate device matrix | P0 | **BLOCKED** (EXT-3 accounts, EXT-5 devices; simulator/emulator subset allowed meanwhile) | Claude+operator | — | — | LP-13 prepares the script pack |
 
 ## Claude-owned program tasks (from EXT decisions, 2026-07-18)
@@ -59,3 +59,4 @@ Local-first only; no team features; no cloud backup; archival export (no in-app 
 | 2026-07-18 | LP-04 impl | About/support/data-privacy surfaces + provisional copy module; first-run storage notice. Status → IN REVIEW (`f22dc45`). |
 | 2026-07-18 | LP-05 impl | Export-all zip archive (archival only) + format doc + jszip. Status → IN REVIEW (`56eba77`; Settings row also in `a22963b`). |
 | 2026-07-18 | LP-06 impl | A11y primitives/states + contrast token fixes + contrast regression suite. Status → IN REVIEW. Batch LP-02→LP-07 complete for Claude review. |
+| 2026-07-18 | LP-08 impl | Replaced Rork placeholder identity with `com.punchthis.app` / scheme `punchthis`; Expo start scripts; decision L17 upgrade note. Status → IN REVIEW. |
