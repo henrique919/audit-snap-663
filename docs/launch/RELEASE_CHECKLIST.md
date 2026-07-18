@@ -2,8 +2,10 @@
 
 ## Gate A — controlled early access (web/PWA, invite-only)
 
+Pilot terms (decision L15): free for 30–60 days, invite-only, founder-supported, structured feedback; measure completed audits, reports generated, repeat usage, time saved, willingness to pay. No paywall in the build.
+
 Product integrity
-- [ ] LP-01 PASSED — Clear All Data deletes records **and** owned media; honest partial-failure reporting
+- [x] LP-01 PASSED — Clear All Data deletes records **and** owned media; honest partial-failure reporting (verified 2026-07-18, `b2f5055`)
 - [ ] LP-02 PASSED — no dead controls (Voice removed); no unsupported claims in-app
 - [ ] LP-03 PASSED — sample data matches its evidence, labelled sample, AU locale consistent
 - [ ] LP-04 PASSED — version/build, support contact, publisher name, product-scope + local-storage + retention/deletion + camera + blur wording live in Settings (drafts labelled pending legal review)
@@ -23,10 +25,12 @@ Release mechanics
 
 ## Gate B — public solo launch (adds to Gate A)
 
-- [ ] EXT-1 name clearance done; LP-08 identity replaced (no `app.rork.*`, no `rork-app`, no rork start scripts); dev/prod configs split
+- [ ] LP-10 initial name search clean (or conflicts resolved) + professional trademark advice obtained; LP-08 identity replaced with `com.punchthis.app` or revised choice (no `app.rork.*`, no `rork-app`, no rork start scripts); dev/prod configs split
+- [ ] EXT-2 routes live: `/privacy` `/terms` `/support` `/data-deletion` (LP-12 content), public, versioned, no sign-in required
+- [ ] Founding Inspector offer finalised from pilot evidence (anchor ≈A$129 one-time / US$79–99 regional; hypotheses in DECISIONS L15)
 - [ ] EXT-3 store accounts; release builds (iOS + Android) produced and installed on devices
 - [ ] LP-09 device matrix executed — every native UNTESTED row in QA_MATRIX resolved
-- [ ] EXT-2 public privacy/terms/support/data-deletion URLs live and linked in-app + store listings
+- [ ] EXT-2 routes linked in-app and in store listings
 - [ ] EXT-4 legal review of wording complete; "provisional" labels removed
 - [ ] Store privacy declarations (Apple nutrition label, Play Data Safety) match actual behaviour
 - [ ] Permission strings (camera, photos) match actual use

@@ -22,7 +22,7 @@ Phase 2's final QA (root ROADMAP.md, 2 passes, 19 assertions) provides the basel
 | Offline use | WEB-ONLY-PASS (local-first by design) | UNTESTED | UNTESTED | |
 | Backgrounding/kill during save | UNTESTED (env AppState churn, root D#13) | UNTESTED | UNTESTED | |
 | Data migration across app upgrade | UNTESTED | UNTESTED | UNTESTED | |
-| **Clear All Data (records + files)** | **FAIL → LP-01** (files survive on native) | UNTESTED | UNTESTED | Current top defect |
+| **Clear All Data (records + files)** | **PASS** (2026-07-18 Claude live verify @ `b2f5055`: clear + reseed flows, honest dialogs, storage zeroed, no console errors) | UNTESTED (file wipe = mocked unit tests) | UNTESTED (same) | Fixed by LP-01; native rows move on LP-09 |
 | Backup / export-all | N/A — feature absent → LP-05 | — | — | |
 | Restore | N/A (archival-only by decision L-plan) | — | — | |
 | Low storage | UNTESTED | UNTESTED | UNTESTED | |

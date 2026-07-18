@@ -7,6 +7,8 @@
 
 Website-alignment findings from the review are **informational and deferred** (operator instruction). The marketing page is not a design source of truth and no launch task may target it.
 
+**Global-first principle (decision L10):** PunchThis is a global product; Australia is the initial base and storefront, not an architectural assumption. Device-locale formatting, flexible addresses, no country code in identifiers, externalised copy, regional store pricing. Every task must respect this.
+
 ---
 
 ## Launch gates
@@ -41,12 +43,12 @@ Smallest dependable Gate A mechanism: export **one archive** (records JSON + own
 ### Workstream 2 — Honest product surface (Gate A blocking)
 
 **LP-02 [P0.6] Remove dead/unfinished controls** — P0 · Risk: high (trust, store rejection later) · Complexity S
-Voice button (`app/capture-session.tsx:346-351`) shows a future-feature alert — remove it. Audit the Sync Centre surface (`app/sync.tsx`, Settings link): keep only honest "local-only today" state; no prominent unfinished sync controls; no fake billing; roadmap promises live in docs, not production UI.
-*Acceptance:* no visible control whose only behaviour is a "coming soon" message; no unsupported collaboration/backup claims in-app; tests/typecheck/lint pass; capture screen layout verified at mobile viewport after removal.
+Voice button (`app/capture-session.tsx:346-351`) shows a future-feature alert — remove it. The Sync Centre screen (`app/sync.tsx`, 112 lines: "coming in a future update" copy, "Pending for future sync" outbox count, a wifi-only toggle for a nonexistent feature) plus its Settings row (`settings.tsx:209` "pending future sync") is a whole surface of future promises — remove the screen and row entirely; outbox/persistence logic underneath is untouched (it is architecture, not UI). Trim remaining "arrive in a future update" promo copy to plain local-first statements (full approved wording lands in LP-04).
+*Acceptance:* no visible control whose only behaviour is a "coming soon" message; no unfinished-feature screens reachable; no unsupported collaboration/backup claims in-app; `lib/persistence`/outbox untouched; tests/typecheck/lint pass; capture screen layout verified at mobile viewport after removal.
 
 **LP-03 [P0.7] Repair sample data** — P0 · Risk: high (first-run trust; the flag-photo defect) · Complexity M
-`lib/seed.ts` uses random remote stock URLs (`lib/seed.ts:41-51`) so evidence cannot match issue titles (e.g. #008 switchboard → American flag). Replace with **bundled, licence-clear images that match each seeded issue**, label the project as sample content, fix locale (AU address + consistent date format — audit default title currently US-format while the field is ISO), align audit title with default report theme, keep names obviously fictional.
-*Acceptance:* every sample photo plausibly matches its issue text; project visibly labelled sample/demo; consistent AU-appropriate dates; no remote fetch needed for seed media; reseed path (`resetAllData(true)`) produces the fixed data; bundle size increase justified (compressed, ≤ ~150KB/photo target).
+`lib/seed.ts` uses random remote stock URLs (`lib/seed.ts:41-51`) so evidence cannot match issue titles (e.g. #008 switchboard → American flag). Replace with **bundled, licence-clear images that match each seeded issue**, label the project as sample content, and fix date handling **globally, not AU-hardcoded (decision L10)**: format dates via the device locale (`Intl`/locale-aware helpers), eliminating the current mismatch where the default audit title uses US format while the field shows ISO. Align audit title with default report theme; keep names obviously fictional (sample address may stay Australian — it is sample content, clearly labelled).
+*Acceptance:* every sample photo plausibly matches its issue text; project visibly labelled sample/demo; dates render consistently from the device locale everywhere seeded/default strings are built; no remote fetch needed for seed media; reseed path (`resetAllData(true)`) produces the fixed data; bundle size increase justified (compressed, ≤ ~150KB/photo target).
 
 **LP-04 [P0.4+P0.5] About, support, and data-safety surfaces** — P0 · Risk: high (Gate A requires support path + honest storage warning) · Complexity M
 Settings/About must expose: app version + build (from `expo-application`/`expo-constants`), developer/publisher name, support contact (mailto at minimum), product-scope disclaimer, local-storage warning, retention/deletion explanation, camera/photo usage explanation, blur/redaction explanation — using the operator's approved draft wording verbatim (see brief §P0.5; drafts pending legal review, tracked in RELEASE_CHECKLIST). Privacy-policy and terms **screens** in-app now; public URLs are a Gate B item (EXT-2).
@@ -64,9 +66,16 @@ Per review: shared Button/Chip/ToggleRow/Segmented/Field/tabs/icon-only controls
 
 ### Workstream 4 — Identity & release (Gate B critical path, start when unblocked)
 
-**LP-08 [P0.1] Production app identity** — P0 · Complexity M · **BLOCKED-EXTERNAL**
-Replace `app.rork.fsowpwobeaoqe5smtpb03` (iOS bundle + Android package), `rork-app` scheme, slug `fsowpwobeaoqe5smtpb03`, Rork router origin, `start`/`start-web` scripts that call `bunx rork`. Needs: final name clearance (EXT-1), chosen reverse-DNS identifier, Apple/Google developer accounts for full verification. Dev/prod config separation + upgrade implications documented (identity change = new app install on devices).
-**LP-09 [P0.10] Native release-candidate matrix** — P0 · Complexity L · **BLOCKED-EXTERNAL** (physical devices + accounts). Matrix lives in `QA_MATRIX.md`; never mark native rows from web evidence.
+**LP-08 [P0.1] Production app identity** — P0 · Complexity M · **BLOCKED on LP-10 + EXT-3**
+Replace `app.rork.fsowpwobeaoqe5smtpb03` (iOS bundle + Android package), `rork-app` scheme, slug `fsowpwobeaoqe5smtpb03`, Rork router origin, `start`/`start-web` scripts that call `bunx rork`. **Preferred identifier: `com.punchthis.app` — no country code (decision L10)**; do not lock until LP-10 clearance search + domain check pass. Store accounts (EXT-3) needed only for release-build verification. Dev/prod config separation + upgrade implications documented (identity change = new app install on devices).
+**LP-09 [P0.10] Native release-candidate matrix** — P0 · Complexity L · **BLOCKED-EXTERNAL** (physical devices + accounts; iOS-simulator/Android-emulator subset allowed meanwhile, decision L14). Matrix lives in `QA_MATRIX.md`; never mark native rows from web/simulator evidence alone. LP-13 prepares the tester script pack.
+
+### Workstream 4b — Claude-owned program tasks (from EXT decisions)
+
+- **LP-10** Initial name/trademark search (IP Australia, WIPO GBD, USPTO, EUIPO/TMview, UK, NZ, Canada; exact + similar spelling/sound; construction/inspection/reporting software classes) + punchthis.com/.app domain availability. Output: findings + conflict list + recommendation. **Not formal clearance** — professional trademark advice required before Gate B/store-asset investment. Gates LP-08.
+- **LP-11** Owner checklist for Apple Developer + Google Play Console account setup (identity/entity requirements, D-U-N-S, costs, assets each store needs). Publisher = real AU entity/individual, never invented.
+- **LP-12** Draft `/privacy`, `/terms`, `/support`, `/data-deletion` static page content (versioned, provisional-marked, actual-behaviour-only, no account-deletion claims). Deploy after domain decision; blocks store submission only.
+- **LP-13** Physical-device QA script pack for LP-09 (step-by-step scripts + expected results per QA_MATRIX row) so an owner/tester can execute the matrix efficiently. Start after LP-04/LP-05 settle the surfaces.
 
 ### Workstream 5 — Activation (P1, post-Gate A)
 
@@ -83,14 +92,16 @@ P3 only after the local model and closeout state machine are stable; never sync 
 
 ## External dependencies (not Claude/Cursor work)
 
-| ID | Item | Blocks | Owner |
+All six resolved by operator 2026-07-18 — full decisions in `docs/launch/DECISIONS.md` L10–L15.
+
+| ID | Item | Status after decision | Blocks |
 |---|---|---|---|
-| EXT-1 | Name/trademark clearance ("PunchThis", AU + target markets; IP Australia similar-mark search) | LP-08, store assets | Operator |
-| EXT-2 | Public privacy/terms/support/data-deletion URLs (host outside the unfinished marketing site is acceptable) | Gate B submission | Operator |
-| EXT-3 | Apple Developer + Google Play accounts | LP-08 verify, LP-09, Gate B | Operator |
-| EXT-4 | Legal review of P0.5 wording | Gate B (Gate A ships drafts labelled as such) | Operator |
-| EXT-5 | Physical iOS + Android test devices | LP-09, native a11y pass | Operator |
-| EXT-6 | Pricing decision (Founding Inspector A$149–199 one-time) | Gate A offer wording, Gate B billing | Operator |
+| EXT-1 | Name clearance — global-first identity, preferred `com.punchthis.app` | Initial search delegated to Claude (LP-10); identity unlock after search + domain check; professional advice before Gate B | LP-08 only |
+| EXT-2 | Public `/privacy` `/terms` `/support` `/data-deletion` routes | Content drafting delegated (LP-12); hosting after domain decision | Store submission only |
+| EXT-3 | Apple/Google developer accounts | Unconfirmed; owner checklist delegated (LP-11); native distribution stays blocked | LP-08 verify, LP-09, Gate B |
+| EXT-4 | Legal review of wording | Provisional drafts approved for Gate A (labelled); formal review before Gate B | Gate B only |
+| EXT-5 | Physical test devices | Simulator/emulator + web allowed now; physical matrix before native public launch; script pack delegated (LP-13) | Native release approval only |
+| EXT-6 | Pricing | Decided as hypotheses (L15): free pilot 30–60d, Founding Inspector ≈A$129 one-time after pilot, no paywall built now | Nothing in Gate A |
 
 ## Non-goals (this cycle)
 
