@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BrandMark } from "@/components/BrandMark";
+import { BrandMark, BrandWordmark } from "@/components/BrandMark";
 import { ProjectCard } from "@/components/ProjectCard";
 import { AppButton, EmptyState } from "@/components/ui";
 import { BrandConfig } from "@/constants/config";
@@ -70,7 +70,7 @@ export default function ProjectsScreen() {
       <View style={styles.header}>
         <BrandMark size={42} />
         <View style={styles.headerText}>
-          <Text style={styles.appName}>{BrandConfig.appName}</Text>
+          <BrandWordmark size={22} />
           <Text style={styles.tagline}>{BrandConfig.tagline}</Text>
         </View>
       </View>
@@ -95,7 +95,7 @@ export default function ProjectsScreen() {
           onPress={() => router.push({ pathname: "/capture-session", params: { auditId: lastAudit.id } })}
         >
           <View style={styles.continuePlay}>
-            <Play color={palette.carbon} size={18} fill={palette.carbon} />
+            <Play color={palette.white} size={18} fill={palette.white} />
           </View>
           <View style={styles.continueText}>
             <Text style={styles.continueKicker}>Continue last audit</Text>
@@ -160,7 +160,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: palette.background, paddingHorizontal: spacing.lg },
   header: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.lg },
   headerText: { flex: 1 },
-  appName: { fontSize: font.size.xl, fontFamily: font.family.headingHeavy, color: palette.text, letterSpacing: -0.7 },
   tagline: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 1 },
   searchWrap: {
     flexDirection: "row",
@@ -174,7 +173,7 @@ const styles = StyleSheet.create({
     height: 46,
     marginBottom: spacing.md,
   },
-  searchInput: { flex: 1, fontSize: font.size.md, color: palette.text },
+  searchInput: { flex: 1, fontSize: font.size.md, fontFamily: font.family.body, color: palette.text },
   continueCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -188,13 +187,13 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: palette.greenBright,
+    backgroundColor: palette.cobalt,
     alignItems: "center",
     justifyContent: "center",
   },
   continueText: { flex: 1 },
   continueKicker: {
-    color: palette.greenBright,
+    color: palette.cobalt,
     fontSize: 10,
     fontFamily: font.family.bodyBold,
     textTransform: "uppercase",

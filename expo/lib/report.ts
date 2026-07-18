@@ -42,18 +42,18 @@ export interface ReportData {
   imageSrc: (uri: string) => string;
 }
 
-/** CleanRun IQ status palette (danger / warning / info / success). */
+/** PunchThis status palette (open / assigned / in progress / verified). */
 const STATUS_COLORS: Record<IssueStatus, string> = {
-  open: "#B42318",
-  assigned: "#C27803",
-  in_progress: "#1D4ED8",
-  completed: "#18A94F",
+  open: "#C93B3B",
+  assigned: "#E5A016",
+  in_progress: "#4C82FF",
+  completed: "#1E9E5A",
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
-  low: "#69747D",
-  medium: "#C27803",
-  high: "#B42318",
+  low: "#7E8B96",
+  medium: "#E5A016",
+  high: "#C93B3B",
 };
 
 function locationName(locations: ProjectLocation[], id: string | null): string {
@@ -156,9 +156,10 @@ export function buildReportHtml(data: ReportData): string {
   /* ------------------------------- Cover page ------------------------------- */
   const logoUri = project.logoUri ?? branding.logoUri;
   const logoSrc = logoUri ? imageSrc(logoUri) : "";
+  const brandMarkSvg = `<svg class="cover-mark-svg" viewBox="0 0 64 64" width="34" height="34" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 20 V14 a6 6 0 0 1 6-6 h6 M44 8 h6 a6 6 0 0 1 6 6 v6 M56 44 v6 a6 6 0 0 1 -6 6 h-6 M20 56 h-6 a6 6 0 0 1 -6-6 v-6" stroke="#8B97A1" stroke-width="5" stroke-linecap="round"/><rect x="24" y="24" width="16" height="16" rx="4.5" fill="#4C82FF"/></svg>`;
   const logo = logoSrc
     ? `<img class="cover-logo" src="${logoSrc}" alt=""/>`
-    : `<div class="cover-mark">${escapeHtml(BrandConfig.monogram)}</div>`;
+    : `<div class="cover-mark">${brandMarkSvg}</div>`;
 
   const coverPhotoSrc = project.coverPhotoUri ? imageSrc(project.coverPhotoUri) : "";
   const coverPhoto = coverPhotoSrc
@@ -446,17 +447,18 @@ export function buildReportHtml(data: ReportData): string {
   /* Offline fonts: no Google Fonts @import — see lib/reportFonts.ts */
   ${pageNumberCss}
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { font-family: ${reportFontStack.body}; color: #161A1D; font-size: ${dense ? "10.5px" : "11px"}; line-height: 1.45; }
+  body { font-family: ${reportFontStack.body}; color: #1C232B; font-size: ${dense ? "10.5px" : "11px"}; line-height: 1.45; }
   h1, h2, h3, .stat-num, .item-num, .cover-app, .cover-brand, .hitlist .num { font-family: ${reportFontStack.heading}; }
   .page { page-break-after: always; }
   .page:last-of-type { page-break-after: auto; }
 
   /* Cover — shared */
   .cover { display: flex; flex-direction: column; min-height: 96vh; }
-  .cover-mark { width: 52px; height: 52px; border-radius: 12px; background: rgba(255,255,255,0.14); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; letter-spacing: 1px; }
+  .cover-mark { width: 52px; height: 52px; border-radius: 12px; background: #1C232B; color: #fff; display: flex; align-items: center; justify-content: center; }
+  .cover-mark-svg { display: block; }
   .cover-logo { height: 52px; max-width: 200px; object-fit: contain; background: #fff; border-radius: 8px; padding: 4px; }
   .cover-stats { display: flex; gap: 8px; margin-top: 26px; }
-  .cstat { flex: 1; border: 1px solid #DDE3E8; border-top: 3px solid #161A1D; border-radius: 8px; padding: 10px 8px; background: #F8FAFB; text-align: center; }
+  .cstat { flex: 1; border: 1px solid #DDE3E8; border-top: 3px solid #1C232B; border-radius: 8px; padding: 10px 8px; background: #F8FAFB; text-align: center; }
   .cstat-num { font-size: 21px; font-weight: 800; line-height: 1; font-family: ${reportFontStack.heading}; }
   .cstat-lbl { color: #69747D; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 4px; font-weight: 800; }
 
@@ -473,7 +475,7 @@ export function buildReportHtml(data: ReportData): string {
   .formal-frame { border: 1.6px solid; border-radius: 4px; padding: 7px; flex: 1; display: flex; }
   .formal-inner { border: 1px solid; border-radius: 2px; flex: 1; padding: 44px 36px; text-align: center; }
   .formal-logo { display: flex; justify-content: center; margin-bottom: 14px; }
-  .formal-logo .cover-mark { background: #14342B; }
+  .formal-logo .cover-mark { background: #1C232B; }
   .formal-company { font-size: 13px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; margin-bottom: 30px; font-family: ${reportFontStack.heading}; }
   .formal-kicker { font-size: 9.5px; font-weight: 800; letter-spacing: 2.6px; margin-bottom: 12px; }
   .formal-h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.4px; line-height: 1.14; }
@@ -486,7 +488,7 @@ export function buildReportHtml(data: ReportData): string {
   /* Compact / site walk cover */
   .compact-bar { height: 6px; border-radius: 3px; margin-bottom: 18px; }
   .compact-head { display: flex; align-items: center; gap: 14px; }
-  .compact-head .cover-mark { background: #1F2937; }
+  .compact-head .cover-mark { background: #22303C; }
   .compact-body { padding-top: 30px; }
   .cover-app { color: #fff; font-size: 17px; font-weight: 800; letter-spacing: 0.3px; }
   .cover-tag { color: rgba(255,255,255,0.75); font-size: 11px; margin-top: 2px; text-transform: uppercase; letter-spacing: 1.6px; }
@@ -503,14 +505,14 @@ export function buildReportHtml(data: ReportData): string {
   .cover-meta td:last-child { font-weight: 600; }
   .cover-footer { display: flex; justify-content: space-between; padding: 16px 4px 0; color: #69747D; font-size: 9.5px; letter-spacing: 0.4px; font-weight: 700; border-top: 1px solid #DDE3E8; margin-top: 30px; }
 
-  /* Sections — CleanRun IQ title block: heading over a strong accent rule */
+  /* Sections — PunchThis title block: heading over a strong accent rule */
   .section-head { border-bottom: 3px solid; padding: 0 0 8px; margin-bottom: 18px; }
   .section-head h2 { font-size: 20px; font-weight: 800; letter-spacing: -0.4px; }
   .section-sub { color: #69747D; font-size: 10.5px; margin-top: 3px; font-weight: 600; }
 
   /* Summary — stat cards with status-coloured left spines */
   .stats { display: flex; gap: 8px; margin-bottom: 14px; }
-  .stat { flex: 1; border: 1px solid #DDE3E8; border-left: 3px solid #161A1D; border-radius: 8px; padding: 11px 9px; background: #F4F6F8; }
+  .stat { flex: 1; border: 1px solid #DDE3E8; border-left: 3px solid #1C232B; border-radius: 8px; padding: 11px 9px; background: #F2F4F6; }
   .stat-num { font-size: 22px; font-weight: 800; line-height: 1; }
   .stat-lbl { color: #69747D; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; font-weight: 800; }
   .priority-row { margin: 4px 0 18px; color: #69747D; font-size: 10.5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -530,7 +532,7 @@ export function buildReportHtml(data: ReportData): string {
 
   .chip { display: inline-block; padding: 2.5px 8px; border-radius: 999px; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
 
-  /* Item details — CleanRun IQ item card with status spine */
+  /* Item details — PunchThis item card with status spine */
   .group { margin-bottom: 18px; }
   .group-head { color: #fff; border-radius: 7px; padding: 7px 12px; font-weight: 800; font-size: 11.5px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; letter-spacing: 0.3px; font-family: ${reportFontStack.heading}; page-break-after: avoid; }
   .group-count { font-weight: 600; font-size: 9.5px; opacity: 0.8; }

@@ -43,7 +43,7 @@ function RootLayoutNav() {
       screenOptions={{
         headerBackTitle: "Back",
         headerStyle: { backgroundColor: palette.background },
-        headerTintColor: palette.carbon,
+        headerTintColor: palette.cobalt,
         headerTitleStyle: { fontFamily: font.family.heading, color: palette.text },
         headerShadowVisible: false,
         contentStyle: { backgroundColor: palette.background },

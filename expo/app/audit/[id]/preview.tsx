@@ -8,6 +8,7 @@ import { AlertTriangle, CheckCircle2, FileText, Mail, Share2, ShieldCheck } from
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Image, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { BrandMark } from "@/components/BrandMark";
 import { AppButton, Card } from "@/components/ui";
 import { STATUS_COLORS, StatusPill } from "@/components/pills";
 import { BrandConfig, REPORT_THEMES, buildEmailBody, buildEmailSubject, resolveThemeKey } from "@/constants/config";
@@ -330,9 +331,7 @@ export default function ReportPreviewScreen() {
             {brandLogoUri ? (
               <Image source={{ uri: brandLogoUri }} style={styles.coverLogo} resizeMode="contain" />
             ) : (
-              <View style={styles.coverMark}>
-                <Text style={styles.coverMarkText}>{BrandConfig.monogram}</Text>
-              </View>
+              <BrandMark size={42} />
             )}
             <View style={styles.coverBrandBody}>
               <Text style={styles.coverBrand}>
@@ -545,15 +544,6 @@ const styles = StyleSheet.create({
     backgroundColor: palette.carbon,
     padding: spacing.lg,
   },
-  coverMark: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.md,
-    backgroundColor: "rgba(255,255,255,0.14)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  coverMarkText: { color: palette.white, fontFamily: font.family.headingHeavy, fontSize: font.size.md },
   coverLogo: { width: 42, height: 42, borderRadius: radius.sm, backgroundColor: palette.white },
   coverBrandBody: { flex: 1 },
   coverAccentRule: { height: 3 },

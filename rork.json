@@ -1,7 +1,7 @@
 {
   "apps": [
     {
-      "name": "Clean Audit IQ",
+      "name": "PunchThis",
       "path": "expo",
       "framework": "react-native"
     }

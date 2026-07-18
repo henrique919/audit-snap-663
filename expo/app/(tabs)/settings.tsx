@@ -7,7 +7,7 @@ import React from "react";
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BrandMark } from "@/components/BrandMark";
+import { BrandMark, BrandWordmark } from "@/components/BrandMark";
 import { AppButton, Card, Field, SectionTitle } from "@/components/ui";
 import { BrandConfig, REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/constants/config";
 import { font, palette, radius, spacing } from "@/constants/theme";
@@ -87,7 +87,7 @@ export default function SettingsTab() {
       <View style={styles.brandRow}>
         <BrandMark size={52} />
         <View style={styles.brandText}>
-          <Text style={styles.brandName}>{BrandConfig.appName}</Text>
+          <BrandWordmark size={20} />
           <Text style={styles.brandSub}>{BrandConfig.tagline}</Text>
           <Text style={styles.brandSite}>{BrandConfig.website}</Text>
         </View>
@@ -264,7 +264,6 @@ const styles = StyleSheet.create({
   title: { fontSize: font.size.xxl, fontFamily: font.family.headingHeavy, color: palette.text, letterSpacing: -0.7, marginBottom: spacing.lg },
   brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   brandText: { flex: 1 },
-  brandName: { fontSize: font.size.lg, fontFamily: font.family.headingHeavy, color: palette.text, letterSpacing: -0.4 },
   brandSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 1 },
   brandSite: { fontSize: font.size.xs, color: palette.textFaint, marginTop: 1 },
   note: { fontSize: font.size.xs, color: palette.textFaint, lineHeight: 17 },

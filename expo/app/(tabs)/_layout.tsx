@@ -10,7 +10,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: palette.carbon,
+        tabBarActiveTintColor: palette.cobalt,
         tabBarInactiveTintColor: palette.textFaint,
         tabBarStyle: {
           backgroundColor: palette.surface,
@@ -37,7 +37,7 @@ export default function TabLayout() {
               <Camera color={palette.white} size={24} strokeWidth={2.4} />
             </View>
           ),
-          tabBarLabelStyle: { fontSize: 11, fontFamily: font.family.bodyHeavy, color: palette.carbon },
+          tabBarLabelStyle: { fontSize: 11, fontFamily: font.family.bodyHeavy, color: palette.cobalt },
         }}
       />
       <Tabs.Screen
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: palette.green,
+    backgroundColor: palette.cobalt,
     alignItems: "center",
     justifyContent: "center",
     marginTop: -20,
