@@ -2,15 +2,19 @@
 
 import * as Haptics from "expo-haptics";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Camera, ClipboardList, FileText } from "lucide-react-native";
+import { Camera, ClipboardList, Download, FileText } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
-import { Alert, FlatList, Platform, StyleSheet, Text, View } from "react-native";
+import { FlatList, Platform, StyleSheet, Text, View } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 
 import { IssueCard } from "@/components/IssueCard";
 import { AppButton, Chip, EmptyState } from "@/components/ui";
 import { font, palette, spacing } from "@/constants/theme";
+import { buildCsv, exportCsv } from "@/lib/csv";
+import { showActions, showAlert, showConfirm } from "@/lib/dialogs";
+import { isEntitled } from "@/lib/entitlements";
 import { issueRef } from "@/lib/format";
+import { buildIssueMediaIndex } from "@/lib/issueIndex";
 import { useAppStore, useAudit, useIssuesForAudit } from "@/providers/AppStore";
 import type { Issue, IssueStatus } from "@/types/models";
 import { STATUS_LABEL } from "@/types/models";
@@ -26,6 +30,12 @@ export default function HitListScreen() {
 
   const [viewMode, setViewMode] = useState<ViewMode>("all");
   const [statusFilter, setStatusFilter] = useState<IssueStatus | null>(null);
+  const [exportingCsv, setExportingCsv] = useState<boolean>(false);
+
+  const issueMediaIndex = useMemo(
+    () => buildIssueMediaIndex(db.assets, db.annotations),
+    [db.assets, db.annotations],
+  );
 
   const locationName = (locId: string | null) =>
     db.locations.find((l) => l.id === locId)?.name ?? "General";
@@ -62,20 +72,34 @@ export default function HitListScreen() {
   const doneCount = issues.length - openCount;
 
   const changeStatus = (issue: Issue) => {
-    Alert.alert("Change status", `${issueRef(issue.issueNumber)} · ${issue.title || "Untitled issue"}`, [
-      ...(Object.keys(STATUS_LABEL) as IssueStatus[]).map((s) => ({
-        text: s === issue.status ? `${STATUS_LABEL[s]} ✓` : STATUS_LABEL[s],
-        onPress: () => updateIssue(issue.id, { status: s }),
-      })),
-      { text: "Cancel", style: "cancel" as const },
-    ]);
+    showActions(
+      "Change status",
+      `${issueRef(issue.issueNumber)} · ${issue.title || "Untitled issue"}`,
+      [
+        ...(Object.keys(STATUS_LABEL) as IssueStatus[]).map((s) => ({
+          text: s === issue.status ? `${STATUS_LABEL[s]} ✓` : STATUS_LABEL[s],
+          onPress: () => updateIssue(issue.id, { status: s }),
+        })),
+        { text: "Cancel", style: "cancel" as const },
+      ],
+    );
+  };
+
+  const confirmDeleteIssue = async (issue: Issue) => {
+    const ok = await showConfirm(
+      "Delete issue?",
+      `${issueRef(issue.issueNumber)} will be removed from the audit and report.`,
+      "Delete",
+      true,
+    );
+    if (ok) deleteIssue(issue.id);
   };
 
   const quickActions = (issue: Issue) => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    const firstAsset = db.assets.find((a) => a.issueId === issue.id && !a.deletedAt) ?? null;
+    const firstAsset = issueMediaIndex.assetsByIssue.get(issue.id)?.[0] ?? null;
     const buttons = [
       { text: "Change status", onPress: () => changeStatus(issue) },
       ...(firstAsset
@@ -101,15 +125,11 @@ export default function HitListScreen() {
       {
         text: "Delete",
         style: "destructive" as const,
-        onPress: () =>
-          Alert.alert("Delete issue?", `${issueRef(issue.issueNumber)} will be removed from the audit and report.`, [
-            { text: "Cancel", style: "cancel" },
-            { text: "Delete", style: "destructive", onPress: () => deleteIssue(issue.id) },
-          ]),
+        onPress: () => confirmDeleteIssue(issue),
       },
       { text: "Cancel", style: "cancel" as const },
     ];
-    Alert.alert(issueRef(issue.issueNumber), issue.title || "Untitled issue", buttons);
+    showActions(issueRef(issue.issueNumber), issue.title || "Untitled issue", buttons);
   };
 
   if (!audit) {
@@ -119,6 +139,28 @@ export default function HitListScreen() {
       </View>
     );
   }
+
+  const exportHitListCsv = async () => {
+    if (!isEntitled("csv_export")) {
+      showAlert("Not available", "CSV export isn't available on your plan.");
+      return;
+    }
+    if (exportingCsv) return;
+    setExportingCsv(true);
+    try {
+      const csv = buildCsv(issues, db.locations, db.assignees);
+      const safeName = audit.title.replace(/[^a-z0-9-_]+/gi, "_").slice(0, 60) || "audit";
+      const ok = await exportCsv(csv, `${safeName}_hitlist.csv`);
+      if (!ok) {
+        showAlert("Export unavailable", "Sharing isn't available on this device.");
+      }
+    } catch (e) {
+      console.log("[hitlist] CSV export failed", e);
+      showAlert("Export failed", "Could not export the hit list. Please try again.");
+    } finally {
+      setExportingCsv(false);
+    }
+  };
 
   const flatData: ({ type: "header"; title: string; count: number } | { type: "issue"; issue: Issue })[] = [];
   for (const section of sections) {
@@ -173,10 +215,8 @@ export default function HitListScreen() {
               );
             }
             const issue = item.issue;
-            const assets = db.assets.filter((a) => a.issueId === issue.id && !a.deletedAt);
-            const hasMarkup = db.annotations.some(
-              (an) => an.issueId === issue.id && an.elements.length > 0,
-            );
+            const assets = issueMediaIndex.assetsByIssue.get(issue.id) ?? [];
+            const hasMarkup = issueMediaIndex.hasMarkupByIssue.has(issue.id);
             return (
               <IssueCard
                 issue={issue}
@@ -186,15 +226,24 @@ export default function HitListScreen() {
                 hasMarkup={hasMarkup}
                 onPress={() => router.push({ pathname: "/issue/[id]", params: { id: issue.id } })}
                 onLongPress={() => quickActions(issue)}
+                onMore={() => quickActions(issue)}
               />
             );
           }}
           ListEmptyComponent={
-            <EmptyState
-              icon={<ClipboardList color={palette.textFaint} size={36} />}
-              title="No issues yet"
-              message="Capture photos on your site walk to build the hit list."
-            />
+            issues.length === 0 ? (
+              <EmptyState
+                icon={<ClipboardList color={palette.textFaint} size={36} />}
+                title="No issues yet"
+                message="Capture photos on your site walk to build the hit list."
+              />
+            ) : (
+              <EmptyState
+                icon={<ClipboardList color={palette.textFaint} size={36} />}
+                title="No issues match this filter"
+                message={`No ${statusFilter ? STATUS_LABEL[statusFilter].toLowerCase() : ""} issues yet — try a different status filter above.`}
+              />
+            )
           }
         />
 
@@ -205,6 +254,16 @@ export default function HitListScreen() {
             icon={<Camera color={palette.carbon} size={18} />}
             onPress={() => router.push({ pathname: "/capture-session", params: { auditId: audit.id } })}
             style={styles.footerBtn}
+          />
+          <AppButton
+            testID="export-csv"
+            label="CSV"
+            variant="secondary"
+            icon={<Download color={palette.carbon} size={18} />}
+            onPress={exportHitListCsv}
+            loading={exportingCsv}
+            disabled={issues.length === 0}
+            style={styles.footerBtnNarrow}
           />
           <AppButton
             testID="build-report"
@@ -262,5 +321,6 @@ const styles = StyleSheet.create({
     borderTopColor: palette.border,
   },
   footerBtn: { flex: 1 },
+  footerBtnNarrow: { flex: 0.7 },
   footerBtnWide: { flex: 1.5 },
 });

@@ -6,18 +6,20 @@ import * as Sharing from "expo-sharing";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { AlertTriangle, CheckCircle2, FileText, Mail, Share2, ShieldCheck } from "lucide-react-native";
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Alert, Image, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { BrandMark } from "@/components/BrandMark";
 import { AppButton, Card } from "@/components/ui";
 import { STATUS_COLORS, StatusPill } from "@/components/pills";
 import { BrandConfig, REPORT_THEMES, buildEmailBody, buildEmailSubject, resolveThemeKey } from "@/constants/config";
 import { font, palette, radius, spacing } from "@/constants/theme";
+import { showAlert, showActions } from "@/lib/dialogs";
 import { persistGeneratedPdf } from "@/lib/files";
 import { formatDate, formatDateTime, issueRef } from "@/lib/format";
 import { buildReportHtml } from "@/lib/report";
 import { getReportFontFaceCss } from "@/lib/reportFonts";
 import { resolveReportImages } from "@/lib/reportImages";
+import { openBlankPrintWindow, printHtmlInWindow, WEB_PRINT_SENTINEL } from "@/lib/reportPrintWeb";
 import { useAppStore, useAudit, useIssuesForAudit, useProject, useReportFreshness } from "@/providers/AppStore";
 import { DEFAULT_REPORT_OPTIONS, ReportOptions } from "@/types/models";
 
@@ -105,7 +107,21 @@ export default function ReportPreviewScreen() {
   const generate = useCallback(async (): Promise<string | null> => {
     if (!audit || !project) return null;
     if (generatingRef.current) return null;
+    if (includedIssues.length === 0) {
+      showAlert("No issues included", "No issues included — check report options");
+      return null;
+    }
     generatingRef.current = true;
+    // Web: expo-print's web shim ignores `html` and just calls window.print()
+    // on the CURRENT page (see lib/reportPrintWeb.ts) — a real print target
+    // has to be a separate window, opened SYNCHRONOUSLY before any await or
+    // browsers block it as a popup.
+    const webPrintWindow = Platform.OS === "web" ? openBlankPrintWindow() : null;
+    if (Platform.OS === "web" && !webPrintWindow) {
+      generatingRef.current = false;
+      showAlert("Pop-up blocked", "Allow pop-ups for this site to generate the report, then try again.");
+      return null;
+    }
     try {
       setGenerating(true);
       setGenerationPhase("Preparing photos…");
@@ -156,12 +172,18 @@ export default function ReportPreviewScreen() {
         imageSrc: (uri) => uriMap.get(uri) ?? "",
       });
 
-      const result = await Print.printToFileAsync({ html, base64: false });
-      // html + uriMap released when this frame returns — not stored in state.
-      const persisted = await persistGeneratedPdf(
-        result.uri,
-        `${BrandConfig.reportName}_${project.name}_${audit.auditDate}`,
-      );
+      let persisted: string;
+      if (Platform.OS === "web") {
+        printHtmlInWindow(webPrintWindow as Window, html);
+        persisted = WEB_PRINT_SENTINEL;
+      } else {
+        const result = await Print.printToFileAsync({ html, base64: false });
+        // html + uriMap released when this frame returns — not stored in state.
+        persisted = await persistGeneratedPdf(
+          result.uri,
+          `${BrandConfig.reportName}_${project.name}_${audit.auditDate}`,
+        );
+      }
       setPdfUri(persisted);
       addReportExport({
         auditId: audit.id,
@@ -174,13 +196,14 @@ export default function ReportPreviewScreen() {
       return persisted;
     } catch (e) {
       console.log("[preview] generate failed", e);
+      if (Platform.OS === "web") webPrintWindow?.close();
       if (isLargeReportError(e)) {
-        Alert.alert(
+        showAlert(
           "Report too large",
           "Report too large — try Compact image size or fewer issues",
         );
       } else {
-        Alert.alert("Generation failed", "Could not generate the PDF. Please try again.");
+        showAlert("Generation failed", "Could not generate the PDF. Please try again.");
       }
       return null;
     } finally {
@@ -212,9 +235,17 @@ export default function ReportPreviewScreen() {
    */
   const withFreshPdf = useCallback(
     async (action: (uri: string) => Promise<void>) => {
+      if (Platform.OS === "web") {
+        // No persisted file exists on web (see generate()) — always
+        // regenerate and reopen a fresh print window rather than trying to
+        // reuse a reference to an already-closed/printed one.
+        const uri = await generate();
+        if (uri) await action(uri);
+        return;
+      }
       const existingUri = pdfUri ?? freshness.lastExport?.pdfUri ?? null;
       if (freshness.isStale && existingUri) {
-        Alert.alert(
+        showActions(
           "Report out of date",
           "Issues, photos or markup changed since this PDF was generated. Regenerate to include the latest changes?",
           [
@@ -240,7 +271,8 @@ export default function ReportPreviewScreen() {
   const doShare = useCallback(async (uri: string) => {
     try {
       if (Platform.OS === "web") {
-        Alert.alert("PDF ready", "On web, use your browser's print dialog to save the report.");
+        // withFreshPdf already regenerated and opened the print window
+        // above — that IS the web "share" action (Save as PDF from there).
         return;
       }
       const available = await Sharing.isAvailableAsync();
@@ -249,7 +281,7 @@ export default function ReportPreviewScreen() {
       }
     } catch (e) {
       console.log("[preview] share failed", e);
-      Alert.alert("Share failed", "The saved PDF may have been removed. Regenerate and try again.");
+      showAlert("Share failed", "The saved PDF may have been removed. Regenerate and try again.");
     }
   }, []);
 
@@ -268,14 +300,14 @@ export default function ReportPreviewScreen() {
       if (available) {
         await MailComposer.composeAsync({ subject, body, attachments: [uri] });
       } else {
-        Alert.alert(
+        showAlert(
           "Mail not set up",
           "No mail account is configured on this device. The PDF is saved locally — use Share to send it through another app.",
         );
       }
     } catch (e) {
       console.log("[preview] email failed", e);
-      Alert.alert("Email unavailable", "Could not open the mail composer. Use Share instead.");
+      showAlert("Email unavailable", "Could not open the mail composer. Use Share instead.");
     }
   }, [audit, project, settings.inspectorName]);
 

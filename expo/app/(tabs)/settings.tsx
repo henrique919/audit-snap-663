@@ -4,13 +4,14 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { ChevronRight, CloudOff, Database, ImagePlus, RefreshCcw, Trash2, X } from "lucide-react-native";
 import React from "react";
-import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BrandMark, BrandWordmark } from "@/components/BrandMark";
 import { AppButton, Card, Field, SectionTitle } from "@/components/ui";
 import { BrandConfig, REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/constants/config";
 import { font, palette, radius, spacing } from "@/constants/theme";
+import { showAlert, showConfirm } from "@/lib/dialogs";
 import { persistBrandLogo } from "@/lib/files";
 import { estimateMediaStorage, formatBytes, runMediaGc } from "@/lib/mediaRegistry";
 import { useAppStore } from "@/providers/AppStore";
@@ -55,29 +56,24 @@ export default function SettingsTab() {
       updateSettings({ logoUri: persisted });
     } catch (e) {
       console.log("[settings] logo pick failed", e);
-      Alert.alert("Logo upload failed", "Could not save the logo. Please try again.");
+      showAlert("Logo upload failed", "Could not save the logo. Please try again.");
     }
   };
 
   const defaultThemeKey = resolveThemeKey(settings.defaultReportOptions.themeKey);
 
-  const confirmReset = (reseed: boolean) => {
-    Alert.alert(
+  const confirmReset = async (reseed: boolean) => {
+    const ok = await showConfirm(
       reseed ? "Reset demo data" : "Clear all data",
       reseed
         ? "This replaces everything with fresh demo data. Continue?"
         : "This permanently deletes all projects, audits, issues and photos from this device. Continue?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: reseed ? "Reset" : "Delete everything",
-          style: "destructive",
-          onPress: () => {
-            resetAllData(reseed);
-          },
-        },
-      ],
+      reseed ? "Reset" : "Delete everything",
+      true,
     );
+    if (ok) {
+      resetAllData(reseed);
+    }
   };
 
   return (
@@ -209,7 +205,7 @@ export default function SettingsTab() {
               setCleaning(true);
               const result = await runMediaGc(db, settings);
               await refreshMediaStats();
-              Alert.alert(
+              showAlert(
                 "Cleanup complete",
                 result.deleted === 0
                   ? `No unused files found (${result.scanned} scanned).`
@@ -217,7 +213,7 @@ export default function SettingsTab() {
               );
             } catch (e) {
               console.log("[settings] media gc failed", e);
-              Alert.alert("Cleanup failed", "Could not clean up unused files. Please try again.");
+              showAlert("Cleanup failed", "Could not clean up unused files. Please try again.");
             } finally {
               setCleaning(false);
             }

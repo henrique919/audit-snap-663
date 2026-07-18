@@ -11,7 +11,9 @@
  *
  * Save flow: "Save" commits markup in place (Saving… → Saved on device),
  * then the button becomes "Done" to return. Leaving with unsaved changes
- * prompts Save & Close / Discard / Cancel.
+ * prompts Save & Close / Discard / Cancel. The header indicator defers to
+ * the store's global persistStatus — see lib/saveState.ts — so it never
+ * claims "Saved on device" while the background write is actually failing.
  */
 
 import * as Haptics from "expo-haptics";
@@ -38,10 +40,9 @@ import {
   Undo2,
   X,
 } from "lucide-react-native";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image as RNImage,
   Modal,
   PanResponder,
@@ -57,6 +58,7 @@ import Svg, { Circle as SvgCircle, Ellipse, Line, Polygon, Polyline, Rect, Text 
 import { captureRef } from "react-native-view-shot";
 
 import { MARKUP_COLORS, font, palette, radius, spacing } from "@/constants/theme";
+import { showAlert, showActions, showConfirm } from "@/lib/dialogs";
 import { arrowHeadPoints, estimateTextWidthPx, strokePx } from "@/lib/annotationSvg";
 import {
   HandleId,
@@ -76,6 +78,7 @@ import {
   rotateWorkingImage,
 } from "@/lib/files";
 import { newId } from "@/lib/ids";
+import { saveIndicatorState, SAVE_INDICATOR_LABEL, SaveIndicatorState } from "@/lib/saveState";
 import { useAppStore } from "@/providers/AppStore";
 import type { AnnotationElement, PhotoAsset } from "@/types/models";
 type Tool = "select" | "arrow" | "ellipse" | "rect" | "pen" | "text" | "callout" | "blur" | "crop";
@@ -97,6 +100,14 @@ const ELEMENT_LABEL: Record<AnnotationElement["type"], string> = {
   text: "Text label",
   callout: "Number callout",
   blur: "Privacy blur",
+};
+
+/** Persistence errors always win over local saving/dirty state — see lib/saveState.ts. */
+const SAVE_DOT_COLOR: Record<SaveIndicatorState, string> = {
+  error: palette.red,
+  saving: palette.info,
+  dirty: "#F5A623",
+  saved: palette.greenBright,
 };
 
 function elementSwatchColor(el: AnnotationElement): string {
@@ -138,7 +149,7 @@ export default function MarkupStudio() {
   const { assetId } = useLocalSearchParams<{ assetId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { db, saveAnnotation, updateAsset } = useAppStore();
+  const { db, saveAnnotation, updateAsset, persistStatus, hydrated } = useAppStore();
 
   const asset = useMemo(() => db.assets.find((a) => a.id === assetId) ?? null, [db.assets, assetId]);
   const existing = useMemo(
@@ -193,6 +204,25 @@ export default function MarkupStudio() {
     elementsRef.current = next;
     setElements(next);
   }, []);
+
+  /**
+   * `elements`/`elementsRef` above snapshot `existing?.elements` only once,
+   * at mount — if AppStore hydration (async AsyncStorage/localStorage read)
+   * hasn't finished by the first render, that snapshot is `[]` and never
+   * self-corrects, since nothing else re-derives it from `existing`. A saved
+   * annotation would then render as invisible AND, worse, a subsequent save
+   * would overwrite it with just the newly-drawn elements — silently
+   * discarding the persisted ones. Re-sync once, the first time hydration
+   * completes with real data, before any local edit (`dirty`) exists to lose.
+   */
+  const hydrationSynced = useRef<boolean>(false);
+  useEffect(() => {
+    if (hydrationSynced.current || !hydrated || dirty) return;
+    hydrationSynced.current = true;
+    if (existing && existing.elements.length > 0) {
+      applyElements(existing.elements);
+    }
+  }, [hydrated, existing, dirty, applyElements]);
 
   /** Mirror draft into a ref so commit-on-release never uses a stale closure. */
   const setDraft = useCallback((el: AnnotationElement | null) => {
@@ -619,19 +649,18 @@ export default function MarkupStudio() {
     }
   };
 
-  const clearAll = () => {
+  const clearAll = async () => {
     if (elements.length === 0) return;
-    Alert.alert("Clear all markup?", "All annotations on this photo will be removed.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Clear",
-        style: "destructive",
-        onPress: () => {
-          pushHistory([]);
-          setSelectedId(null);
-        },
-      },
-    ]);
+    const ok = await showConfirm(
+      "Clear all markup?",
+      "All annotations on this photo will be removed.",
+      "Clear",
+      true,
+    );
+    if (ok) {
+      pushHistory([]);
+      setSelectedId(null);
+    }
   };
 
   const rotate = async () => {
@@ -671,7 +700,7 @@ export default function MarkupStudio() {
       await deleteUriIfUnreferenced(previousUri, db.assets, asset.originalUri);
     } catch (e) {
       console.log("[markup] rotate failed", e);
-      Alert.alert("Rotate failed", "Could not rotate this image.");
+      showAlert("Rotate failed", "Could not rotate this image.");
     } finally {
       setSaving(false);
     }
@@ -679,7 +708,7 @@ export default function MarkupStudio() {
 
   const applyCrop = async () => {
     if (!cropRect || cropRect.width < 0.05 || cropRect.height < 0.05) {
-      Alert.alert("Draw a crop area", "Drag on the photo to select the area to keep.");
+      showAlert("Draw a crop area", "Drag on the photo to select the area to keep.");
       return;
     }
     try {
@@ -719,7 +748,7 @@ export default function MarkupStudio() {
       await deleteUriIfUnreferenced(previousUri, db.assets, asset.originalUri);
     } catch (e) {
       console.log("[markup] crop failed", e);
-      Alert.alert("Crop failed", "Could not crop this image.");
+      showAlert("Crop failed", "Could not crop this image.");
     } finally {
       setSaving(false);
     }
@@ -798,7 +827,7 @@ export default function MarkupStudio() {
       if (thenBack) router.back();
     } catch (e) {
       console.log("[markup] save failed", e);
-      Alert.alert("Save failed", "Could not save markup. Please try again.");
+      showAlert("Save failed", "Could not save markup. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -806,7 +835,7 @@ export default function MarkupStudio() {
 
   const close = () => {
     if (dirty) {
-      Alert.alert("Unsaved markup changes", "You have unsaved markup changes. Save before leaving?", [
+      showActions("Unsaved markup changes", "You have unsaved markup changes. Save before leaving?", [
         { text: "Save & Close", onPress: () => save(true) },
         { text: "Discard", style: "destructive", onPress: () => router.back() },
         { text: "Cancel", style: "cancel" },
@@ -897,7 +926,6 @@ export default function MarkupStudio() {
       return (
         <View
           key={`blur-${el.id}`}
-          pointerEvents="none"
           style={{
             position: "absolute",
             left: el.x * w,
@@ -906,6 +934,7 @@ export default function MarkupStudio() {
             height: Math.max(1, el.height * h),
             overflow: "hidden",
             borderRadius: 6,
+            pointerEvents: "none",
           }}
         >
           <RNImage
@@ -969,6 +998,7 @@ export default function MarkupStudio() {
   const showBlurIntensity = !showTextSizes && (tool === "blur" || selectedEl?.type === "blur");
   const colorsDisabled = showBlurIntensity;
   const sizeValues: readonly number[] = showTextSizes ? TEXT_SIZES : showBlurIntensity ? BLUR_INTENSITIES : STROKE_SIZES;
+  const saveIndicator = saveIndicatorState({ persistStatus, saving, dirty });
 
   return (
     <>
@@ -981,15 +1011,17 @@ export default function MarkupStudio() {
           </TouchableOpacity>
           <View style={styles.topCenter}>
             <Text style={styles.topTitle}>Markup Studio</Text>
-            <View style={styles.saveState}>
-              <View
+            <View style={styles.saveState} testID="markup-save-state">
+              <View style={[styles.saveDot, { backgroundColor: SAVE_DOT_COLOR[saveIndicator] }]} />
+              <Text
                 style={[
-                  styles.saveDot,
-                  { backgroundColor: saving ? palette.info : dirty ? "#F5A623" : palette.greenBright },
+                  styles.saveStateText,
+                  saveIndicator === "error" && styles.saveStateError,
+                  saveIndicator === "dirty" && styles.saveStateDirty,
+                  saveIndicator === "saving" && styles.saveStateSaving,
                 ]}
-              />
-              <Text style={[styles.saveStateText, dirty && !saving && styles.saveStateDirty, saving && styles.saveStateSaving]}>
-                {saving ? "Saving\u2026" : dirty ? "Unsaved changes" : "Saved on device"}
+              >
+                {SAVE_INDICATOR_LABEL[saveIndicator]}
               </Text>
             </View>
           </View>
@@ -1058,8 +1090,7 @@ export default function MarkupStudio() {
               <Svg
                 width={canvas.width}
                 height={canvas.height}
-                style={StyleSheet.absoluteFill}
-                pointerEvents="none"
+                style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}
               >
                 {draftEl?.type === "blur" ? (
                   <Rect
@@ -1279,6 +1310,7 @@ const styles = StyleSheet.create({
   saveStateText: { color: palette.greenBright, fontSize: 10, fontFamily: font.family.bodyBold, textTransform: "uppercase", letterSpacing: 0.6 },
   saveStateDirty: { color: "#F5A623" },
   saveStateSaving: { color: palette.info },
+  saveStateError: { color: palette.red },
   saveBtn: {
     flexDirection: "row",
     alignItems: "center",

@@ -2,10 +2,11 @@
 
 import { CheckCircle2, CloudOff, HardDrive, Image as ImageIcon, RefreshCcw } from "lucide-react-native";
 import React, { useMemo } from "react";
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AppButton, Card, SectionTitle, ToggleRow } from "@/components/ui";
 import { font, palette, radius, spacing } from "@/constants/theme";
+import { showAlert } from "@/lib/dialogs";
 import { useAppStore } from "@/providers/AppStore";
 
 export default function SyncCentreScreen() {
@@ -75,7 +76,7 @@ export default function SyncCentreScreen() {
         label="Retry failed uploads"
         variant="secondary"
         onPress={() =>
-          Alert.alert("Local mode", "Cloud sync is not enabled yet. Everything is safely stored on this device.")
+          showAlert("Local mode", "Cloud sync is not enabled yet. Everything is safely stored on this device.")
         }
         style={styles.retryBtn}
       />

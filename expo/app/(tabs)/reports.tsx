@@ -3,12 +3,13 @@
 import { useRouter } from "expo-router";
 import { ChevronRight, FileText, Share2 } from "lucide-react-native";
 import React, { useMemo } from "react";
-import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Sharing from "expo-sharing";
 
 import { EmptyState, SectionTitle } from "@/components/ui";
 import { font, palette, radius, spacing } from "@/constants/theme";
+import { showAlert } from "@/lib/dialogs";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { useAppStore } from "@/providers/AppStore";
 import type { ReportExport } from "@/types/models";
@@ -45,19 +46,25 @@ export default function ReportsTab() {
     return [...issues, ...assets, ...annotations].some((r) => r.updatedAt > exp.createdAt);
   };
 
-  const sharePdf = async (uri: string) => {
+  const sharePdf = async (exp: ReportExport) => {
+    if (Platform.OS === "web") {
+      // Web never persists a real PDF file (A2 — WEB_PRINT_SENTINEL); the
+      // sensible action is to reopen Preview with this export's exact
+      // options, where "Regenerate PDF" reprints via the browser dialog.
+      router.push({
+        pathname: "/audit/[id]/preview",
+        params: { id: exp.auditId, options: JSON.stringify(exp.options) },
+      });
+      return;
+    }
     try {
-      if (Platform.OS === "web") {
-        Alert.alert("Not available", "Sharing saved PDFs is available on device.");
-        return;
-      }
       const available = await Sharing.isAvailableAsync();
       if (available) {
-        await Sharing.shareAsync(uri, { mimeType: "application/pdf", UTI: "com.adobe.pdf" });
+        await Sharing.shareAsync(exp.pdfUri, { mimeType: "application/pdf", UTI: "com.adobe.pdf" });
       }
     } catch (e) {
       console.log("[reports] share failed", e);
-      Alert.alert("Share failed", "This report may have been removed from local storage. Regenerate it from the audit.");
+      showAlert("Share failed", "This report may have been removed from local storage. Regenerate it from the audit.");
     }
   };
 
@@ -124,7 +131,11 @@ export default function ReportsTab() {
                 </Text>
               ) : null}
             </View>
-            <TouchableOpacity style={styles.shareBtn} onPress={() => sharePdf(exp.pdfUri)} testID={`share-export-${exp.id}`}>
+            <TouchableOpacity
+              style={styles.shareBtn}
+              onPress={() => sharePdf(exp)}
+              testID={`share-export-${exp.id}`}
+            >
               <Share2 color={palette.carbon} size={18} />
             </TouchableOpacity>
           </View>

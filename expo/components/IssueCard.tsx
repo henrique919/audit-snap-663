@@ -4,7 +4,7 @@
  */
 
 import { Image } from "expo-image";
-import { Camera, EyeOff, MapPin, PenLine, UserRound } from "lucide-react-native";
+import { Camera, EyeOff, MapPin, MoreVertical, PenLine, UserRound } from "lucide-react-native";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -22,9 +22,21 @@ interface IssueCardProps {
   onPress: () => void;
   /** Long-press opens the quick actions sheet (status, markup, duplicate…). */
   onLongPress?: () => void;
+  /** Explicit tap trigger for quick actions — the reliable entry point on
+   * web/desktop, where long-press via mouse-hold is easy to misfire. */
+  onMore?: () => void;
 }
 
-function IssueCardInner({ issue, assets, locationName, assigneeName, hasMarkup, onPress, onLongPress }: IssueCardProps) {
+function IssueCardInner({
+  issue,
+  assets,
+  locationName,
+  assigneeName,
+  hasMarkup,
+  onPress,
+  onLongPress,
+  onMore,
+}: IssueCardProps) {
   const first = assets[0];
   // Prefer the flattened annotated copy so the hit list shows the markup.
   const thumb = first ? (first.annotatedUri ?? first.thumbUri) : undefined;
@@ -84,6 +96,17 @@ function IssueCardInner({ issue, assets, locationName, assigneeName, hasMarkup, 
           <PriorityPill priority={issue.priority} />
         </View>
       </View>
+      {onMore ? (
+        <TouchableOpacity
+          style={styles.moreBtn}
+          onPress={onMore}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          testID={`issue-card-more-${issue.id}`}
+          accessibilityLabel="Quick actions"
+        >
+          <MoreVertical color={palette.textFaint} size={18} />
+        </TouchableOpacity>
+      ) : null}
     </TouchableOpacity>
   );
 }
@@ -147,4 +170,14 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
   metaText: { fontSize: font.size.xs, color: palette.textMuted, marginRight: 8, maxWidth: 110 },
   pillRow: { flexDirection: "row", gap: 6, marginTop: 6 },
+  moreBtn: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

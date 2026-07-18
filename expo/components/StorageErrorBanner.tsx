@@ -7,20 +7,20 @@ import { font, palette, radius, shadow, spacing } from "@/constants/theme";
 import { useAppStore } from "@/providers/AppStore";
 
 export function StorageErrorBanner() {
-  const { persistStatus, lastPersistError } = useAppStore();
-  const [dismissedMessage, setDismissedMessage] = useState<string | null>(null);
+  const { persistStatus, lastPersistError, persistFailureVersion } = useAppStore();
+  const [dismissedFailureVersion, setDismissedFailureVersion] = useState<number | null>(null);
 
   useEffect(() => {
     // A successful save clears persistStatus; a new failure gets a new message.
     if (persistStatus !== "error") {
-      setDismissedMessage(null);
+      setDismissedFailureVersion(null);
     }
   }, [persistStatus]);
 
   const visible = useMemo(() => {
     if (persistStatus !== "error" || !lastPersistError) return false;
-    return dismissedMessage !== lastPersistError;
-  }, [dismissedMessage, lastPersistError, persistStatus]);
+    return dismissedFailureVersion !== persistFailureVersion;
+  }, [dismissedFailureVersion, lastPersistError, persistFailureVersion, persistStatus]);
 
   if (!visible || !lastPersistError) return null;
 
@@ -29,7 +29,7 @@ export function StorageErrorBanner() {
     lastPersistError.toLowerCase().includes("storage full");
 
   return (
-    <View style={styles.wrap} pointerEvents="box-none" testID="storage-error-banner" accessibilityRole="alert">
+    <View style={[styles.wrap, { pointerEvents: "box-none" }]} testID="storage-error-banner" accessibilityRole="alert">
       <View style={styles.banner}>
         <View style={styles.messageWrap}>
           <Text style={styles.title}>{"Couldn't save your latest changes — retrying"}</Text>
@@ -43,7 +43,7 @@ export function StorageErrorBanner() {
           testID="storage-error-dismiss"
           accessibilityRole="button"
           accessibilityLabel="Dismiss storage error"
-          onPress={() => setDismissedMessage(lastPersistError)}
+          onPress={() => setDismissedFailureVersion(persistFailureVersion)}
           style={styles.dismiss}
         >
           <Text style={styles.dismissLabel}>Dismiss</Text>

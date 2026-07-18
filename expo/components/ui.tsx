@@ -85,9 +85,23 @@ interface FieldProps {
   multiline?: boolean;
   autoFocus?: boolean;
   testID?: string;
+  /** Shown below the field in red with a matching border; also marks it invalid for a11y. */
+  error?: string;
+  maxLength?: number;
 }
 
-export function Field({ label, value, onChangeText, placeholder, optional, multiline, autoFocus, testID }: FieldProps) {
+export function Field({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  optional,
+  multiline,
+  autoFocus,
+  testID,
+  error,
+  maxLength,
+}: FieldProps) {
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>
@@ -96,14 +110,20 @@ export function Field({ label, value, onChangeText, placeholder, optional, multi
       </Text>
       <TextInput
         testID={testID}
-        style={[styles.input, multiline && styles.inputMultiline]}
+        style={[styles.input, multiline && styles.inputMultiline, error && styles.inputError]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={palette.textFaint}
         multiline={multiline}
         autoFocus={autoFocus}
+        maxLength={maxLength}
       />
+      {error ? (
+        <Text style={styles.fieldError} testID={testID ? `${testID}-error` : undefined}>
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -265,6 +285,13 @@ const styles = StyleSheet.create({
     color: palette.text,
   },
   inputMultiline: { minHeight: 90, textAlignVertical: "top" },
+  inputError: { borderColor: palette.red },
+  fieldError: {
+    color: palette.red,
+    fontSize: font.size.xs,
+    fontFamily: font.family.bodySemibold,
+    marginTop: 5,
+  },
 
   chip: {
     flexDirection: "row",

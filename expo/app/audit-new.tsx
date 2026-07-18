@@ -4,7 +4,6 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Camera } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -18,6 +17,9 @@ import { REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/constants/conf
 import { font, palette, spacing } from "@/constants/theme";
 import { todayIsoDate } from "@/lib/format";
 import { useAppStore, useProject } from "@/providers/AppStore";
+
+const TITLE_MAX_LENGTH = 120;
+const NAME_MAX_LENGTH = 80;
 
 export default function AuditNewScreen() {
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -34,6 +36,9 @@ export default function AuditNewScreen() {
   const [themeKey, setThemeKey] = useState<ReportThemeKey>(
     resolveThemeKey(settings.defaultReportOptions.themeKey),
   );
+  const [attempted, setAttempted] = useState<boolean>(false);
+
+  const titleError = attempted && !title.trim() ? "Give the audit a title for the report cover." : undefined;
 
   const existingLocations = useMemo(
     () => db.locations.filter((l) => l.projectId === projectId && !l.deletedAt).slice(0, 6),
@@ -49,8 +54,8 @@ export default function AuditNewScreen() {
   }
 
   const start = () => {
+    setAttempted(true);
     if (!title.trim()) {
-      Alert.alert("Audit title required", "Give the audit a title for the report cover.");
       return;
     }
     const locationId = defaultLocation.trim()
@@ -75,11 +80,19 @@ export default function AuditNewScreen() {
       <Stack.Screen options={{ title: `New Audit · ${project.name}` }} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Field label="Audit title" value={title} onChangeText={setTitle} placeholder="e.g. Pre-Handover Site Walk" testID="audit-title" />
+          <Field
+            label="Audit title"
+            value={title}
+            onChangeText={setTitle}
+            placeholder="e.g. Pre-Handover Site Walk"
+            testID="audit-title"
+            error={titleError}
+            maxLength={TITLE_MAX_LENGTH}
+          />
           <Field label="Audit date" value={auditDate} onChangeText={setAuditDate} placeholder="YYYY-MM-DD" />
-          <Field label="Prepared for" value={preparedFor} onChangeText={setPreparedFor} placeholder="Client / recipient" optional />
-          <Field label="Prepared by / inspector" value={preparedBy} onChangeText={setPreparedBy} placeholder="Inspector name" optional />
-          <Field label="Default location" value={defaultLocation} onChangeText={setDefaultLocation} placeholder="e.g. Lobby" optional />
+          <Field label="Prepared for" value={preparedFor} onChangeText={setPreparedFor} placeholder="Client / recipient" optional maxLength={NAME_MAX_LENGTH} />
+          <Field label="Prepared by / inspector" value={preparedBy} onChangeText={setPreparedBy} placeholder="Inspector name" optional maxLength={NAME_MAX_LENGTH} />
+          <Field label="Default location" value={defaultLocation} onChangeText={setDefaultLocation} placeholder="e.g. Lobby" optional maxLength={NAME_MAX_LENGTH} />
           {existingLocations.length > 0 ? (
             <View style={styles.chipsWrap}>
               {existingLocations.map((l) => (
@@ -87,7 +100,7 @@ export default function AuditNewScreen() {
               ))}
             </View>
           ) : null}
-          <Field label="Default assignee" value={defaultAssignee} onChangeText={setDefaultAssignee} placeholder="e.g. BuildRight Painting" optional />
+          <Field label="Default assignee" value={defaultAssignee} onChangeText={setDefaultAssignee} placeholder="e.g. BuildRight Painting" optional maxLength={NAME_MAX_LENGTH} />
 
           <Text style={styles.themeLabel}>Report theme</Text>
           <View style={styles.chipsWrap}>
