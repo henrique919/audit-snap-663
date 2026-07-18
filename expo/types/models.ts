@@ -34,6 +34,11 @@ export interface Project extends BaseRecord {
   /** Local URI or remote URL for an optional project logo. */
   logoUri: string | null;
   status: ProjectStatus;
+  /**
+   * Last report theme preset chosen on this project (LP-22).
+   * Optional for backward compatibility — older records omit it.
+   */
+  lastReportThemeKey?: ReportThemeKey | null;
 }
 
 export interface ProjectLocation extends BaseRecord {

@@ -5,7 +5,7 @@ Statuses: `BACKLOG` · `READY` · `IN PROGRESS` · `BLOCKED` · `IN REVIEW` · `
 
 **Active gate:** A (controlled web/PWA early access; pilot is free for 30–60 days per EXT-6 decision) — CONDITIONAL GO on main
 **Branch:** `cursor/batch2-p1-activation` (off `main` @ `a87f19f`)
-**Last updated:** 2026-07-19 (Batch 2 P1 — LP-20/21 → IN REVIEW)
+**Last updated:** 2026-07-19 (Batch 2 P1 — LP-20→22 → IN REVIEW)
 
 ## Gate A tasks
 
@@ -36,7 +36,7 @@ Statuses: `BACKLOG` · `READY` · `IN PROGRESS` · `BLOCKED` · `IN REVIEW` · `
 |---|---|---|---|---|---|---|---|
 | LP-20 | Quick Walk (first issue <60s) | P1 | **IN REVIEW** | Cursor | `cursor/batch2-p1-activation` | Capture Quick Walk → name/pick → capture-session (skips audit-new). Optional post-first-issue client/preset prompt. Pilot metric `lastTimeToFirstIssueMs` + console log. `quickWalk.test.ts`. Gate: 215 · typecheck · lint (2 known) · build:web. Path: Capture → Quick Walk → name → Start → gallery/save. | Claude review |
 | LP-21 | Closeout hub on Done | P1 | **IN REVIEW** | Cursor | `cursor/batch2-p1-activation` | Hit list Closeout hub: open/assigned/in-progress/completed counts; completeness warnings → issue; Preview + Generate. No assignee-pack dead control. `closeoutHub.test.ts`. Gate: 218 · typecheck · lint (2 known) · build:web. | Claude review |
-| LP-22 | Preset-first reporting + Advanced | P1 | READY — Batch 2 | Cursor | — | — | After LP-21 |
+| LP-22 | Preset-first reporting + Advanced | P1 | **IN REVIEW** | Cursor | `cursor/batch2-p1-activation` | Report builder: Client/Site Walk/Handover presets + summaries primary; Advanced collapsed by default; `Project.lastReportThemeKey` memory. `reportPresets.test.ts`. Gate: 222 · typecheck · lint (2 known) · build:web. | Claude review |
 | LP-3x | P2 closeout loop sequence | P2 | BACKLOG | — | — | — | Needs backend |
 | LP-4x | P3 cloud foundations | P3 | BACKLOG | — | — | — | Design constraints only |
 
@@ -64,3 +64,4 @@ Local-first only; no team features; no cloud backup; archival export (no in-app 
 | 2026-07-19 | Batch 2 start | Fresh branch `cursor/batch2-p1-activation` from `main` @ `a87f19f`. Order LP-20 → LP-21 → LP-22. |
 | 2026-07-19 | LP-20 impl | Quick Walk capture-first path + skippable setup prompt + pilot TTFI metric. Status → IN REVIEW. |
 | 2026-07-19 | LP-21 impl | Closeout hub on hit list (counts, completeness warnings, Preview/Generate). Status → IN REVIEW. |
+| 2026-07-19 | LP-22 impl | Preset-first report builder + Advanced collapse + per-project theme memory. Status → IN REVIEW. Batch 2 complete. |

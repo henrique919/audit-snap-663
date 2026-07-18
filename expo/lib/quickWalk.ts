@@ -51,14 +51,18 @@ export function buildQuickWalkProjectInput(
  * Prefer Site Walk for Quick Walk when settings still default to Executive
  * (the form default for a field walk).
  */
-export function resolveQuickWalkThemeKey(settingsTheme: string | null | undefined): ReportThemeKey {
+export function resolveQuickWalkThemeKey(
+  settingsTheme: string | null | undefined,
+  projectTheme?: string | null,
+): ReportThemeKey {
+  if (projectTheme) return resolveThemeKey(projectTheme);
   const resolved = resolveThemeKey(settingsTheme);
   return resolved === "executive" ? "sitewalk" : resolved;
 }
 
 /** Sensible audit defaults — skip the full audit-new form. */
 export function buildQuickWalkAuditInput(
-  project: Pick<Project, "id" | "clientName" | "inspectorName">,
+  project: Pick<Project, "id" | "clientName" | "inspectorName" | "lastReportThemeKey">,
   settings: Pick<AppSettings, "inspectorName" | "defaultReportOptions">,
   now: Date = new Date(),
 ): QuickWalkAuditDefaults {
@@ -70,7 +74,10 @@ export function buildQuickWalkAuditInput(
     preparedBy: (project.inspectorName || settings.inspectorName).trim(),
     defaultLocationId: null,
     defaultAssigneeId: null,
-    themeKey: resolveQuickWalkThemeKey(settings.defaultReportOptions.themeKey),
+    themeKey: resolveQuickWalkThemeKey(
+      settings.defaultReportOptions.themeKey,
+      project.lastReportThemeKey,
+    ),
   };
 }
 

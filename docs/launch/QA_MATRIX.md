@@ -17,6 +17,7 @@ Phase 2's final QA (root ROADMAP.md, 2 passes, 19 assertions) provides the basel
 | Closeout hub (LP-21) | **WEB-ONLY-PASS** (2026-07-19 Cursor: status counts + completeness warnings + Preview/Generate on hit list; `closeoutHub.test.ts`) | UNTESTED | UNTESTED | Assignee packs omitted (no dead control) |
 | CSV export (incl. formula-injection guard) | PASS (P2 + D#20 tests) | UNTESTED | UNTESTED | |
 | Report builder + preview | PASS (P2 final QA) | UNTESTED | UNTESTED | |
+| Preset-first reporting (LP-22) | **WEB-ONLY-PASS** (2026-07-19 Cursor: presets + summaries primary, Advanced collapsed, `lastReportThemeKey`; `reportPresets.test.ts`) | UNTESTED | UNTESTED | Executive label → Client in UI |
 | PDF generation | PASS (web print-window path, P2 A2) | UNTESTED | UNTESTED | Native `printToFileAsync` path unit-tested only |
 | Share / Email | PASS (web: mailto + 3 export records) | UNTESTED | UNTESTED | Native share sheet = LP-09 |
 | Stale-report detection | PASS (P2 final QA) | UNTESTED | UNTESTED | |

@@ -53,7 +53,7 @@ export interface ReportTheme {
 
 export const REPORT_THEMES: Record<ReportThemeKey, ReportTheme> = {
   executive: {
-    label: "Executive",
+    label: "Client",
     description: "Polished client handover — strong cover, premium spacing",
     primary: "#1C232B",
     accent: "#4C82FF",
