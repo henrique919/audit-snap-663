@@ -19,8 +19,25 @@ interface ProjectCardProps {
 }
 
 function ProjectCardInner({ project, openIssues, completedIssues, lastAuditDate, onPress }: ProjectCardProps) {
+  const accessibleLabel = [
+    project.name,
+    project.clientName || null,
+    `${openIssues} open, ${completedIssues} completed issues`,
+    `last audit ${formatDate(lastAuditDate)}`,
+    project.syncStatus === "synced" ? "synced" : "on device only",
+  ]
+    .filter(Boolean)
+    .join(", ");
+
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.card} testID={`project-card-${project.id}`}>
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPress}
+      style={styles.card}
+      testID={`project-card-${project.id}`}
+      accessibilityRole="button"
+      accessibilityLabel={accessibleLabel}
+    >
       <View style={styles.topRow}>
         {project.coverPhotoUri ? (
           <Image source={{ uri: project.coverPhotoUri }} style={styles.cover} contentFit="cover" />

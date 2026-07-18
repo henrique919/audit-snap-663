@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1 },
   rowTitle: { fontSize: font.size.md, fontFamily: font.family.bodyBold, color: palette.text },
   rowSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 2 },
-  rowStale: { fontSize: font.size.xs, color: palette.amber, fontFamily: font.family.bodyBold, marginTop: 2 },
+  rowStale: { fontSize: font.size.xs, color: palette.amberText, fontFamily: font.family.bodyBold, marginTop: 2 },
   shareBtn: {
     width: 40,
     height: 40,

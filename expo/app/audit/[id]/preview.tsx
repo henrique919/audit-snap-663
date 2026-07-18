@@ -366,11 +366,11 @@ export default function ReportPreviewScreen() {
               <Text style={styles.statLbl}>Open</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={[styles.statNum, { color: palette.amber }]}>{counts.assigned}</Text>
+              <Text style={[styles.statNum, { color: palette.amberText }]}>{counts.assigned}</Text>
               <Text style={styles.statLbl}>Assigned</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={[styles.statNum, { color: palette.info }]}>{counts.inProgress}</Text>
+              <Text style={[styles.statNum, { color: palette.cobaltText }]}>{counts.inProgress}</Text>
               <Text style={styles.statLbl}>In prog.</Text>
             </View>
             <View style={styles.statBox}>
@@ -617,7 +617,7 @@ const styles = StyleSheet.create({
   statusRowStale: { borderColor: palette.amber, backgroundColor: palette.amberSoft },
   statusBody: { flex: 1 },
   statusSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 1 },
-  statusStaleText: { fontSize: font.size.sm, color: palette.amber, fontFamily: font.family.bodyBold },
+  statusStaleText: { fontSize: font.size.sm, color: palette.amberText, fontFamily: font.family.bodyBold },
   statusNoneText: { fontSize: font.size.sm, color: palette.textMuted, fontFamily: font.family.bodyBold },
   readyText: { fontSize: font.size.sm, color: palette.green, fontFamily: font.family.bodyBold },
   phaseText: {

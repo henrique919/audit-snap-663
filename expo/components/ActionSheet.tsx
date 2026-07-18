@@ -30,9 +30,15 @@ export function ActionSheetHost() {
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={close} testID="action-sheet-modal">
-      <Pressable style={styles.backdrop} onPress={close} testID="action-sheet-backdrop">
+      <Pressable
+        style={styles.backdrop}
+        onPress={close}
+        testID="action-sheet-backdrop"
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+      >
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.header}>
+          <View style={styles.header} accessibilityRole="header">
             <Text style={styles.title} testID="action-sheet-title">
               {request.title}
             </Text>
@@ -44,6 +50,8 @@ export function ActionSheetHost() {
               style={[styles.actionRow, i === request.actions.length - 1 && styles.actionRowLast]}
               onPress={() => handlePress(action)}
               testID={`action-sheet-btn-${i}`}
+              accessibilityRole="button"
+              accessibilityLabel={action.style === "destructive" ? `${action.text}, destructive action` : action.text}
             >
               <Text
                 style={[

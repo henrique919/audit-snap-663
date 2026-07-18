@@ -42,6 +42,7 @@ import {
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Image as RNImage,
   Modal,
@@ -101,6 +102,21 @@ const ELEMENT_LABEL: Record<AnnotationElement["type"], string> = {
   callout: "Number callout",
   blur: "Privacy blur",
 };
+
+/** Screen-reader-friendly names for MARKUP_COLORS, in the same order. */
+const MARKUP_COLOR_NAMES: Record<string, string> = {
+  "#C93B3B": "Red",
+  "#E5A016": "Amber",
+  "#1E9E5A": "Green",
+  "#4C82FF": "Blue",
+  "#7B61E0": "Purple",
+  "#1C232B": "Black",
+  "#FFFFFF": "White",
+};
+
+const STROKE_SIZE_LABEL: Record<number, string> = { 4: "Thin", 8: "Medium", 14: "Thick" };
+const TEXT_SIZE_LABEL: Record<number, string> = { 32: "Small", 44: "Medium", 60: "Large" };
+const BLUR_INTENSITY_LABEL: Record<number, string> = { 10: "Light", 18: "Medium", 30: "Strong" };
 
 /** Persistence errors always win over local saving/dirty state — see lib/saveState.ts. */
 const SAVE_DOT_COLOR: Record<SaveIndicatorState, string> = {
@@ -824,6 +840,7 @@ export default function MarkupStudio() {
 
       setDirty(false);
       successHaptic();
+      AccessibilityInfo.announceForAccessibility("Markup saved on device");
       if (thenBack) router.back();
     } catch (e) {
       console.log("[markup] save failed", e);
@@ -1006,7 +1023,13 @@ export default function MarkupStudio() {
       <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
         {/* Top bar */}
         <View style={styles.topBar}>
-          <TouchableOpacity style={styles.topBtn} onPress={close} testID="markup-close">
+          <TouchableOpacity
+            style={styles.topBtn}
+            onPress={close}
+            testID="markup-close"
+            accessibilityRole="button"
+            accessibilityLabel="Close markup studio"
+          >
             <X color={palette.white} size={20} />
           </TouchableOpacity>
           <View style={styles.topCenter}>
@@ -1020,6 +1043,7 @@ export default function MarkupStudio() {
                   saveIndicator === "dirty" && styles.saveStateDirty,
                   saveIndicator === "saving" && styles.saveStateSaving,
                 ]}
+                accessibilityLiveRegion="polite"
               >
                 {SAVE_INDICATOR_LABEL[saveIndicator]}
               </Text>
@@ -1030,6 +1054,9 @@ export default function MarkupStudio() {
             onPress={() => (dirty ? save(false) : router.back())}
             disabled={saving}
             testID="markup-save"
+            accessibilityRole="button"
+            accessibilityLabel={dirty ? "Save markup" : "Done, close markup studio"}
+            accessibilityState={{ disabled: saving, busy: saving }}
           >
             {saving ? (
               <ActivityIndicator color={palette.white} size="small" />
@@ -1049,6 +1076,9 @@ export default function MarkupStudio() {
             onPress={undo}
             disabled={undoRef.current.length === 0}
             testID="markup-undo"
+            accessibilityRole="button"
+            accessibilityLabel="Undo"
+            accessibilityState={{ disabled: undoRef.current.length === 0 }}
           >
             <Undo2 color={palette.white} size={18} />
           </TouchableOpacity>
@@ -1057,14 +1087,28 @@ export default function MarkupStudio() {
             onPress={redo}
             disabled={redoRef.current.length === 0}
             testID="markup-redo"
+            accessibilityRole="button"
+            accessibilityLabel="Redo"
+            accessibilityState={{ disabled: redoRef.current.length === 0 }}
           >
             <Redo2 color={palette.white} size={18} />
           </TouchableOpacity>
           <View style={styles.actionsSpacer} />
-          <TouchableOpacity style={styles.miniBtn} onPress={rotate}>
+          <TouchableOpacity
+            style={styles.miniBtn}
+            onPress={rotate}
+            accessibilityRole="button"
+            accessibilityLabel="Rotate photo"
+          >
             <RotateCw color={palette.white} size={18} />
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.miniBtn, elements.length === 0 && styles.miniBtnDisabled]} onPress={clearAll}>
+          <TouchableOpacity
+            style={[styles.miniBtn, elements.length === 0 && styles.miniBtnDisabled]}
+            onPress={clearAll}
+            accessibilityRole="button"
+            accessibilityLabel="Clear all annotations"
+            accessibilityState={{ disabled: elements.length === 0 }}
+          >
             <Eraser color={palette.white} size={18} />
           </TouchableOpacity>
         </View>
@@ -1129,7 +1173,12 @@ export default function MarkupStudio() {
         {tool === "crop" ? (
           <View style={styles.selectionBar}>
             <Text style={styles.selectionText}>Drag to select crop area</Text>
-            <TouchableOpacity style={styles.selectionBtn} onPress={applyCrop}>
+            <TouchableOpacity
+              style={styles.selectionBtn}
+              onPress={applyCrop}
+              accessibilityRole="button"
+              accessibilityLabel="Apply crop"
+            >
               <Check color={palette.greenBright} size={16} />
               <Text style={[styles.selectionBtnText, { color: palette.greenBright }]}>Apply</Text>
             </TouchableOpacity>
@@ -1139,8 +1188,10 @@ export default function MarkupStudio() {
                 setCropRect(null);
                 setTool("select");
               }}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel crop"
             >
-              <X color={palette.textFaint} size={16} />
+              <X color={palette.textFaintOnDark} size={16} />
               <Text style={styles.selectionBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -1153,22 +1204,47 @@ export default function MarkupStudio() {
               </Text>
             </View>
             {selectedEl.type === "text" ? (
-              <TouchableOpacity style={styles.selectionBtn} onPress={() => openTextEditor({ mode: "edit", id: selectedEl.id })}>
+              <TouchableOpacity
+                style={styles.selectionBtn}
+                onPress={() => openTextEditor({ mode: "edit", id: selectedEl.id })}
+                accessibilityRole="button"
+                accessibilityLabel="Edit text label"
+              >
                 <Pencil color={palette.white} size={15} />
                 <Text style={styles.selectionBtnText}>Edit</Text>
               </TouchableOpacity>
             ) : null}
-            <TouchableOpacity style={styles.selectionBtn} onPress={duplicateSelected}>
+            <TouchableOpacity
+              style={styles.selectionBtn}
+              onPress={duplicateSelected}
+              accessibilityRole="button"
+              accessibilityLabel={`Duplicate ${ELEMENT_LABEL[selectedEl.type]}`}
+            >
               <Copy color={palette.white} size={15} />
               <Text style={styles.selectionBtnText}>Copy</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.selectionIconBtn} onPress={() => moveLayer(1)}>
+            <TouchableOpacity
+              style={styles.selectionIconBtn}
+              onPress={() => moveLayer(1)}
+              accessibilityRole="button"
+              accessibilityLabel="Bring forward"
+            >
               <BringToFront color={palette.white} size={16} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.selectionIconBtn} onPress={() => moveLayer(-1)}>
+            <TouchableOpacity
+              style={styles.selectionIconBtn}
+              onPress={() => moveLayer(-1)}
+              accessibilityRole="button"
+              accessibilityLabel="Send backward"
+            >
               <SendToBack color={palette.white} size={16} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.selectionBtn} onPress={deleteSelected}>
+            <TouchableOpacity
+              style={styles.selectionBtn}
+              onPress={deleteSelected}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete ${ELEMENT_LABEL[selectedEl.type]}, destructive action`}
+            >
               <Trash2 color={palette.red} size={15} />
               <Text style={[styles.selectionBtnText, { color: palette.red }]}>Delete</Text>
             </TouchableOpacity>
@@ -1190,6 +1266,9 @@ export default function MarkupStudio() {
                     colorsDisabled && styles.colorDotDisabled,
                   ]}
                   onPress={() => applyColor(c)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Colour ${MARKUP_COLOR_NAMES[c] ?? c}`}
+                  accessibilityState={{ selected: color === c && !colorsDisabled, disabled: colorsDisabled }}
                 />
               ))}
             </View>
@@ -1197,6 +1276,12 @@ export default function MarkupStudio() {
               {sizeValues.map((s, i) => {
                 const active = showTextSizes ? textSize === s : showBlurIntensity ? blurIntensity === s : stroke === s;
                 const disabled = !showTextSizes && !showBlurIntensity && !strokeApplies;
+                const sizeLabel = showTextSizes
+                  ? (TEXT_SIZE_LABEL[s] ?? `${s}`)
+                  : showBlurIntensity
+                    ? (BLUR_INTENSITY_LABEL[s] ?? `${s}`)
+                    : (STROKE_SIZE_LABEL[s] ?? `${s}`);
+                const kindLabel = showTextSizes ? "text size" : showBlurIntensity ? "blur intensity" : "stroke width";
                 return (
                   <TouchableOpacity
                     key={s}
@@ -1205,6 +1290,9 @@ export default function MarkupStudio() {
                     onPress={() =>
                       showTextSizes ? applyTextSize(s) : showBlurIntensity ? applyBlurIntensity(s) : applyStroke(s)
                     }
+                    accessibilityRole="button"
+                    accessibilityLabel={`${sizeLabel} ${kindLabel}`}
+                    accessibilityState={{ selected: active, disabled }}
                   >
                     <View
                       style={[
@@ -1234,6 +1322,9 @@ export default function MarkupStudio() {
                 if (t.key !== "crop") setCropRect(null);
               }}
               testID={`tool-${t.key}`}
+              accessibilityRole="button"
+              accessibilityLabel={`${t.label} tool`}
+              accessibilityState={{ selected: tool === t.key }}
             >
               {t.icon}
               <Text style={[styles.toolLbl, tool === t.key && styles.toolLblActive]}>{t.label}</Text>
@@ -1246,7 +1337,9 @@ export default function MarkupStudio() {
       <Modal visible={textModal !== null} transparent animationType="fade" onRequestClose={() => setTextModal(null)}>
         <View style={styles.textModalBackdrop}>
           <View style={styles.textModal}>
-            <Text style={styles.textModalTitle}>{textModal?.mode === "edit" ? "Edit label" : "Add label"}</Text>
+            <Text style={styles.textModalTitle} accessibilityRole="header">
+              {textModal?.mode === "edit" ? "Edit label" : "Add label"}
+            </Text>
             <TextInput
               style={styles.textModalInput}
               value={textValue}
@@ -1256,8 +1349,16 @@ export default function MarkupStudio() {
               autoFocus
               onSubmitEditing={commitText}
               testID="markup-text-input"
+              accessibilityLabel="Label text"
             />
-            <TouchableOpacity style={styles.bgToggleRow} onPress={() => setTextBg((v) => !v)} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={styles.bgToggleRow}
+              onPress={() => setTextBg((v) => !v)}
+              activeOpacity={0.7}
+              accessibilityRole="checkbox"
+              accessibilityLabel="Background pill. Keeps labels readable on busy site photos"
+              accessibilityState={{ checked: textBg }}
+            >
               <View style={[styles.bgToggleBox, textBg && styles.bgToggleBoxOn]}>
                 {textBg ? <Check color={palette.white} size={13} strokeWidth={3} /> : null}
               </View>
@@ -1270,10 +1371,20 @@ export default function MarkupStudio() {
               After adding, drag the label into position — tap it again to edit.
             </Text>
             <View style={styles.textModalRow}>
-              <TouchableOpacity style={styles.textModalBtn} onPress={() => setTextModal(null)}>
+              <TouchableOpacity
+                style={styles.textModalBtn}
+                onPress={() => setTextModal(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+              >
                 <Text style={styles.textModalCancel}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.textModalBtn, styles.textModalPrimary]} onPress={commitText}>
+              <TouchableOpacity
+                style={[styles.textModalBtn, styles.textModalPrimary]}
+                onPress={commitText}
+                accessibilityRole="button"
+                accessibilityLabel={textModal?.mode === "edit" ? "Update label" : "Add label"}
+              >
                 <Text style={styles.textModalOk}>{textModal?.mode === "edit" ? "Update" : "Add"}</Text>
               </TouchableOpacity>
             </View>

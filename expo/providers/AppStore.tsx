@@ -29,6 +29,7 @@ import {
   TABLE_NAMES,
 } from "@/lib/store";
 import type { ProcessedPhoto } from "@/lib/files";
+import { type WipeResult, wipeOwnedMediaDirs } from "@/lib/wipe";
 import type {
   AnnotationElement,
   AnnotationRecord,
@@ -74,6 +75,12 @@ function outboxEntry(table: string, recordId: string, op: OutboxOperation): Outb
   const at = nowIso();
   return { id: newId(), table, recordId, op, at, updatedAt: at };
 }
+
+/** Outcome of Clear all data / Reset demo data (records + owned media wipe). */
+export type ResetAllDataResult =
+  | { status: "success"; wipe: WipeResult }
+  | { status: "wipe_partial"; wipe: WipeResult }
+  | { status: "persist_failed"; error: string };
 
 export interface CreateProjectInput {
   name: string;
@@ -228,26 +235,28 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       markPersistFailure(warnings[0] ?? "Some local data could not be loaded.");
     }
 
-    if (!loadedSettings.demoSeeded && loadedDb.projects.length === 0) {
-      const demo = buildDemoDb();
-      const seededSettings: AppSettings = {
-        ...loadedSettings,
-        demoSeeded: true,
-        inspectorName: loadedSettings.inspectorName || "Alex Carter",
-        lastAuditId: demo.audits[0]?.id ?? null,
-      };
-      setDb(demo);
-      setSettings(seededSettings);
-      queuePersist(demo, TABLE_NAMES);
-      void saveSettings(seededSettings).then((result) => {
-        if (!result.ok) markPersistFailure(result.error);
-        else if (!pendingDbRef.current && !hadWarnings) markPersistSuccess();
-      });
-    } else {
-      setDb(loadedDb);
-      setSettings(loadedSettings);
-    }
-    setHydrated(true);
+    void (async () => {
+      if (!loadedSettings.demoSeeded && loadedDb.projects.length === 0) {
+        const demo = await buildDemoDb();
+        const seededSettings: AppSettings = {
+          ...loadedSettings,
+          demoSeeded: true,
+          inspectorName: loadedSettings.inspectorName || "Alex Carter",
+          lastAuditId: demo.audits[0]?.id ?? null,
+        };
+        setDb(demo);
+        setSettings(seededSettings);
+        queuePersist(demo, TABLE_NAMES);
+        void saveSettings(seededSettings).then((result) => {
+          if (!result.ok) markPersistFailure(result.error);
+          else if (!pendingDbRef.current && !hadWarnings) markPersistSuccess();
+        });
+      } else {
+        setDb(loadedDb);
+        setSettings(loadedSettings);
+      }
+      setHydrated(true);
+    })();
   }, [hydration.data, markPersistFailure, markPersistSuccess, queuePersist]);
 
   useEffect(() => {
@@ -611,7 +620,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
 
   /* ----------------------------------- Danger ----------------------------------- */
 
-  const resetAllData = useCallback(async (reseedDemo: boolean) => {
+  const resetAllData = useCallback(async (reseedDemo: boolean): Promise<ResetAllDataResult> => {
     await flushPersistNow();
 
     persistEpochRef.current += 1;
@@ -625,10 +634,14 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
     const clearResult = await clearAllData();
     if (!clearResult.ok) {
       markPersistFailure(clearResult.error);
-      return;
+      return { status: "persist_failed", error: clearResult.error };
     }
 
-    const freshDb = reseedDemo ? buildDemoDb() : EMPTY_DB;
+    // Immediately wipe owned media so Clear all data matches its promise.
+    // Partial file failures are reported honestly; retry is idempotent.
+    const wipe = await wipeOwnedMediaDirs();
+
+    const freshDb = reseedDemo ? await buildDemoDb() : EMPTY_DB;
     const freshSettings: AppSettings = { ...DEFAULT_SETTINGS, demoSeeded: true };
     setDb(freshDb);
     setSettings(freshSettings);
@@ -637,13 +650,18 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
     const settingsResult = await saveSettings(freshSettings);
     if (!dbResult.ok) {
       markPersistFailure(dbResult.error);
-      return;
+      return { status: "persist_failed", error: dbResult.error };
     }
     if (!settingsResult.ok) {
       markPersistFailure(settingsResult.error);
-      return;
+      return { status: "persist_failed", error: settingsResult.error };
     }
     markPersistSuccess();
+
+    if (!wipe.ok) {
+      return { status: "wipe_partial", wipe };
+    }
+    return { status: "success", wipe };
   }, [flushPersistNow, markPersistFailure, markPersistSuccess]);
 
   return useMemo(

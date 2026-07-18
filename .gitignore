@@ -2,3 +2,6 @@ node_modules
 .env
 .expo
 .rork
+
+# Local audit artifacts (screenshots/logs referenced by PUNCHTHIS_FULL_APP_REVIEW.md)
+.audit-output/

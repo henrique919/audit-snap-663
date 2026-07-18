@@ -1,16 +1,25 @@
 /**
- * Demo seed data — one realistic project with an audit and 8 issues across
- * multiple locations/statuses, including sample annotations. Issue 8 is a
- * "markup QA" sample demonstrating every annotation tool (arrow, circle,
- * box, pen, text label, numbered callouts and a privacy blur) so the markup
- * studio and report redaction path can be reviewed without manual setup.
- *
- * Easy to remove: delete this file and the single call in providers/AppStore.
- * Users can also wipe it from Settings → Reset demo data.
+ * Demo seed data — one SAMPLE project with an audit and 8 issues.
+ * Photos are bundled under assets/seed/ (licence-clear generated SAMPLE images)
+ * and materialised through the real media pipeline (PHOTO_DIR / data URIs).
  */
 
+import { Asset } from "expo-asset";
+import * as FileSystem from "expo-file-system/legacy";
+import { Platform } from "react-native";
+
+import { PHOTO_DIR } from "@/lib/files";
+import { processPickedPhotoWeb } from "@/lib/filesWeb";
 import { newId, nowIso } from "@/lib/ids";
+import { SEED_COVER, SEED_ISSUE_PHOTOS } from "@/lib/seedAssets";
 import type { Db } from "@/lib/store";
+
+/** ISO timestamp N days before now (keeps demo captures from looking stale). */
+function daysAgoIso(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString();
+}
 import type {
   AnnotationElement,
   Assignee,
@@ -36,19 +45,6 @@ function base(): BaseRecord {
     serverVersion: 1,
   };
 }
-
-const DEMO_PHOTOS: string[] = [
-  "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1600&q=80",
-  "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=1600&q=80",
-  "https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=1600&q=80",
-  "https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=1600&q=80",
-  "https://picsum.photos/seed/caiq-render/1600/1200",
-  "https://picsum.photos/seed/caiq-corridor/1600/1200",
-  "https://picsum.photos/seed/caiq-roof/1600/1200",
-  "https://picsum.photos/seed/caiq-carpark/1600/1200",
-];
-
-const COVER_PHOTO = "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1600&q=80";
 
 interface SeedIssue {
   title: string;
@@ -118,7 +114,7 @@ const SEED_ISSUES: SeedIssue[] = [
     priority: "high",
     location: 3,
     assignee: 1,
-    photo: 6,
+    photo: 4,
     annotations: [
       { id: "ann_006", type: "ellipse", cx: 0.55, cy: 0.55, rx: 0.14, ry: 0.1, stroke: "#E53935", strokeWidth: 8 },
       { id: "ann_007", type: "callout", cx: 0.3, cy: 0.3, number: 1, color: "#0EA5E9", size: 64 },
@@ -131,7 +127,7 @@ const SEED_ISSUES: SeedIssue[] = [
     priority: "medium",
     location: 4,
     assignee: null,
-    photo: 7,
+    photo: 5,
   },
   {
     title: "Corridor skirting gap at level 1 lift lobby",
@@ -140,7 +136,7 @@ const SEED_ISSUES: SeedIssue[] = [
     priority: "low",
     location: 1,
     assignee: 0,
-    photo: 5,
+    photo: 6,
   },
   {
     title: "Temporary switchboard unsecured — signage non-compliant",
@@ -150,7 +146,7 @@ const SEED_ISSUES: SeedIssue[] = [
     priority: "high",
     location: 1,
     assignee: 2,
-    photo: 4,
+    photo: 7,
     annotations: [
       { id: "ann_100", type: "rect", x: 0.1, y: 0.16, width: 0.36, height: 0.34, stroke: "#E53935", strokeWidth: 8 },
       { id: "ann_101", type: "ellipse", cx: 0.7, cy: 0.28, rx: 0.12, ry: 0.09, stroke: "#0EA5E9", strokeWidth: 8 },
@@ -176,16 +172,56 @@ const SEED_ISSUES: SeedIssue[] = [
   },
 ];
 
-export function buildDemoDb(): Db {
+async function resolveModuleUri(moduleId: number): Promise<string | null> {
+  try {
+    const asset = Asset.fromModule(moduleId);
+    await asset.downloadAsync();
+    return asset.localUri ?? asset.uri ?? null;
+  } catch (e) {
+    console.log("[seed] resolveModuleUri failed", e);
+    return null;
+  }
+}
+
+async function materializeSeedPhoto(
+  moduleId: number,
+  fileId: string,
+): Promise<{ originalUri: string; reportUri: string; thumbUri: string; width: number; height: number } | null> {
+  const sourceUri = await resolveModuleUri(moduleId);
+  if (!sourceUri) return null;
+
+  try {
+    if (Platform.OS === "web") {
+      const processed = await processPickedPhotoWeb(sourceUri);
+      return processed;
+    }
+
+    const info = await FileSystem.getInfoAsync(PHOTO_DIR);
+    if (!info.exists) {
+      await FileSystem.makeDirectoryAsync(PHOTO_DIR, { intermediates: true });
+    }
+    const dest = `${PHOTO_DIR}seed_${fileId}.png`;
+    await FileSystem.copyAsync({ from: sourceUri, to: dest });
+    return { originalUri: dest, reportUri: dest, thumbUri: dest, width: 1200, height: 900 };
+  } catch (e) {
+    console.log("[seed] materializeSeedPhoto failed", fileId, e);
+    return null;
+  }
+}
+
+/** Build the SAMPLE demo database. Never throws on media copy failure. */
+export async function buildDemoDb(): Promise<Db> {
+  const cover = await materializeSeedPhoto(SEED_COVER as number, "cover");
+
   const project: Project = {
     ...base(),
-    name: "Harbourview Apartments — Stage 2",
+    name: "Sample — Harbourview Apartments Stage 2",
     reference: "HVA-ST2-2026",
     clientName: "Meridian Property Group",
     siteAddress: "18 Wharf Parade, Newcastle NSW",
     companyName: "",
     inspectorName: "Alex Carter",
-    coverPhotoUri: COVER_PHOTO,
+    coverPhotoUri: cover?.originalUri ?? null,
     logoUri: null,
     status: "active",
   };
@@ -204,18 +240,21 @@ export function buildDemoDb(): Db {
     { ...base(), name: "Sparks Electrical", company: "Sparks Group", email: "", phone: "", trade: "Electrical" },
   ];
 
+  const today = new Date();
+  const auditDate = `${today.getFullYear()}-${`${today.getMonth() + 1}`.padStart(2, "0")}-${`${today.getDate()}`.padStart(2, "0")}`;
+
   const audit: Audit = {
     ...base(),
     projectId: project.id,
     title: "Pre-Handover Site Walk",
-    auditDate: new Date().toISOString().slice(0, 10),
-    preparedFor: "Meridian Property Group",
+    auditDate,
+    preparedFor: "Meridian Property Group (sample)",
     preparedBy: "Alex Carter",
     status: "draft",
     notes: "",
     defaultLocationId: locations[0]?.id ?? null,
     defaultAssigneeId: null,
-    themeKey: "executive",
+    themeKey: "sitewalk",
     completedAt: null,
     reportIssuedAt: null,
   };
@@ -224,7 +263,8 @@ export function buildDemoDb(): Db {
   const assets: PhotoAsset[] = [];
   const annotations: Db["annotations"] = [];
 
-  SEED_ISSUES.forEach((seed, i) => {
+  for (let i = 0; i < SEED_ISSUES.length; i++) {
+    const seed = SEED_ISSUES[i]!;
     const issue: Issue = {
       ...base(),
       auditId: audit.id,
@@ -241,32 +281,36 @@ export function buildDemoDb(): Db {
     };
     issues.push(issue);
 
-    const photoUrl = DEMO_PHOTOS[seed.photo] ?? DEMO_PHOTOS[0];
-    const asset: PhotoAsset = {
-      ...base(),
-      issueId: issue.id,
-      auditId: audit.id,
-      projectId: project.id,
-      originalUri: photoUrl,
-      reportUri: photoUrl,
-      thumbUri: photoUrl.replace("w=1600", "w=500"),
-      annotatedUri: null,
-      width: 1600,
-      height: 1200,
-      capturedAt: nowIso(),
-    };
-    assets.push(asset);
-
-    if (seed.annotations && seed.annotations.length > 0) {
-      annotations.push({
+    const moduleId = SEED_ISSUE_PHOTOS[seed.photo] ?? SEED_ISSUE_PHOTOS[0];
+    const media = await materializeSeedPhoto(moduleId as number, `issue_${i + 1}`);
+    if (media) {
+      const asset: PhotoAsset = {
         ...base(),
-        assetId: asset.id,
         issueId: issue.id,
-        elements: seed.annotations,
-        toolsetVersion: 1,
-      });
+        auditId: audit.id,
+        projectId: project.id,
+        originalUri: media.originalUri,
+        reportUri: media.reportUri,
+        thumbUri: media.thumbUri,
+        annotatedUri: null,
+        width: media.width,
+        height: media.height,
+        // Stagger captures over the last week so the demo feels recent, not static.
+        capturedAt: daysAgoIso(Math.min(6, SEED_ISSUES.length - 1 - i)),
+      };
+      assets.push(asset);
+
+      if (seed.annotations && seed.annotations.length > 0) {
+        annotations.push({
+          ...base(),
+          assetId: asset.id,
+          issueId: issue.id,
+          elements: seed.annotations,
+          toolsetVersion: 1,
+        });
+      }
     }
-  });
+  }
 
   return {
     projects: [project],

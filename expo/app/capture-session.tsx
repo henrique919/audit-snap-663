@@ -10,13 +10,13 @@ import {
   CloudOff,
   Images,
   MapPin,
-  Mic,
   PenLine,
   UserRound,
   X,
 } from "lucide-react-native";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Animated,
   KeyboardAvoidingView,
@@ -75,6 +75,7 @@ export default function CaptureSession() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       setToast(message);
+      AccessibilityInfo.announceForAccessibility(message);
       toastOpacity.setValue(0);
       Animated.sequence([
         Animated.timing(toastOpacity, { toValue: 1, duration: 160, useNativeDriver: true }),
@@ -229,7 +230,13 @@ export default function CaptureSession() {
       <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()} testID="capture-close">
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => router.back()}
+            testID="capture-close"
+            accessibilityRole="button"
+            accessibilityLabel="Close capture session"
+          >
             <X color={palette.white} size={20} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
@@ -244,6 +251,8 @@ export default function CaptureSession() {
             style={styles.doneBtn}
             onPress={() => router.replace({ pathname: "/audit/[id]/hitlist", params: { id: audit.id } })}
             testID="capture-done"
+            accessibilityRole="button"
+            accessibilityLabel="Done, review hit list"
           >
             <Check color={palette.white} size={16} strokeWidth={2.8} />
             <Text style={styles.doneText}>Done</Text>
@@ -292,12 +301,14 @@ export default function CaptureSession() {
                   key={issue.id}
                   onPress={() => router.push({ pathname: "/issue/[id]", params: { id: issue.id } })}
                   style={styles.recentItem}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open issue ${issueRef(issue.issueNumber)}`}
                 >
                   {thumb ? (
                     <Image source={{ uri: thumb }} style={styles.recentImg} contentFit="cover" />
                   ) : (
                     <View style={[styles.recentImg, styles.recentPlaceholder]}>
-                      <Camera color={palette.textFaint} size={16} />
+                      <Camera color={palette.textFaintOnDark} size={16} />
                     </View>
                   )}
                   <Text style={styles.recentNum}>#{issue.issueNumber}</Text>
@@ -326,13 +337,29 @@ export default function CaptureSession() {
 
         {/* Capture controls */}
         <View style={[styles.controls, { paddingBottom: insets.bottom + spacing.xl }]}>
-          <TouchableOpacity style={styles.sideBtn} onPress={pickFromGallery} disabled={processing} testID="capture-gallery">
+          <TouchableOpacity
+            style={styles.sideBtn}
+            onPress={pickFromGallery}
+            disabled={processing}
+            testID="capture-gallery"
+            accessibilityRole="button"
+            accessibilityLabel="Add photos from gallery"
+            accessibilityState={{ disabled: processing, busy: processing }}
+          >
             <View style={styles.sideChip}>
               <Images color={palette.white} size={22} />
             </View>
             <Text style={styles.sideLbl}>Gallery</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.shutterRing} onPress={takePhoto} disabled={processing} testID="capture-shutter">
+          <TouchableOpacity
+            style={styles.shutterRing}
+            onPress={takePhoto}
+            disabled={processing}
+            testID="capture-shutter"
+            accessibilityRole="button"
+            accessibilityLabel="Take photo"
+            accessibilityState={{ disabled: processing, busy: processing }}
+          >
             <View style={styles.shutter}>
               {processing ? (
                 <ActivityIndicator color={palette.carbon} size="large" />
@@ -341,15 +368,8 @@ export default function CaptureSession() {
               )}
             </View>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.sideBtn}
-            onPress={() => showAlert("Voice notes", "Voice-to-issue capture is coming in a future update.")}
-          >
-            <View style={[styles.sideChip, styles.sideChipMuted]}>
-              <Mic color={palette.textFaint} size={22} />
-            </View>
-            <Text style={[styles.sideLbl, styles.sideLblMuted]}>Voice</Text>
-          </TouchableOpacity>
+          {/* Spacer balances Gallery column width at 390×844 (Voice control removed). */}
+          <View style={styles.sideBtn} pointerEvents="none" accessibilityElementsHidden />
         </View>
       </View>
 
@@ -378,6 +398,8 @@ export default function CaptureSession() {
                     );
                     if (ok) void discardDraft(draft);
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Discard photo and close"
                 >
                   <X color={palette.textMuted} size={22} />
                 </TouchableOpacity>
@@ -413,6 +435,7 @@ export default function CaptureSession() {
                   placeholder="Issue title (e.g. Paint scuffing to wall)"
                   placeholderTextColor={palette.textFaint}
                   testID="issue-title-input"
+                  accessibilityLabel="Issue title"
                 />
                 <TextInput
                   style={styles.descInput}
@@ -421,6 +444,7 @@ export default function CaptureSession() {
                   placeholder="Notes / description (optional)"
                   placeholderTextColor={palette.textFaint}
                   multiline
+                  accessibilityLabel="Notes or description, optional"
                 />
 
                 <Text style={styles.fieldLbl}>Location</Text>
@@ -430,6 +454,7 @@ export default function CaptureSession() {
                   onChangeText={(v) => setDraft({ ...draft, location: v })}
                   placeholder="e.g. Level 1 Corridor"
                   placeholderTextColor={palette.textFaint}
+                  accessibilityLabel="Location"
                 />
                 {projectLocations.length > 0 ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestRow}>
@@ -446,6 +471,7 @@ export default function CaptureSession() {
                   onChangeText={(v) => setDraft({ ...draft, assignee: v })}
                   placeholder="Who fixes this (optional)"
                   placeholderTextColor={palette.textFaint}
+                  accessibilityLabel="Assignee, optional"
                 />
                 {knownAssignees.length > 0 ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestRow}>
@@ -515,7 +541,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: palette.cobalt,
+    // cobaltDeep, not cobalt — the label is white (see theme.ts).
+    backgroundColor: palette.cobaltDeep,
     borderRadius: radius.pill,
     paddingHorizontal: 14,
     height: 40,
@@ -599,9 +626,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  sideChipMuted: { opacity: 0.6 },
   sideLbl: { color: palette.white, fontSize: font.size.xs, fontFamily: font.family.bodyBold },
-  sideLblMuted: { color: palette.textFaint },
   toast: {
     position: "absolute",
     bottom: 170,

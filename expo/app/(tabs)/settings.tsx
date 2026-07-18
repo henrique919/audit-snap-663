@@ -1,10 +1,11 @@
-/** Settings — inspector defaults, brand info, sync centre, data management. */
+/** Settings — inspector defaults, brand info, storage and data management. */
 
+import Constants from "expo-constants";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { ChevronRight, CloudOff, Database, ImagePlus, RefreshCcw, Trash2, X } from "lucide-react-native";
+import { Database, ImagePlus, Mail, RefreshCcw, Shield, Trash2, X } from "lucide-react-native";
 import React from "react";
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BrandMark, BrandWordmark } from "@/components/BrandMark";
@@ -12,9 +13,20 @@ import { AppButton, Card, Field, SectionTitle } from "@/components/ui";
 import { BrandConfig, REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/constants/config";
 import { font, palette, radius, spacing } from "@/constants/theme";
 import { showAlert, showConfirm } from "@/lib/dialogs";
+import {
+  buildExportSuccessMessage,
+  EXPORT_ROW_SUBCOPY,
+  EXPORT_ROW_TITLE,
+  EXPORT_SUCCESS_TITLE,
+  exportAllData,
+} from "@/lib/exportArchive";
 import { persistBrandLogo } from "@/lib/files";
+import { BUILD_ID, buildSupportMailto, PUBLISHER_NAME } from "@/lib/legalCopy";
 import { estimateMediaStorage, formatBytes, runMediaGc } from "@/lib/mediaRegistry";
+import { summarizeWipe } from "@/lib/wipe";
 import { useAppStore } from "@/providers/AppStore";
+
+const APP_VERSION = Constants.expoConfig?.version ?? "1.0.0";
 
 export default function SettingsTab() {
   const router = useRouter();
@@ -22,6 +34,8 @@ export default function SettingsTab() {
   const { settings, updateSettings, resetAllData, db } = useAppStore();
   const [mediaStats, setMediaStats] = React.useState<{ fileCount: number; totalBytes: number } | null>(null);
   const [cleaning, setCleaning] = React.useState(false);
+  const [exporting, setExporting] = React.useState(false);
+  const [exportPhase, setExportPhase] = React.useState<string | null>(null);
 
   const refreshMediaStats = React.useCallback(async () => {
     try {
@@ -35,13 +49,6 @@ export default function SettingsTab() {
   React.useEffect(() => {
     void refreshMediaStats();
   }, [refreshMediaStats, db.assets.length, db.reports.length, settings.logoUri]);
-
-  const pendingCount = [
-    ...db.projects,
-    ...db.audits,
-    ...db.issues,
-    ...db.assets,
-  ].filter((r) => r.syncStatus !== "synced" && !r.deletedAt).length;
 
   const pickLogo = async () => {
     try {
@@ -62,6 +69,24 @@ export default function SettingsTab() {
 
   const defaultThemeKey = resolveThemeKey(settings.defaultReportOptions.themeKey);
 
+  const handleExportAll = async () => {
+    if (exporting) return;
+    try {
+      setExporting(true);
+      setExportPhase(null);
+      const outcome = await exportAllData(db, settings, (phase) => setExportPhase(phase));
+      if (outcome.ok) {
+        showAlert(EXPORT_SUCCESS_TITLE, buildExportSuccessMessage(outcome));
+      }
+      // Failure dialogs are shown by exportAllData itself (see lib/exportArchive.ts).
+    } catch (e) {
+      console.log("[settings] export failed", e);
+    } finally {
+      setExporting(false);
+      setExportPhase(null);
+    }
+  };
+
   const confirmReset = async (reseed: boolean) => {
     const ok = await showConfirm(
       reseed ? "Reset demo data" : "Clear all data",
@@ -71,8 +96,31 @@ export default function SettingsTab() {
       reseed ? "Reset" : "Delete everything",
       true,
     );
-    if (ok) {
-      resetAllData(reseed);
+    if (!ok) return;
+
+    const result = await resetAllData(reseed);
+    await refreshMediaStats();
+
+    if (result.status === "persist_failed") {
+      showAlert("Could not clear data", result.error || "Storage clear failed. Please try again.");
+      return;
+    }
+
+    if (result.status === "wipe_partial") {
+      const summary = summarizeWipe(result.wipe);
+      showAlert("Some files could not be deleted", summary.message);
+      return;
+    }
+
+    // Full success only — never claim success on partial file wipe.
+    if (reseed) {
+      showAlert(
+        "Demo data restored",
+        "Sample project loaded. Previous records and photo/report files on this device were deleted.",
+      );
+    } else {
+      const summary = summarizeWipe(result.wipe);
+      showAlert("All data cleared", summary.message);
     }
   };
 
@@ -169,25 +217,6 @@ export default function SettingsTab() {
         </View>
       </Card>
 
-      <SectionTitle title="Sync" />
-      <TouchableOpacity
-        style={styles.linkRow}
-        activeOpacity={0.8}
-        onPress={() => router.push("/sync")}
-        testID="open-sync-centre"
-      >
-        <View style={styles.linkIcon}>
-          <CloudOff color={palette.carbon} size={20} />
-        </View>
-        <View style={styles.linkBody}>
-          <Text style={styles.linkTitle}>Sync Centre</Text>
-          <Text style={styles.linkSub}>
-            All work saved on device · {pendingCount} records pending future sync
-          </Text>
-        </View>
-        <ChevronRight color={palette.textFaint} size={18} />
-      </TouchableOpacity>
-
       <SectionTitle title="Storage" />
       <Card>
         <Text style={styles.note}>
@@ -226,6 +255,25 @@ export default function SettingsTab() {
         </Text>
       </Card>
 
+      <Card>
+        <Text style={styles.fieldLbl}>{EXPORT_ROW_TITLE}</Text>
+        <Text style={styles.note}>{EXPORT_ROW_SUBCOPY}</Text>
+        <AppButton
+          testID="export-all-data"
+          label="Export all data"
+          variant="secondary"
+          icon={<Database color={palette.carbon} size={17} />}
+          loading={exporting}
+          onPress={handleExportAll}
+          style={styles.cleanupBtn}
+        />
+        {exporting && exportPhase ? (
+          <Text style={styles.phaseText} testID="export-phase">
+            {exportPhase}
+          </Text>
+        ) : null}
+      </Card>
+
       <SectionTitle title="Data" />
       <TouchableOpacity style={styles.linkRow} activeOpacity={0.8} onPress={() => confirmReset(true)}>
         <View style={styles.linkIcon}>
@@ -249,11 +297,41 @@ export default function SettingsTab() {
       <SectionTitle title="About" />
       <View style={styles.aboutCard}>
         <Database color={palette.textFaint} size={16} />
-        <Text style={styles.aboutText}>
-          Local-first: everything is stored on this device. Cloud backup, multi-device sync and web
-          access arrive in a future update.
-        </Text>
+        <Text style={styles.aboutText}>Local-first: everything is stored on this device.</Text>
       </View>
+      <Text style={styles.aboutMeta}>
+        Version {APP_VERSION} · Build {BUILD_ID}
+      </Text>
+      <Text style={styles.aboutMeta}>{PUBLISHER_NAME}</Text>
+
+      <TouchableOpacity
+        testID="link-data-privacy"
+        style={styles.linkRow}
+        activeOpacity={0.8}
+        onPress={() => router.push("/data-privacy")}
+      >
+        <View style={styles.linkIcon}>
+          <Shield color={palette.carbon} size={20} />
+        </View>
+        <View style={styles.linkBody}>
+          <Text style={styles.linkTitle}>Data & privacy</Text>
+          <Text style={styles.linkSub}>How your projects, photos and reports are stored</Text>
+        </View>
+      </TouchableOpacity>
+      <TouchableOpacity
+        testID="link-contact-support"
+        style={styles.linkRow}
+        activeOpacity={0.8}
+        onPress={() => Linking.openURL(buildSupportMailto(APP_VERSION))}
+      >
+        <View style={styles.linkIcon}>
+          <Mail color={palette.carbon} size={20} />
+        </View>
+        <View style={styles.linkBody}>
+          <Text style={styles.linkTitle}>Contact support</Text>
+          <Text style={styles.linkSub}>Email us with a question or issue</Text>
+        </View>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -335,6 +413,13 @@ const styles = StyleSheet.create({
   dangerText: { color: palette.red },
   linkSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 2 },
   cleanupBtn: { marginTop: spacing.sm, marginBottom: spacing.sm },
+  phaseText: {
+    fontSize: font.size.xs,
+    color: palette.textMuted,
+    fontFamily: font.family.bodySemibold,
+    textAlign: "center",
+    marginTop: -4,
+  },
   aboutCard: {
     flexDirection: "row",
     gap: spacing.sm,
@@ -344,4 +429,5 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   aboutText: { flex: 1, fontSize: font.size.xs, color: palette.textMuted, lineHeight: 18 },
+  aboutMeta: { fontSize: font.size.xs, color: palette.textFaint, marginTop: spacing.sm, marginLeft: 2 },
 });

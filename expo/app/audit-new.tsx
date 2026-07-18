@@ -15,6 +15,7 @@ import {
 import { AppButton, Chip, Field } from "@/components/ui";
 import { REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/constants/config";
 import { font, palette, spacing } from "@/constants/theme";
+import { formatShortDate } from "@/lib/dates";
 import { todayIsoDate } from "@/lib/format";
 import { useAppStore, useProject } from "@/providers/AppStore";
 
@@ -27,7 +28,7 @@ export default function AuditNewScreen() {
   const { createAudit, findOrCreateLocation, findOrCreateAssignee, settings, db } = useAppStore();
   const project = useProject(projectId);
 
-  const [title, setTitle] = useState<string>("Site Walk — " + new Date().toLocaleDateString());
+  const [title, setTitle] = useState<string>(`Site Walk — ${formatShortDate(new Date())}`);
   const [auditDate, setAuditDate] = useState<string>(todayIsoDate());
   const [preparedFor, setPreparedFor] = useState<string>(project?.clientName ?? "");
   const [preparedBy, setPreparedBy] = useState<string>(project?.inspectorName || settings.inspectorName);

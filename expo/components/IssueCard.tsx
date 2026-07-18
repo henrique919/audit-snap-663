@@ -12,6 +12,7 @@ import { PriorityPill, STATUS_COLORS, StatusPill } from "@/components/pills";
 import { font, palette, radius, spacing } from "@/constants/theme";
 import { issueRef } from "@/lib/format";
 import type { Issue, PhotoAsset } from "@/types/models";
+import { PRIORITY_LABEL, STATUS_LABEL } from "@/types/models";
 
 interface IssueCardProps {
   issue: Issue;
@@ -43,6 +44,19 @@ function IssueCardInner({
   const showMarkupBadge = hasMarkup || !!first?.annotatedUri;
   const spineColor = STATUS_COLORS[issue.status].color;
 
+  const accessibleLabel = [
+    issueRef(issue.issueNumber),
+    issue.title || "Untitled issue",
+    STATUS_LABEL[issue.status],
+    `${PRIORITY_LABEL[issue.priority]} priority`,
+    `at ${locationName}`,
+    `assigned to ${assigneeName}`,
+    showMarkupBadge ? "marked up" : null,
+    !issue.includeInReport ? "excluded from report" : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
   return (
     <TouchableOpacity
       activeOpacity={0.85}
@@ -51,6 +65,8 @@ function IssueCardInner({
       delayLongPress={280}
       style={[styles.card, !issue.includeInReport && styles.excluded]}
       testID={`issue-card-${issue.id}`}
+      accessibilityRole="button"
+      accessibilityLabel={accessibleLabel}
     >
       <View style={[styles.spine, { backgroundColor: spineColor }]} />
       <View style={styles.thumbWrap}>
@@ -102,6 +118,7 @@ function IssueCardInner({
           onPress={onMore}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           testID={`issue-card-more-${issue.id}`}
+          accessibilityRole="button"
           accessibilityLabel="Quick actions"
         >
           <MoreVertical color={palette.textFaint} size={18} />

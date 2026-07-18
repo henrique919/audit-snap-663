@@ -17,9 +17,14 @@ export const palette = {
   charcoal: "#22303C",
   charcoalSoft: "#39454D",
 
-  /** Blueprint Cobalt — primary actions, capture, markers, links, active nav. */
+  /** Blueprint Cobalt — primary actions, capture, markers, links, active nav.
+   * `cobalt` itself is ~3.5:1 on white — too low for AA text (4.5:1) and for a
+   * white label on top of it as a fill. Use `cobaltText` for cobalt-as-text on
+   * light surfaces, and `cobaltDeep` (darkened below its original decorative
+   * value) as the fill behind white button/chip/segment labels. */
   cobalt: "#4C82FF",
-  cobaltDeep: "#2F6BFF",
+  cobaltText: "#2B5FCC",
+  cobaltDeep: "#2857D6",
   cobaltSoft: "#EAF1FF",
 
   /** Success / verified. */
@@ -27,10 +32,12 @@ export const palette = {
   greenBright: "#2BB56A",
   greenSoft: "#E7F3EC",
 
-  /** Assigned / warning / medium priority. */
+  /** Assigned / warning / medium priority. `amber` itself is too light for
+   * AA text (~2.4:1 on white); `amberText` is the compliant darkened variant
+   * (≥4.5:1 on white and on `amberSoft`) for text/icon-as-text roles. */
   amber: "#E5A016",
   amberSoft: "#FDF3E0",
-  amberText: "#B57709",
+  amberText: "#92600A",
 
   /** Alias for cobalt as info (in-progress). */
   info: "#4C82FF",
@@ -56,7 +63,12 @@ export const palette = {
 
   text: "#1C232B",
   textMuted: "#69747D",
-  textFaint: "#96A0A9",
+  /** Darkened from the original #96A0A9 (~2.7:1 on white, failed AA) so
+   * textFaint reaches ≥4.5:1 against every near-white surface in the app
+   * (white, `background`, `surfaceAlt`). Use `textFaintOnDark` — the
+   * original light value — for faint text/icons on dark (carbon) surfaces. */
+  textFaint: "#616B78",
+  textFaintOnDark: "#96A0A9",
   /** Wordmark “This” weight colour. */
   textSteel: "#A2ACB5",
 } as const;

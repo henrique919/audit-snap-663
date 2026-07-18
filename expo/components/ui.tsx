@@ -45,6 +45,9 @@ export function AppButton({ label, onPress, icon, disabled, loading, variant = "
         tap();
         onPress();
       }}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
       style={[
         styles.btn,
         isPrimary && styles.btnPrimary,
@@ -102,6 +105,7 @@ export function Field({
   error,
   maxLength,
 }: FieldProps) {
+  const errorId = testID ? `${testID}-error` : undefined;
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>
@@ -118,9 +122,10 @@ export function Field({
         multiline={multiline}
         autoFocus={autoFocus}
         maxLength={maxLength}
+        accessibilityLabel={error ? `${label}. ${error}` : label}
       />
       {error ? (
-        <Text style={styles.fieldError} testID={testID ? `${testID}-error` : undefined}>
+        <Text style={styles.fieldError} testID={errorId} accessibilityRole="alert">
           {error}
         </Text>
       ) : null}
@@ -147,6 +152,9 @@ export function Chip({ label, active, onPress, icon, small, testID }: ChipProps)
         tap();
         onPress?.();
       }}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: !!active, disabled: !onPress }}
       style={[styles.chip, small && styles.chipSmall, active && styles.chipActive]}
     >
       {icon}
@@ -160,7 +168,9 @@ export function Chip({ label, active, onPress, icon, small, testID }: ChipProps)
 export function SectionTitle({ title, right }: { title: string; right?: React.ReactNode }) {
   return (
     <View style={styles.sectionRow}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={styles.sectionTitle} accessibilityRole="header">
+        {title}
+      </Text>
       {right}
     </View>
   );
@@ -169,15 +179,31 @@ export function SectionTitle({ title, right }: { title: string; right?: React.Re
 export function EmptyState({ icon, title, message }: { icon?: React.ReactNode; title: string; message: string }) {
   return (
     <View style={styles.empty}>
-      {icon}
+      {icon ? (
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {icon}
+        </View>
+      ) : null}
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyMessage}>{message}</Text>
     </View>
   );
 }
 
-export function Card({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
-  return <View style={[styles.card, style]}>{children}</View>;
+export function Card({
+  children,
+  style,
+  testID,
+}: {
+  children: React.ReactNode;
+  style?: ViewStyle;
+  testID?: string;
+}) {
+  return (
+    <View style={[styles.card, style]} testID={testID}>
+      {children}
+    </View>
+  );
 }
 
 interface ToggleRowProps {
@@ -197,6 +223,9 @@ export function ToggleRow({ label, value, onToggle, sub, testID }: ToggleRowProp
         tap();
         onToggle(!value);
       }}
+      accessibilityRole="switch"
+      accessibilityLabel={sub ? `${label}. ${sub}` : label}
+      accessibilityState={{ checked: value }}
       style={styles.toggleRow}
     >
       <View style={styles.toggleTextWrap}>
@@ -218,7 +247,7 @@ interface SegmentedProps<T extends string> {
 
 export function Segmented<T extends string>({ options, value, onChange }: SegmentedProps<T>) {
   return (
-    <View style={styles.segmented}>
+    <View style={styles.segmented} accessibilityRole="radiogroup">
       {options.map((opt) => {
         const active = opt.value === value;
         return (
@@ -229,6 +258,9 @@ export function Segmented<T extends string>({ options, value, onChange }: Segmen
               tap();
               onChange(opt.value);
             }}
+            accessibilityRole="radio"
+            accessibilityLabel={opt.label}
+            accessibilityState={{ checked: active, selected: active }}
             style={[styles.segment, active && styles.segmentActive]}
           >
             <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]} numberOfLines={1}>
@@ -251,7 +283,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
   },
-  btnPrimary: { backgroundColor: palette.cobalt },
+  // cobaltDeep, not cobalt — a white label on top needs 4.5:1 (see theme.ts).
+  btnPrimary: { backgroundColor: palette.cobaltDeep },
   btnSecondary: {
     backgroundColor: palette.surface,
     borderWidth: 1.5,
@@ -306,7 +339,8 @@ const styles = StyleSheet.create({
     maxWidth: 220,
   },
   chipSmall: { paddingHorizontal: 10, paddingVertical: 6 },
-  chipActive: { backgroundColor: palette.cobalt, borderColor: palette.cobalt },
+  // cobaltDeep, not cobalt — the active label is white (see theme.ts).
+  chipActive: { backgroundColor: palette.cobaltDeep, borderColor: palette.cobaltDeep },
   chipLabel: { fontSize: font.size.sm, fontFamily: font.family.bodySemibold, color: palette.text },
   chipLabelSmall: { fontSize: font.size.xs },
   chipLabelActive: { color: palette.white },
@@ -380,7 +414,8 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: radius.sm,
   },
-  segmentActive: { backgroundColor: palette.cobalt },
+  // cobaltDeep, not cobalt — the active label is white (see theme.ts).
+  segmentActive: { backgroundColor: palette.cobaltDeep },
   segmentLabel: { fontSize: font.size.xs, fontFamily: font.family.bodyBold, color: palette.textMuted },
   segmentLabelActive: { color: palette.white },
 });

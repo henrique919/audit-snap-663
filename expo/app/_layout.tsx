@@ -43,7 +43,8 @@ function RootLayoutNav() {
       screenOptions={{
         headerBackTitle: "Back",
         headerStyle: { backgroundColor: palette.background },
-        headerTintColor: palette.cobalt,
+        // cobaltText, not cobalt — this colours the back button label too.
+        headerTintColor: palette.cobaltText,
         headerTitleStyle: { fontFamily: font.family.heading, color: palette.text },
         headerShadowVisible: false,
         contentStyle: { backgroundColor: palette.background },
@@ -52,9 +53,9 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="project-new" options={{ title: "New Project", presentation: "modal" }} />
       <Stack.Screen name="audit-new" options={{ title: "Start Audit" }} />
+      <Stack.Screen name="data-privacy" options={{ title: "Data & privacy" }} />
       <Stack.Screen name="capture-session" options={{ headerShown: false }} />
       <Stack.Screen name="markup/[assetId]" options={{ headerShown: false }} />
-      <Stack.Screen name="sync" options={{ title: "Sync Centre" }} />
     </Stack>
   );
 }

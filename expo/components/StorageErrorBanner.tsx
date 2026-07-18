@@ -1,7 +1,7 @@
 /** Dismissable app-wide banner for local persistence failures. */
 
-import React, { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { font, palette, radius, shadow, spacing } from "@/constants/theme";
 import { useAppStore } from "@/providers/AppStore";
@@ -9,6 +9,7 @@ import { useAppStore } from "@/providers/AppStore";
 export function StorageErrorBanner() {
   const { persistStatus, lastPersistError, persistFailureVersion } = useAppStore();
   const [dismissedFailureVersion, setDismissedFailureVersion] = useState<number | null>(null);
+  const announcedFailureVersion = useRef<number | null>(null);
 
   useEffect(() => {
     // A successful save clears persistStatus; a new failure gets a new message.
@@ -21,6 +22,17 @@ export function StorageErrorBanner() {
     if (persistStatus !== "error" || !lastPersistError) return false;
     return dismissedFailureVersion !== persistFailureVersion;
   }, [dismissedFailureVersion, lastPersistError, persistFailureVersion, persistStatus]);
+
+  // Announce once per distinct failure — the banner's accessibilityRole="alert"
+  // covers screen readers that watch for new alert-role content, but an
+  // explicit announcement also reaches readers that only react to focus/live
+  // region changes.
+  useEffect(() => {
+    if (visible && lastPersistError && announcedFailureVersion.current !== persistFailureVersion) {
+      announcedFailureVersion.current = persistFailureVersion;
+      AccessibilityInfo.announceForAccessibility(`Couldn't save your latest changes. ${lastPersistError}`);
+    }
+  }, [visible, lastPersistError, persistFailureVersion]);
 
   if (!visible || !lastPersistError) return null;
 
