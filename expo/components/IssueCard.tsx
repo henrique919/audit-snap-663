@@ -1,6 +1,9 @@
 /**
  * Issue card for the hit list — status spine on the left edge, annotated
  * thumbnail preferred over the original photo, "Marked up" badge.
+ *
+ * Main press target and kebab are sibling buttons (not nested) so RN-web
+ * does not emit invalid <button><button> HTML (LP-23).
  */
 
 import { Image } from "expo-image";
@@ -58,60 +61,62 @@ function IssueCardInner({
     .join(", ");
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={onPress}
-      onLongPress={onLongPress}
-      delayLongPress={280}
-      style={[styles.card, !issue.includeInReport && styles.excluded]}
-      testID={`issue-card-${issue.id}`}
-      accessibilityRole="button"
-      accessibilityLabel={accessibleLabel}
-    >
-      <View style={[styles.spine, { backgroundColor: spineColor }]} />
-      <View style={styles.thumbWrap}>
-        {thumb ? (
-          <Image source={{ uri: thumb }} style={styles.thumb} contentFit="cover" />
-        ) : (
-          <View style={[styles.thumb, styles.thumbPlaceholder]}>
-            <Camera color={palette.textFaint} size={18} />
-          </View>
-        )}
-        {assets.length > 1 ? (
-          <View style={styles.photoCount}>
-            <Text style={styles.photoCountText}>{assets.length}</Text>
-          </View>
-        ) : null}
-        {showMarkupBadge ? (
-          <View style={styles.markupBadge}>
-            <PenLine color={palette.white} size={9} />
-            <Text style={styles.markupBadgeText}>Marked up</Text>
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.body}>
-        <View style={styles.titleRow}>
-          <Text style={styles.number}>{issueRef(issue.issueNumber)}</Text>
-          {!issue.includeInReport ? <EyeOff color={palette.textFaint} size={13} /> : null}
+    <View style={[styles.card, !issue.includeInReport && styles.excluded]}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        delayLongPress={280}
+        style={styles.mainPress}
+        testID={`issue-card-${issue.id}`}
+        accessibilityRole="button"
+        accessibilityLabel={accessibleLabel}
+      >
+        <View style={[styles.spine, { backgroundColor: spineColor }]} />
+        <View style={styles.thumbWrap}>
+          {thumb ? (
+            <Image source={{ uri: thumb }} style={styles.thumb} contentFit="cover" />
+          ) : (
+            <View style={[styles.thumb, styles.thumbPlaceholder]}>
+              <Camera color={palette.textFaint} size={18} />
+            </View>
+          )}
+          {assets.length > 1 ? (
+            <View style={styles.photoCount}>
+              <Text style={styles.photoCountText}>{assets.length}</Text>
+            </View>
+          ) : null}
+          {showMarkupBadge ? (
+            <View style={styles.markupBadge}>
+              <PenLine color={palette.white} size={9} />
+              <Text style={styles.markupBadgeText}>Marked up</Text>
+            </View>
+          ) : null}
         </View>
-        <Text style={styles.title} numberOfLines={2}>
-          {issue.title || "Untitled issue"}
-        </Text>
-        <View style={styles.metaRow}>
-          <MapPin color={palette.textFaint} size={11} />
-          <Text style={styles.metaText} numberOfLines={1}>
-            {locationName}
+        <View style={styles.body}>
+          <View style={styles.titleRow}>
+            <Text style={styles.number}>{issueRef(issue.issueNumber)}</Text>
+            {!issue.includeInReport ? <EyeOff color={palette.textFaint} size={13} /> : null}
+          </View>
+          <Text style={styles.title} numberOfLines={2}>
+            {issue.title || "Untitled issue"}
           </Text>
-          <UserRound color={palette.textFaint} size={11} />
-          <Text style={styles.metaText} numberOfLines={1}>
-            {assigneeName}
-          </Text>
+          <View style={styles.metaRow}>
+            <MapPin color={palette.textFaint} size={11} />
+            <Text style={styles.metaText} numberOfLines={1}>
+              {locationName}
+            </Text>
+            <UserRound color={palette.textFaint} size={11} />
+            <Text style={styles.metaText} numberOfLines={1}>
+              {assigneeName}
+            </Text>
+          </View>
+          <View style={styles.pillRow}>
+            <StatusPill status={issue.status} />
+            <PriorityPill priority={issue.priority} />
+          </View>
         </View>
-        <View style={styles.pillRow}>
-          <StatusPill status={issue.status} />
-          <PriorityPill priority={issue.priority} />
-        </View>
-      </View>
+      </TouchableOpacity>
       {onMore ? (
         <TouchableOpacity
           style={styles.moreBtn}
@@ -124,7 +129,7 @@ function IssueCardInner({
           <MoreVertical color={palette.textFaint} size={18} />
         </TouchableOpacity>
       ) : null}
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -132,16 +137,19 @@ export const IssueCard = React.memo(IssueCardInner);
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: "row",
+    position: "relative",
     backgroundColor: palette.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: palette.border,
+    marginBottom: spacing.sm,
+    overflow: "hidden",
+  },
+  mainPress: {
+    flexDirection: "row",
     padding: spacing.sm,
     paddingLeft: spacing.sm + 6,
-    marginBottom: spacing.sm,
     gap: spacing.md,
-    overflow: "hidden",
   },
   spine: { position: "absolute", left: 0, top: 0, bottom: 0, width: 4 },
   excluded: { opacity: 0.55 },
@@ -174,8 +182,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2.5,
   },
-  markupBadgeText: { color: palette.white, fontSize: 8, fontFamily: font.family.bodyBold, textTransform: "uppercase", letterSpacing: 0.3 },
-  body: { flex: 1, paddingVertical: 2 },
+  markupBadgeText: {
+    color: palette.white,
+    fontSize: 8,
+    fontFamily: font.family.bodyBold,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  body: { flex: 1, paddingVertical: 2, paddingRight: 28 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   number: {
     fontSize: font.size.xs,
@@ -196,5 +210,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 1,
   },
 });
