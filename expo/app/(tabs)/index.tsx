@@ -1,7 +1,7 @@
 /** Home / Project List — gets the user into a job fast. */
 
 import { useRouter } from "expo-router";
-import { ChevronRight, FolderPlus, Play, Search } from "lucide-react-native";
+import { ChevronRight, FolderPlus, Info, Play, Search, X } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
@@ -15,17 +15,21 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BrandMark, BrandWordmark } from "@/components/BrandMark";
 import { ProjectCard } from "@/components/ProjectCard";
-import { AppButton, EmptyState } from "@/components/ui";
+import { AppButton, Card, EmptyState } from "@/components/ui";
 import { BrandConfig } from "@/constants/config";
 import { font, palette, radius, spacing } from "@/constants/theme";
+import { LOCAL_STORAGE_WARNING } from "@/lib/legalCopy";
 import { useAppStore } from "@/providers/AppStore";
 import type { Project } from "@/types/models";
 
 export default function ProjectsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { db, settings, hydrated } = useAppStore();
+  const { db, settings, updateSettings, hydrated } = useAppStore();
   const [search, setSearch] = useState<string>("");
+
+  const showStorageNotice = hydrated && !settings.storageNoticeDismissedAt;
+  const dismissStorageNotice = () => updateSettings({ storageNoticeDismissedAt: new Date().toISOString() });
 
   const projects = useMemo(() => {
     const active = db.projects.filter((p) => !p.deletedAt && p.status === "active");
@@ -86,6 +90,29 @@ export default function ProjectsScreen() {
           placeholderTextColor={palette.textFaint}
         />
       </View>
+
+      {showStorageNotice ? (
+        <Card style={styles.noticeCard} testID="storage-notice">
+          <View style={styles.noticeIcon}>
+            <Info color={palette.cobalt} size={16} />
+          </View>
+          <View style={styles.noticeBody}>
+            <Text style={styles.noticeText}>{LOCAL_STORAGE_WARNING}</Text>
+            <TouchableOpacity onPress={() => router.push("/data-privacy")}>
+              <Text style={styles.noticeLink}>Learn more</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            testID="storage-notice-dismiss"
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss storage notice"
+            onPress={dismissStorageNotice}
+            style={styles.noticeDismiss}
+          >
+            <X color={palette.textFaint} size={16} />
+          </TouchableOpacity>
+        </Card>
+      ) : null}
 
       {lastAudit ? (
         <TouchableOpacity
@@ -174,6 +201,18 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   searchInput: { flex: 1, fontSize: font.size.md, fontFamily: font.family.body, color: palette.text },
+  noticeCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+  },
+  noticeIcon: { marginTop: 1 },
+  noticeBody: { flex: 1, gap: 4 },
+  noticeText: { fontSize: font.size.xs, color: palette.textMuted, lineHeight: 17 },
+  noticeLink: { fontSize: font.size.xs, fontFamily: font.family.bodyBold, color: palette.cobalt },
+  noticeDismiss: { padding: 2 },
   continueCard: {
     flexDirection: "row",
     alignItems: "center",

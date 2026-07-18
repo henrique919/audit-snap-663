@@ -238,6 +238,8 @@ export interface AppSettings {
   lastPriority: IssuePriority;
   uploadWifiOnly: boolean;
   keepAwakeWhileUploading: boolean;
+  /** ISO timestamp the first-run local-storage notice on Home was dismissed, or null if still showing. */
+  storageNoticeDismissedAt: string | null;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -253,4 +255,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lastPriority: "medium",
   uploadWifiOnly: true,
   keepAwakeWhileUploading: false,
+  storageNoticeDismissedAt: null,
 };

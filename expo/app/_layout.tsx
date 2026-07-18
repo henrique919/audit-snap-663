@@ -52,6 +52,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="project-new" options={{ title: "New Project", presentation: "modal" }} />
       <Stack.Screen name="audit-new" options={{ title: "Start Audit" }} />
+      <Stack.Screen name="data-privacy" options={{ title: "Data & privacy" }} />
       <Stack.Screen name="capture-session" options={{ headerShown: false }} />
       <Stack.Screen name="markup/[assetId]" options={{ headerShown: false }} />
     </Stack>

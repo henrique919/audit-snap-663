@@ -1,9 +1,11 @@
 /** Settings — inspector defaults, brand info, storage and data management. */
 
+import Constants from "expo-constants";
 import * as ImagePicker from "expo-image-picker";
-import { Database, ImagePlus, RefreshCcw, Trash2, X } from "lucide-react-native";
+import { useRouter } from "expo-router";
+import { Database, ImagePlus, Mail, RefreshCcw, Shield, Trash2, X } from "lucide-react-native";
 import React from "react";
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BrandMark, BrandWordmark } from "@/components/BrandMark";
@@ -12,11 +14,15 @@ import { BrandConfig, REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/c
 import { font, palette, radius, spacing } from "@/constants/theme";
 import { showAlert, showConfirm } from "@/lib/dialogs";
 import { persistBrandLogo } from "@/lib/files";
+import { BUILD_ID, buildSupportMailto, PUBLISHER_NAME } from "@/lib/legalCopy";
 import { estimateMediaStorage, formatBytes, runMediaGc } from "@/lib/mediaRegistry";
 import { summarizeWipe } from "@/lib/wipe";
 import { useAppStore } from "@/providers/AppStore";
 
+const APP_VERSION = Constants.expoConfig?.version ?? "1.0.0";
+
 export default function SettingsTab() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { settings, updateSettings, resetAllData, db } = useAppStore();
   const [mediaStats, setMediaStats] = React.useState<{ fileCount: number; totalBytes: number } | null>(null);
@@ -247,6 +253,39 @@ export default function SettingsTab() {
         <Database color={palette.textFaint} size={16} />
         <Text style={styles.aboutText}>Local-first: everything is stored on this device.</Text>
       </View>
+      <Text style={styles.aboutMeta}>
+        Version {APP_VERSION} · Build {BUILD_ID}
+      </Text>
+      <Text style={styles.aboutMeta}>{PUBLISHER_NAME}</Text>
+
+      <TouchableOpacity
+        testID="link-data-privacy"
+        style={styles.linkRow}
+        activeOpacity={0.8}
+        onPress={() => router.push("/data-privacy")}
+      >
+        <View style={styles.linkIcon}>
+          <Shield color={palette.carbon} size={20} />
+        </View>
+        <View style={styles.linkBody}>
+          <Text style={styles.linkTitle}>Data & privacy</Text>
+          <Text style={styles.linkSub}>How your projects, photos and reports are stored</Text>
+        </View>
+      </TouchableOpacity>
+      <TouchableOpacity
+        testID="link-contact-support"
+        style={styles.linkRow}
+        activeOpacity={0.8}
+        onPress={() => Linking.openURL(buildSupportMailto(APP_VERSION))}
+      >
+        <View style={styles.linkIcon}>
+          <Mail color={palette.carbon} size={20} />
+        </View>
+        <View style={styles.linkBody}>
+          <Text style={styles.linkTitle}>Contact support</Text>
+          <Text style={styles.linkSub}>Email us with a question or issue</Text>
+        </View>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -337,4 +376,5 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   aboutText: { flex: 1, fontSize: font.size.xs, color: palette.textMuted, lineHeight: 18 },
+  aboutMeta: { fontSize: font.size.xs, color: palette.textFaint, marginTop: spacing.sm, marginLeft: 2 },
 });
