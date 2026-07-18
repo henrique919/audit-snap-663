@@ -12,12 +12,12 @@ Statuses: `BACKLOG` · `READY` · `IN PROGRESS` · `BLOCKED` · `IN REVIEW` · `
 | ID | Description | Pri | Status | Owner | Branch/commit | Evidence | Next action |
 |---|---|---|---|---|---|---|---|
 | LP-01 | True Clear All Data (records + owned media) | P0 | **PASSED** | Cursor impl / Claude review | `b2f5055` | Claude independent verify 2026-07-18: typecheck clean; 157/157 tests (8 new in `wipe.test.ts`); lint 2 known warnings; diff review clean (dir-constant scoping, typed `ResetAllDataResult`, honest partial-failure path, web no-op, mock path matches `expo-file-system/legacy`). Live web preview: Clear all data → confirm → "All data cleared" alert, projects/issues/assets all 0 in storage; Reset demo data → confirm → "Demo data restored" alert, Harbourview + 8 issues back; zero console errors. Native FS delete = mocked unit tests (no device; accepted per plan). | — |
-| LP-02 | Remove dead Voice control + remove unfinished Sync Centre surface | P0 | **IN PROGRESS — assigned to Cursor** | Cursor | claude/punchthis-launch | — | Cursor executes LP-02 (CURSOR_LAUNCH_LOOP.md §Current assignment) |
-| LP-03 | Repair sample data (bundled matching photos, sample labels, device-locale dates) | P0 | READY | Cursor | — | — | Queue |
-| LP-04 | About/support/data-safety surfaces + provisional legal wording | P0 | READY | Cursor | — | — | Queue |
-| LP-05 | Export-all safety archive (archival, not restore) | P0 | READY (reuse LP-01 enumeration approach) | Cursor | — | — | Queue |
-| LP-06 | Accessibility: shared primitives, states, contrast tokens | P0 | READY | Cursor | — | — | Queue; native SR pass deferred to LP-09 |
-| LP-07 | GitHub Actions CI (typecheck/lint/test/web build) | P0 | READY | Cursor | — | — | Queue |
+| LP-02 | Remove dead Voice control + remove unfinished Sync Centre surface | P0 | **IN PROGRESS — batch 1/6** | Cursor | claude/punchthis-launch | — | Batch order: LP-02 → LP-07 → LP-03 → LP-04 → LP-05 → LP-06 (CURSOR_LAUNCH_LOOP.md §Batch assignment) |
+| LP-07 | GitHub Actions CI (typecheck/lint/test/web build) | P0 | **IN PROGRESS — batch 2/6** | Cursor | — | — | In batch |
+| LP-03 | Repair sample data (bundled matching photos, sample labels, device-locale dates) | P0 | **IN PROGRESS — batch 3/6** | Cursor | — | — | In batch |
+| LP-04 | About/support/data-safety surfaces + provisional legal wording | P0 | **IN PROGRESS — batch 4/6** | Cursor | — | — | In batch |
+| LP-05 | Export-all safety archive (archival, not restore) | P0 | **IN PROGRESS — batch 5/6** | Cursor | — | — | In batch |
+| LP-06 | Accessibility: shared primitives, states, contrast tokens | P0 | **IN PROGRESS — batch 6/6** | Cursor | — | — | In batch; native SR pass deferred to LP-09 |
 | LP-08 | Production app identity — preferred `com.punchthis.app` (no country code) | P0 | **BLOCKED** (LP-10 clearance search + domain check must pass; EXT-3 accounts for store verify) | Cursor when unblocked | — | — | Claude runs LP-10 first |
 | LP-09 | Native release-candidate device matrix | P0 | **BLOCKED** (EXT-3 accounts, EXT-5 devices; simulator/emulator subset allowed meanwhile) | Claude+operator | — | — | LP-13 prepares the script pack |
 
@@ -52,3 +52,4 @@ Local-first only; no team features; no cloud backup; archival export (no in-app 
 | 2026-07-18 | LP-01 impl | Added `expo/lib/wipe.ts` (`wipeOwnedMediaDirs` + `summarizeWipe`); wired into `resetAllData` after driver clear (reseed path included); Settings shows success only on full wipe success, honest partial-failure alert with safe retry. Status → IN REVIEW. |
 | 2026-07-18 | LP-01 review | Claude verified independently (tests/typecheck/lint + full diff review + live web walkthrough of both flows, zero console errors). **PASSED.** Stray 237-byte `NUL` redirect artifact from the impl run removed from repo root. |
 | 2026-07-18 | EXT decisions | Operator resolved EXT-1…6 (global-first identity, four public legal routes, accounts pending, provisional wording OK, emulator testing allowed, free pilot + A$129 Founding Inspector hypothesis). Recorded as decisions L10–L15; LP-10…LP-13 added. LP-02 assigned. |
+| 2026-07-18 | Batch assignment | Operator switched the loop to batch mode (decision L16). Single-task LP-02 assignment superseded by the full batch LP-02→LP-07→LP-03→LP-04→LP-05→LP-06 with per-task gates, one commit per task, resume-safe start. Full briefs in CURSOR_LAUNCH_LOOP.md. |
