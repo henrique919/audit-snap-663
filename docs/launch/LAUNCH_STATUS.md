@@ -5,7 +5,7 @@ Statuses: `BACKLOG` · `READY` · `IN PROGRESS` · `BLOCKED` · `IN REVIEW` · `
 
 **Active gate:** A (controlled web/PWA early access; pilot is free for 30–60 days per EXT-6 decision)
 **Branch:** `claude/punchthis-launch`
-**Last updated:** 2026-07-18 (LP-01 PASSED; EXT-1…6 operator decisions recorded; LP-02 assigned)
+**Last updated:** 2026-07-18 (batch: LP-02/07 IN REVIEW; LP-03 → IN REVIEW)
 
 ## Gate A tasks
 
@@ -14,7 +14,7 @@ Statuses: `BACKLOG` · `READY` · `IN PROGRESS` · `BLOCKED` · `IN REVIEW` · `
 | LP-01 | True Clear All Data (records + owned media) | P0 | **PASSED** | Cursor impl / Claude review | `b2f5055` | Claude independent verify 2026-07-18: typecheck clean; 157/157 tests (8 new in `wipe.test.ts`); lint 2 known warnings; diff review clean (dir-constant scoping, typed `ResetAllDataResult`, honest partial-failure path, web no-op, mock path matches `expo-file-system/legacy`). Live web preview: Clear all data → confirm → "All data cleared" alert, projects/issues/assets all 0 in storage; Reset demo data → confirm → "Demo data restored" alert, Harbourview + 8 issues back; zero console errors. Native FS delete = mocked unit tests (no device; accepted per plan). | — |
 | LP-02 | Remove dead Voice control + remove unfinished Sync Centre surface | P0 | **IN REVIEW** | Cursor | claude/punchthis-launch (see log) | Web 390×844: capture-session shows Gallery+shutter, no Voice; Settings has no Sync Centre / “future sync”; About = “Local-first: everything is stored on this device.” Grep `future update` in app/components empty. test 157 · typecheck · lint (2 known) · build:web OK. | Claude review |
 | LP-07 | GitHub Actions CI (typecheck/lint/test/web build) | P0 | **IN REVIEW** | Cursor | claude/punchthis-launch | Added `.github/workflows/ci.yml` (PR→main, push→main+launch; bun frozen-lockfile → typecheck → lint → test → build:web). Regenerated `expo/bun.lock` so `--frozen-lockfile` succeeds locally. Identical steps proven locally. **Green-on-GitHub unverifiable until branch is pushed** (batch forbids push). | Claude review |
-| LP-03 | Repair sample data (bundled matching photos, sample labels, device-locale dates) | P0 | **IN PROGRESS — batch 3/6** | Cursor | — | — | In batch |
+| LP-03 | Repair sample data (bundled matching photos, sample labels, device-locale dates) | P0 | **IN REVIEW** | Cursor | claude/punchthis-launch (see log) | Bundled SAMPLE PNGs in `assets/seed/` (8 issues + cover, ≤12KB each, no remote URLs). `buildDemoDb` async via real media pipeline; project “Sample — Harbourview…”; Site Walk theme; `formatShortDate` for audit-new title. Tests: seed.test + dates.test. Web 390×844 reseed shows Sample project on Home. test 165 · typecheck · lint (2 known) · build:web OK. | Claude review |
 | LP-04 | About/support/data-safety surfaces + provisional legal wording | P0 | **IN PROGRESS — batch 4/6** | Cursor | — | — | In batch |
 | LP-05 | Export-all safety archive (archival, not restore) | P0 | **IN PROGRESS — batch 5/6** | Cursor | — | — | In batch |
 | LP-06 | Accessibility: shared primitives, states, contrast tokens | P0 | **IN PROGRESS — batch 6/6** | Cursor | — | — | In batch; native SR pass deferred to LP-09 |
@@ -55,3 +55,4 @@ Local-first only; no team features; no cloud backup; archival export (no in-app 
 | 2026-07-18 | Batch assignment | Operator switched the loop to batch mode (decision L16). Single-task LP-02 assignment superseded by the full batch LP-02→LP-07→LP-03→LP-04→LP-05→LP-06 with per-task gates, one commit per task, resume-safe start. Full briefs in CURSOR_LAUNCH_LOOP.md. |
 | 2026-07-18 | LP-02 impl | Removed Voice control + Sync Centre route/row; About copy factual local-first only. Status → IN REVIEW. |
 | 2026-07-18 | LP-07 impl | Added GitHub Actions CI workflow + honest lockfile refresh for frozen installs. Status → IN REVIEW (GH run pending push). |
+| 2026-07-18 | LP-03 impl | Replaced remote stock photos with bundled SAMPLE seed images + media-pipeline materialisation; Sample labelling; device-locale dates; Site Walk theme coherence. Status → IN REVIEW. |

@@ -235,26 +235,28 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       markPersistFailure(warnings[0] ?? "Some local data could not be loaded.");
     }
 
-    if (!loadedSettings.demoSeeded && loadedDb.projects.length === 0) {
-      const demo = buildDemoDb();
-      const seededSettings: AppSettings = {
-        ...loadedSettings,
-        demoSeeded: true,
-        inspectorName: loadedSettings.inspectorName || "Alex Carter",
-        lastAuditId: demo.audits[0]?.id ?? null,
-      };
-      setDb(demo);
-      setSettings(seededSettings);
-      queuePersist(demo, TABLE_NAMES);
-      void saveSettings(seededSettings).then((result) => {
-        if (!result.ok) markPersistFailure(result.error);
-        else if (!pendingDbRef.current && !hadWarnings) markPersistSuccess();
-      });
-    } else {
-      setDb(loadedDb);
-      setSettings(loadedSettings);
-    }
-    setHydrated(true);
+    void (async () => {
+      if (!loadedSettings.demoSeeded && loadedDb.projects.length === 0) {
+        const demo = await buildDemoDb();
+        const seededSettings: AppSettings = {
+          ...loadedSettings,
+          demoSeeded: true,
+          inspectorName: loadedSettings.inspectorName || "Alex Carter",
+          lastAuditId: demo.audits[0]?.id ?? null,
+        };
+        setDb(demo);
+        setSettings(seededSettings);
+        queuePersist(demo, TABLE_NAMES);
+        void saveSettings(seededSettings).then((result) => {
+          if (!result.ok) markPersistFailure(result.error);
+          else if (!pendingDbRef.current && !hadWarnings) markPersistSuccess();
+        });
+      } else {
+        setDb(loadedDb);
+        setSettings(loadedSettings);
+      }
+      setHydrated(true);
+    })();
   }, [hydration.data, markPersistFailure, markPersistSuccess, queuePersist]);
 
   useEffect(() => {
@@ -639,7 +641,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
     // Partial file failures are reported honestly; retry is idempotent.
     const wipe = await wipeOwnedMediaDirs();
 
-    const freshDb = reseedDemo ? buildDemoDb() : EMPTY_DB;
+    const freshDb = reseedDemo ? await buildDemoDb() : EMPTY_DB;
     const freshSettings: AppSettings = { ...DEFAULT_SETTINGS, demoSeeded: true };
     setDb(freshDb);
     setSettings(freshSettings);
