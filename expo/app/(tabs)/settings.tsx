@@ -13,6 +13,13 @@ import { AppButton, Card, Field, SectionTitle } from "@/components/ui";
 import { BrandConfig, REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/constants/config";
 import { font, palette, radius, spacing } from "@/constants/theme";
 import { showAlert, showConfirm } from "@/lib/dialogs";
+import {
+  buildExportSuccessMessage,
+  EXPORT_ROW_SUBCOPY,
+  EXPORT_ROW_TITLE,
+  EXPORT_SUCCESS_TITLE,
+  exportAllData,
+} from "@/lib/exportArchive";
 import { persistBrandLogo } from "@/lib/files";
 import { BUILD_ID, buildSupportMailto, PUBLISHER_NAME } from "@/lib/legalCopy";
 import { estimateMediaStorage, formatBytes, runMediaGc } from "@/lib/mediaRegistry";
@@ -27,6 +34,8 @@ export default function SettingsTab() {
   const { settings, updateSettings, resetAllData, db } = useAppStore();
   const [mediaStats, setMediaStats] = React.useState<{ fileCount: number; totalBytes: number } | null>(null);
   const [cleaning, setCleaning] = React.useState(false);
+  const [exporting, setExporting] = React.useState(false);
+  const [exportPhase, setExportPhase] = React.useState<string | null>(null);
 
   const refreshMediaStats = React.useCallback(async () => {
     try {
@@ -59,6 +68,24 @@ export default function SettingsTab() {
   };
 
   const defaultThemeKey = resolveThemeKey(settings.defaultReportOptions.themeKey);
+
+  const handleExportAll = async () => {
+    if (exporting) return;
+    try {
+      setExporting(true);
+      setExportPhase(null);
+      const outcome = await exportAllData(db, settings, (phase) => setExportPhase(phase));
+      if (outcome.ok) {
+        showAlert(EXPORT_SUCCESS_TITLE, buildExportSuccessMessage(outcome));
+      }
+      // Failure dialogs are shown by exportAllData itself (see lib/exportArchive.ts).
+    } catch (e) {
+      console.log("[settings] export failed", e);
+    } finally {
+      setExporting(false);
+      setExportPhase(null);
+    }
+  };
 
   const confirmReset = async (reseed: boolean) => {
     const ok = await showConfirm(
@@ -228,6 +255,25 @@ export default function SettingsTab() {
         </Text>
       </Card>
 
+      <Card>
+        <Text style={styles.fieldLbl}>{EXPORT_ROW_TITLE}</Text>
+        <Text style={styles.note}>{EXPORT_ROW_SUBCOPY}</Text>
+        <AppButton
+          testID="export-all-data"
+          label="Export all data"
+          variant="secondary"
+          icon={<Database color={palette.carbon} size={17} />}
+          loading={exporting}
+          onPress={handleExportAll}
+          style={styles.cleanupBtn}
+        />
+        {exporting && exportPhase ? (
+          <Text style={styles.phaseText} testID="export-phase">
+            {exportPhase}
+          </Text>
+        ) : null}
+      </Card>
+
       <SectionTitle title="Data" />
       <TouchableOpacity style={styles.linkRow} activeOpacity={0.8} onPress={() => confirmReset(true)}>
         <View style={styles.linkIcon}>
@@ -367,6 +413,13 @@ const styles = StyleSheet.create({
   dangerText: { color: palette.red },
   linkSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 2 },
   cleanupBtn: { marginTop: spacing.sm, marginBottom: spacing.sm },
+  phaseText: {
+    fontSize: font.size.xs,
+    color: palette.textMuted,
+    fontFamily: font.family.bodySemibold,
+    textAlign: "center",
+    marginTop: -4,
+  },
   aboutCard: {
     flexDirection: "row",
     gap: spacing.sm,
