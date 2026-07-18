@@ -31,16 +31,23 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AppButton, Chip, Segmented, ToggleRow } from "@/components/ui";
+import { AppButton, Chip, Field, Segmented, ToggleRow } from "@/components/ui";
+import { REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/constants/config";
 import { font, palette, radius, shadow, spacing } from "@/constants/theme";
 import { showAlert, showConfirm } from "@/lib/dialogs";
 import { issueRef } from "@/lib/format";
 import { newId } from "@/lib/ids";
 import { ProcessedPhoto, deleteProcessedPhoto, processPickedPhoto } from "@/lib/files";
 import { processPhotosBounded } from "@/lib/processPhotos";
+import {
+  logTimeToFirstIssue,
+  measureTimeToFirstIssue,
+} from "@/lib/quickWalk";
 import { savedToastMessage } from "@/lib/saveState";
 import { useAppStore, useAudit, useIssuesForAudit, useProject } from "@/providers/AppStore";
 import type { IssuePriority, IssueStatus } from "@/types/models";
+
+type AfterSaveNext = "photo" | "review" | "markup";
 
 interface DraftIssue {
   photos: ProcessedPhoto[];
@@ -54,19 +61,40 @@ interface DraftIssue {
 }
 
 export default function CaptureSession() {
-  const { auditId } = useLocalSearchParams<{ auditId: string }>();
+  const { auditId, quickWalk, walkStartedAt } = useLocalSearchParams<{
+    auditId: string;
+    quickWalk?: string;
+    walkStartedAt?: string;
+  }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { db, settings, createIssue, findOrCreateLocation, findOrCreateAssignee, persistStatus } = useAppStore();
+  const {
+    db,
+    settings,
+    createIssue,
+    findOrCreateLocation,
+    findOrCreateAssignee,
+    persistStatus,
+    updateAudit,
+    updateProject,
+    updateSettings,
+  } = useAppStore();
   const audit = useAudit(auditId);
   const project = useProject(audit?.projectId);
   const issues = useIssuesForAudit(auditId);
+  const isQuickWalk = quickWalk === "1";
 
   const [processing, setProcessing] = useState<boolean>(false);
   const [galleryProgress, setGalleryProgress] = useState<{ done: number; total: number } | null>(null);
   const [draft, setDraft] = useState<DraftIssue | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
+  const [setupPrompt, setSetupPrompt] = useState(false);
+  const [pendingNext, setPendingNext] = useState<AfterSaveNext | null>(null);
+  const [pendingMarkupAssetId, setPendingMarkupAssetId] = useState<string | null>(null);
+  const [setupClient, setSetupClient] = useState("");
+  const [setupTheme, setSetupTheme] = useState<ReportThemeKey>("sitewalk");
+  const setupShownRef = useRef(false);
 
   /** Explicit local-save confirmation — the user should never wonder if it saved. */
   const showSavedToast = useCallback(
@@ -183,9 +211,57 @@ export default function CaptureSession() {
     }
   }, [openDraft]);
 
+  const continueAfterSave = useCallback(
+    (next: AfterSaveNext, markupAssetId: string | null) => {
+      if (!audit) return;
+      if (next === "photo") {
+        takePhoto();
+      } else if (next === "review") {
+        router.replace({ pathname: "/audit/[id]/hitlist", params: { id: audit.id } });
+      } else if (next === "markup") {
+        if (markupAssetId) {
+          router.push({ pathname: "/markup/[assetId]", params: { assetId: markupAssetId } });
+        } else {
+          router.push({ pathname: "/audit/[id]/hitlist", params: { id: audit.id } });
+        }
+      }
+    },
+    [audit, router, takePhoto],
+  );
+
+  const dismissSetupPrompt = useCallback(
+    (apply: boolean) => {
+      if (apply && audit && project) {
+        const client = setupClient.trim();
+        updateAudit(audit.id, { preparedFor: client, themeKey: setupTheme });
+        if (client && !project.clientName.trim()) {
+          updateProject(project.id, { clientName: client });
+        }
+      }
+      setSetupPrompt(false);
+      const next = pendingNext;
+      const assetId = pendingMarkupAssetId;
+      setPendingNext(null);
+      setPendingMarkupAssetId(null);
+      if (next) continueAfterSave(next, assetId);
+    },
+    [
+      audit,
+      project,
+      setupClient,
+      setupTheme,
+      updateAudit,
+      updateProject,
+      pendingNext,
+      pendingMarkupAssetId,
+      continueAfterSave,
+    ],
+  );
+
   const saveDraft = useCallback(
-    (next: "photo" | "review" | "markup") => {
+    (next: AfterSaveNext) => {
       if (!draft || !audit) return null;
+      const wasFirstIssue = issues.length === 0;
       const locationId = draft.location.trim()
         ? findOrCreateLocation(audit.projectId, draft.location).id
         : null;
@@ -206,14 +282,43 @@ export default function CaptureSession() {
       );
       setDraft(null);
       showSavedToast(savedToastMessage(issueRef(saved.issue.issueNumber), persistStatus));
-      if (next === "photo") {
-        takePhoto();
-      } else if (next === "review") {
-        router.replace({ pathname: "/audit/[id]/hitlist", params: { id: audit.id } });
+
+      const markupAssetId = next === "markup" ? (saved.assets[0]?.id ?? null) : null;
+
+      if (wasFirstIssue && isQuickWalk && !setupShownRef.current) {
+        setupShownRef.current = true;
+        const started = Number(walkStartedAt);
+        const metric = measureTimeToFirstIssue(started);
+        if (metric) {
+          logTimeToFirstIssue(metric);
+          updateSettings({ lastTimeToFirstIssueMs: metric.durationMs });
+        }
+        setSetupClient(audit.preparedFor || project?.clientName || "");
+        setSetupTheme(resolveThemeKey(audit.themeKey));
+        setPendingNext(next);
+        setPendingMarkupAssetId(markupAssetId);
+        setSetupPrompt(true);
+        return saved;
       }
+
+      continueAfterSave(next, markupAssetId);
       return saved;
     },
-    [draft, audit, createIssue, findOrCreateLocation, findOrCreateAssignee, router, takePhoto, showSavedToast, persistStatus],
+    [
+      draft,
+      audit,
+      project,
+      issues.length,
+      createIssue,
+      findOrCreateLocation,
+      findOrCreateAssignee,
+      showSavedToast,
+      persistStatus,
+      isQuickWalk,
+      walkStartedAt,
+      updateSettings,
+      continueAfterSave,
+    ],
   );
 
   if (!audit || !project) {
@@ -415,15 +520,7 @@ export default function CaptureSession() {
                   variant="secondary"
                   icon={<PenLine color={palette.carbon} size={18} />}
                   onPress={() => {
-                    const saved = saveDraft("markup");
-                    if (saved) {
-                      const asset = saved.assets[0];
-                      if (asset) {
-                        router.push({ pathname: "/markup/[assetId]", params: { assetId: asset.id } });
-                      } else {
-                        router.push({ pathname: "/issue/[id]", params: { id: saved.issue.id } });
-                      }
-                    }
+                    saveDraft("markup");
                   }}
                   style={styles.markupBtn}
                 />
@@ -519,6 +616,55 @@ export default function CaptureSession() {
         ) : (
           <View />
         )}
+      </Modal>
+
+      {/* Optional post-first-issue setup (Quick Walk) — never blocks further capture after dismiss. */}
+      <Modal
+        visible={setupPrompt}
+        animationType="fade"
+        transparent
+        onRequestClose={() => dismissSetupPrompt(false)}
+      >
+        <View style={styles.setupBackdrop}>
+          <View style={styles.setupCard} accessibilityLabel="Optional audit setup after first issue">
+            <Text style={styles.setupTitle}>Nice — first issue saved</Text>
+            <Text style={styles.setupBody}>
+              Optionally set the client and report preset now. You can keep capturing either way.
+            </Text>
+            <Field
+              label="Client / prepared for"
+              value={setupClient}
+              onChangeText={setSetupClient}
+              placeholder="e.g. Meridian Property Group"
+              optional
+              maxLength={80}
+              testID="quick-walk-setup-client"
+            />
+            <Text style={styles.fieldLbl}>Report preset</Text>
+            <View style={styles.setupThemes}>
+              {(Object.keys(REPORT_THEMES) as ReportThemeKey[]).map((key) => (
+                <Chip
+                  key={key}
+                  label={REPORT_THEMES[key].label}
+                  small
+                  active={setupTheme === key}
+                  onPress={() => setSetupTheme(key)}
+                />
+              ))}
+            </View>
+            <AppButton
+              testID="quick-walk-setup-save"
+              label="Save & continue"
+              onPress={() => dismissSetupPrompt(true)}
+            />
+            <AppButton
+              testID="quick-walk-setup-skip"
+              label="Not now"
+              variant="ghost"
+              onPress={() => dismissSetupPrompt(false)}
+            />
+          </View>
+        </View>
       </Modal>
     </>
   );
@@ -712,4 +858,24 @@ const styles = StyleSheet.create({
   },
   footerBtn: { flex: 1 },
   footerBtnWide: { flex: 1.4 },
+  setupBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    padding: spacing.lg,
+  },
+  setupCard: {
+    backgroundColor: palette.background,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  setupTitle: {
+    fontSize: font.size.xl,
+    fontFamily: font.family.headingHeavy,
+    color: palette.text,
+    letterSpacing: -0.4,
+  },
+  setupBody: { fontSize: font.size.sm, color: palette.textMuted, marginBottom: spacing.xs },
+  setupThemes: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: spacing.sm },
 });
