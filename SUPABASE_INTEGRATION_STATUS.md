@@ -63,7 +63,7 @@
 - [x] Advisors run; actionable FK index findings fixed; leaked-password = dashboard toggle
 - [x] Typecheck / tests / build:web pass (lint: 2 known markup warnings only)
 - [x] Documentation complete — `docs/SUPABASE.md`
-- [ ] Branch committed + pushed — **next**
+- [x] Branch committed + pushed — `c79c3a6`
 
 ## Migrations
 
@@ -107,11 +107,10 @@
 
 ## Exact next action
 
-1. Commit + push `feature/supabase-integration`.
-2. Operator: set Auth redirect URLs + enable leaked password protection.
+1. Operator: set Auth redirect URLs (see `docs/SUPABASE.md`) + enable leaked password protection in Auth settings.
 
 ## Final branch / commit / push
 
 - Branch: `feature/supabase-integration`
-- Commit: _(pending)_
-- Pushed: no
+- Commit: `c79c3a6`
+- Pushed: yes
