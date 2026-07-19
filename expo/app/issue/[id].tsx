@@ -6,6 +6,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Camera, Copy, PenLine, Trash2 } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
 import {
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,7 +17,7 @@ import {
 
 import { PriorityPill, StatusPill, SyncPill } from "@/components/pills";
 import { AppButton, Card, Segmented, SectionTitle, ToggleRow } from "@/components/ui";
-import { font, palette, radius, spacing } from "@/constants/theme";
+import { font, layout, palette, radius, spacing } from "@/constants/theme";
 import { showConfirm } from "@/lib/dialogs";
 import { formatDateTime, issueRef } from "@/lib/format";
 import { newId } from "@/lib/ids";
@@ -303,7 +304,11 @@ export default function IssueDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: palette.background },
-  content: { padding: spacing.lg, paddingBottom: 80 },
+  content: {
+    padding: spacing.lg,
+    paddingBottom: 80,
+    ...(Platform.OS === "web" ? { maxWidth: layout.webMaxWidth, width: "100%", alignSelf: "center" } : null),
+  },
   missing: { flex: 1, alignItems: "center", justifyContent: "center" },
   missingText: { color: palette.textMuted },
   pillRow: { flexDirection: "row", gap: 8, marginBottom: spacing.md },

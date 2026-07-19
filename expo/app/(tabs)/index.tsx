@@ -5,6 +5,7 @@ import { ChevronRight, FolderPlus, Info, Play, Search, X } from "lucide-react-na
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -17,7 +18,7 @@ import { BrandMark, BrandWordmark } from "@/components/BrandMark";
 import { ProjectCard } from "@/components/ProjectCard";
 import { AppButton, Card, EmptyState } from "@/components/ui";
 import { BrandConfig } from "@/constants/config";
-import { font, palette, radius, spacing } from "@/constants/theme";
+import { font, layout, palette, radius, spacing } from "@/constants/theme";
 import { LOCAL_STORAGE_WARNING } from "@/lib/legalCopy";
 import { useAppStore } from "@/providers/AppStore";
 import type { Project } from "@/types/models";
@@ -191,7 +192,12 @@ export default function ProjectsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: palette.background, paddingHorizontal: spacing.lg },
+  container: {
+    flex: 1,
+    backgroundColor: palette.background,
+    paddingHorizontal: spacing.lg,
+    ...(Platform.OS === "web" ? { maxWidth: layout.webMaxWidth, width: "100%", alignSelf: "center" } : null),
+  },
   header: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.lg },
   headerText: { flex: 1 },
   tagline: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 1 },
