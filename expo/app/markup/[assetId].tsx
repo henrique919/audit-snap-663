@@ -276,11 +276,6 @@ export default function MarkupStudio() {
     setDirty(true);
   }, [applyElements]);
 
-  const nextCalloutNumber = useMemo(() => {
-    const nums = elements.filter((e) => e.type === "callout").map((e) => (e.type === "callout" ? e.number : 0));
-    return nums.length === 0 ? 1 : Math.max(...nums) + 1;
-  }, [elements]);
-
   const norm = useCallback(
     (px: number, py: number): NormPoint => ({
       x: Math.min(1, Math.max(0, px / Math.max(1, canvas.width))),
@@ -544,7 +539,7 @@ export default function MarkupStudio() {
         // instead of silently dropping it.
         onPanResponderTerminate: () => endGesture(),
       }),
-    [tool, selectedId, color, stroke, blurIntensity, norm, aspect, handleAtPoint, openTextEditor, applyElements, setDraft, endGesture],
+    [tool, selectedId, color, stroke, blurIntensity, norm, aspect, handleAtPoint, applyElements, setDraft, endGesture],
   );
 
   if (!asset) {

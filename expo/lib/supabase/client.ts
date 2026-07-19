@@ -19,6 +19,7 @@ export function isSupabaseConfigured(): boolean {
 }
 
 let client: SupabaseClient<Database> | null = null;
+let passwordRecoveryPending = false;
 
 async function getAuthStorage() {
   if (Platform.OS === "web") {
@@ -47,7 +48,18 @@ export async function getSupabase(): Promise<SupabaseClient<Database>> {
       flowType: "pkce",
     },
   });
+  client.auth.onAuthStateChange((event) => {
+    if (event === "PASSWORD_RECOVERY") passwordRecoveryPending = true;
+    if (event === "SIGNED_OUT" || event === "USER_UPDATED") passwordRecoveryPending = false;
+  });
   return client;
+}
+
+/** One-shot signal recorded directly from Supabase's PASSWORD_RECOVERY event. */
+export function consumePasswordRecovery(): boolean {
+  const pending = passwordRecoveryPending;
+  passwordRecoveryPending = false;
+  return pending;
 }
 
 /** Sync accessor after first await getSupabase() — throws if not ready. */

@@ -4,14 +4,14 @@
  * Used by Clear all data / Reset demo data so file deletion matches the
  * promise made in Settings — not deferred to the 24h-gated GC.
  *
- * Scope is exactly PHOTO_DIR, REPORT_DIR, BRAND_DIR. Never touch anything else.
+ * Scope is exactly PHOTO_DIR, REPORT_DIR, BRAND_DIR, and CLOUD_CACHE_DIR.
  * Web: no-op (documents live in storage keys / blob URLs, not these dirs).
  */
 
 import * as FileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";
 
-import { BRAND_DIR, PHOTO_DIR, REPORT_DIR } from "@/lib/files";
+import { BRAND_DIR, CLOUD_CACHE_DIR, PHOTO_DIR, REPORT_DIR } from "@/lib/files";
 
 export interface WipeFailure {
   uri: string;
@@ -24,7 +24,7 @@ export interface WipeResult {
   failed: WipeFailure[];
 }
 
-const OWNED_DIRS = [PHOTO_DIR, REPORT_DIR, BRAND_DIR] as const;
+const OWNED_DIRS = [PHOTO_DIR, REPORT_DIR, BRAND_DIR, CLOUD_CACHE_DIR] as const;
 
 async function listDirContents(dir: string): Promise<string[]> {
   try {

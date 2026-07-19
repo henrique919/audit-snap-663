@@ -82,7 +82,7 @@ export function resolveConflict<T extends VersionedRecord>(input: ConflictCheckI
     return { outcome: "use-local", record: local };
   }
 
-  const winner = remote.updatedAt >= local.updatedAt ? remote : local;
+  const winner = remote.updatedAt >= local.updatedAt ? remote : { ...local, serverVersion: remote.serverVersion };
   return {
     outcome: "conflict",
     record: { ...winner, syncStatus: "conflict" as SyncStatus },

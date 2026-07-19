@@ -6,6 +6,8 @@
  * wording) without touching the real filesystem or a real zip codec.
  */
 
+/* eslint-disable import/first -- subject import intentionally follows Jest module mocks */
+
 import type { Db } from "@/lib/store";
 import { EMPTY_DB, TABLE_NAMES } from "@/lib/store";
 import type { AppSettings, PhotoAsset, Project, ReportExport } from "@/types/models";

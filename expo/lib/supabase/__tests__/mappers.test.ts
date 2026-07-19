@@ -302,7 +302,7 @@ describe("report export mapper", () => {
 });
 
 describe("app settings mapper", () => {
-  it("maps AppSettings <-> user_settings, including cloud import checkpoint fields", () => {
+  it("maps shared settings without leaking device-local cursors into the account row", () => {
     const settings = {
       ...DEFAULT_SETTINGS,
       inspectorName: "Alex",
@@ -314,8 +314,8 @@ describe("app settings mapper", () => {
     const row = appSettingsToRow(settings, OWNER);
     expect(row.owner_id).toBe(OWNER);
     expect(row.logo_bucket).toBe("project-media");
-    expect(row.local_import_completed_at).toBe("2026-01-01T00:00:00.000Z");
-    expect(row.local_import_checkpoint).toEqual({ projects: true, assets: false });
+    expect(row.local_import_completed_at).toBeUndefined();
+    expect(row.local_import_checkpoint).toBeUndefined();
 
     const fullRow = {
       owner_id: OWNER,
@@ -345,8 +345,9 @@ describe("app settings mapper", () => {
     const back = appSettingsFromRow(fullRow as never);
     expect(back.inspectorName).toBe("Alex");
     expect(back.logoUri).toBe("supabase://project-media/owner-uuid-1/account/logo.png");
-    expect(back.cloudImportCompletedAt).toBe("2026-01-01T00:00:00.000Z");
-    expect(back.cloudImportCheckpoint).toEqual({ projects: true, assets: false });
+    expect(back.cloudImportCompletedAt).toBeNull();
+    expect(back.cloudImportCheckpoint).toBeNull();
+    expect(back.cloudLastPulledAt).toBeNull();
   });
 
   it("falls back to the local logo URI when the row has none, and null checkpoint when absent", () => {

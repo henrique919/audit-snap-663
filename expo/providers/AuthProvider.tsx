@@ -18,12 +18,31 @@ import { getAuthRedirectUrl } from "@/lib/supabase/authRedirect";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { profileFromRow, profileUpdateToRow, type Profile, type ProfileUpdateInput } from "@/lib/supabase/mappers";
 import { runSyncCycle } from "@/lib/supabase/syncEngine";
-import { classifySyncError } from "@/lib/supabase/syncRetry";
+import { classifySyncError, nextBackoffMs } from "@/lib/supabase/syncRetry";
+import { loadSettings } from "@/lib/store";
 
 const NOT_CONFIGURED_MESSAGE = "Cloud accounts aren't set up for this build yet.";
 
 function friendlyError(e: unknown): Error {
   return new Error(classifySyncError(e).message);
+}
+
+async function assertAccountBinding(userId: string): Promise<void> {
+  const settings = await loadSettings();
+  if (settings.cloudAccountId && settings.cloudAccountId !== userId) {
+    throw new Error(
+      "This device's saved data belongs to another cloud account. Clear local data before signing in with a different account.",
+    );
+  }
+}
+
+async function assertCanCreateAccount(): Promise<void> {
+  const settings = await loadSettings();
+  if (settings.cloudAccountId) {
+    throw new Error(
+      "This device's saved data is already linked to a cloud account. Clear local data before creating a different account.",
+    );
+  }
 }
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
@@ -74,6 +93,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         const supabase = await getSupabase();
         const { data } = await supabase.auth.getSession();
         if (cancelled) return;
+        if (data.session) {
+          try {
+            await assertAccountBinding(data.session.user.id);
+          } catch (e) {
+            await supabase.auth.signOut({ scope: "local" });
+            console.log("[auth] blocked cross-account session:", e instanceof Error ? e.message : String(e));
+            setSession(null);
+            return;
+          }
+        }
         setSession(data.session);
         if (data.session) void loadProfile(data.session.user.id);
 
@@ -136,9 +165,52 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     };
   }, [configured]);
 
+  // Opportunistic cloud sync: sign-in, foreground, browser reconnect, and a
+  // bounded retry/heartbeat while the app remains active. runSyncCycle is
+  // single-flight, so these triggers cannot race each other or manual sync.
+  useEffect(() => {
+    if (!configured || !session?.user.id) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let failureAttempt = 0;
+
+    const schedule = (delayMs: number) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void syncNow(), delayMs);
+    };
+
+    const syncNow = async () => {
+      if (cancelled || AppState.currentState !== "active") return;
+      const result = await runSyncCycle();
+      if (cancelled) return;
+      if (result.ok) {
+        failureAttempt = 0;
+        schedule(60_000);
+      } else {
+        schedule(nextBackoffMs(failureAttempt++));
+      }
+    };
+
+    void syncNow();
+    const appStateSubscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void syncNow();
+      else if (timer) clearTimeout(timer);
+    });
+    const webOnline = () => void syncNow();
+    if (Platform.OS === "web" && typeof window !== "undefined") window.addEventListener("online", webOnline);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      appStateSubscription.remove();
+      if (Platform.OS === "web" && typeof window !== "undefined") window.removeEventListener("online", webOnline);
+    };
+  }, [configured, session?.user.id]);
+
   const signUp = useCallback(
     async (email: string, password: string, displayName?: string) => {
       if (!configured) throw new Error(NOT_CONFIGURED_MESSAGE);
+      await assertCanCreateAccount();
       const supabase = await getSupabase();
       const { error } = await supabase.auth.signUp({
         email,
@@ -157,8 +229,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     async (email: string, password: string) => {
       if (!configured) throw new Error(NOT_CONFIGURED_MESSAGE);
       const supabase = await getSupabase();
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw friendlyError(error);
+      if (data.user) {
+        try {
+          await assertAccountBinding(data.user.id);
+        } catch (e) {
+          await supabase.auth.signOut({ scope: "local" });
+          throw e;
+        }
+      }
     },
     [configured],
   );
@@ -166,7 +246,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const signOut = useCallback(async () => {
     if (!configured) return;
     const supabase = await getSupabase();
-    const { error } = await supabase.auth.signOut();
+    // Signing out this device must not revoke sessions on the user's other
+    // phones/tablets or interrupt uploads already running there.
+    const { error } = await supabase.auth.signOut({ scope: "local" });
     if (error) throw friendlyError(error);
   }, [configured]);
 

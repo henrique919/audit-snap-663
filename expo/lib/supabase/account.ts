@@ -4,9 +4,8 @@
  * Deleting a cloud account (auth user + every owned row/object) has to run
  * server-side with elevated privileges, so this calls a `delete-account`
  * Edge Function with the caller's own JWT rather than deleting anything
- * directly from the client. That function doesn't exist yet in this repo
- * (see `supabase/functions`) — until it's deployed this honestly reports
- * "not available yet" instead of pretending the account was removed.
+ * directly from the client. The function is deployed from
+ * `supabase/functions/delete-account` and failures are reported honestly.
  */
 
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
@@ -41,6 +40,10 @@ export async function deleteAccount(): Promise<DeleteAccountResult> {
       }
       return { ok: false, error: classifySyncError(error).message };
     }
+    // The server has removed the Auth user, so only clear the persisted local
+    // session. A network/global sign-out can fail after the user no longer
+    // exists and must not turn a successful deletion into a false error.
+    await supabase.auth.signOut({ scope: "local" });
     return { ok: true };
   } catch (e) {
     return { ok: false, error: classifySyncError(e).message || NOT_AVAILABLE_MESSAGE };

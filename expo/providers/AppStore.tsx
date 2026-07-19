@@ -289,7 +289,11 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
   const updateSettings = useCallback(
     (patch: Partial<AppSettings>) => {
       setSettings((prev) => {
-        const next = { ...prev, ...patch };
+        const next = {
+          ...prev,
+          ...patch,
+          ...(Object.prototype.hasOwnProperty.call(patch, "logoUri") ? { logoCloudRef: null } : {}),
+        };
         setPersistStatus("saving");
         void saveSettings(next).then((result) => {
           if (!result.ok) markPersistFailure(result.error);
@@ -305,7 +309,13 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
 
   const createProject = useCallback(
     (input: CreateProjectInput): Project => {
-      const project: Project = { ...newBase(), ...input, status: "active" };
+      const project: Project = {
+        ...newBase(),
+        ...input,
+        coverPhotoCloudRef: null,
+        logoCloudRef: null,
+        status: "active",
+      };
       mutateDb((prev) => ({
         ...prev,
         projects: [project, ...prev.projects],
@@ -320,7 +330,17 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
     (id: string, patch: Partial<Project>) => {
       mutateDb((prev) => ({
         ...prev,
-        projects: prev.projects.map((p) => (p.id === id ? touched({ ...p, ...patch, id }) : p)),
+        projects: prev.projects.map((p) =>
+          p.id === id
+            ? touched({
+                ...p,
+                ...patch,
+                ...(Object.prototype.hasOwnProperty.call(patch, "coverPhotoUri") ? { coverPhotoCloudRef: null } : {}),
+                ...(Object.prototype.hasOwnProperty.call(patch, "logoUri") ? { logoCloudRef: null } : {}),
+                id,
+              })
+            : p,
+        ),
         outbox: appendOutbox(prev.outbox, outboxEntry("projects", id, "update")),
       }));
     },
@@ -430,9 +450,13 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
         auditId: input.auditId,
         projectId: input.projectId,
         originalUri: p.originalUri,
+        originalCloudRef: null,
         reportUri: p.reportUri,
+        reportCloudRef: null,
         thumbUri: p.thumbUri,
+        thumbCloudRef: null,
         annotatedUri: null,
+        annotatedCloudRef: null,
         width: p.width,
         height: p.height,
         capturedAt: nowIso(),
@@ -471,12 +495,27 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
   const deleteIssue = useCallback(
     (id: string) => {
       const now = nowIso();
-      mutateDb((prev) => ({
-        ...prev,
-        issues: prev.issues.map((i) => (i.id === id ? touched({ ...i, deletedAt: now }) : i)),
-        assets: prev.assets.map((a) => (a.issueId === id ? touched({ ...a, deletedAt: now }) : a)),
-        outbox: appendOutbox(prev.outbox, outboxEntry("issues", id, "delete")),
-      }));
+      mutateDb((prev) => {
+        const assetIds = new Set(prev.assets.filter((asset) => asset.issueId === id).map((asset) => asset.id));
+        const annotationIds = prev.annotations
+          .filter((annotation) => annotation.issueId === id || assetIds.has(annotation.assetId))
+          .map((annotation) => annotation.id);
+        return {
+          ...prev,
+          issues: prev.issues.map((issue) => (issue.id === id ? touched({ ...issue, deletedAt: now }) : issue)),
+          assets: prev.assets.map((asset) =>
+            asset.issueId === id ? touched({ ...asset, deletedAt: now }) : asset,
+          ),
+          annotations: prev.annotations.map((annotation) =>
+            annotationIds.includes(annotation.id) ? touched({ ...annotation, deletedAt: now }) : annotation,
+          ),
+          outbox: appendOutbox(prev.outbox, [
+            outboxEntry("issues", id, "delete"),
+            ...Array.from(assetIds, (assetId) => outboxEntry("assets", assetId, "delete")),
+            ...annotationIds.map((annotationId) => outboxEntry("annotations", annotationId, "delete")),
+          ]),
+        };
+      });
     },
     [mutateDb],
   );
@@ -497,6 +536,10 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
         ...a,
         ...newBase(),
         issueId: copy.id,
+        originalCloudRef: null,
+        reportCloudRef: null,
+        thumbCloudRef: null,
+        annotatedCloudRef: null,
       }));
       const assetIdMap = new Map<string, string>();
       sourceAssets.forEach((a, i) => {
@@ -516,7 +559,11 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
         issues: [...prev.issues, copy],
         assets: [...prev.assets, ...copiedAssets],
         annotations: [...prev.annotations, ...copiedAnnotations],
-        outbox: appendOutbox(prev.outbox, outboxEntry("issues", copy.id, "create")),
+        outbox: appendOutbox(prev.outbox, [
+          outboxEntry("issues", copy.id, "create"),
+          ...copiedAssets.map((asset) => outboxEntry("assets", asset.id, "create")),
+          ...copiedAnnotations.map((annotation) => outboxEntry("annotations", annotation.id, "create")),
+        ]),
       }));
       return copy;
     },
@@ -535,9 +582,13 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
         auditId: issue.auditId,
         projectId: issue.projectId,
         originalUri: p.originalUri,
+        originalCloudRef: null,
         reportUri: p.reportUri,
+        reportCloudRef: null,
         thumbUri: p.thumbUri,
+        thumbCloudRef: null,
         annotatedUri: null,
+        annotatedCloudRef: null,
         width: p.width,
         height: p.height,
         capturedAt: nowIso(),
@@ -555,7 +606,19 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
     (id: string, patch: Partial<PhotoAsset>) => {
       mutateDb((prev) => ({
         ...prev,
-        assets: prev.assets.map((a) => (a.id === id ? touched({ ...a, ...patch, id }) : a)),
+        assets: prev.assets.map((a) =>
+          a.id === id
+            ? touched({
+                ...a,
+                ...patch,
+                ...(Object.prototype.hasOwnProperty.call(patch, "originalUri") ? { originalCloudRef: null } : {}),
+                ...(Object.prototype.hasOwnProperty.call(patch, "reportUri") ? { reportCloudRef: null } : {}),
+                ...(Object.prototype.hasOwnProperty.call(patch, "thumbUri") ? { thumbCloudRef: null } : {}),
+                ...(Object.prototype.hasOwnProperty.call(patch, "annotatedUri") ? { annotatedCloudRef: null } : {}),
+                id,
+              })
+            : a,
+        ),
         outbox: appendOutbox(prev.outbox, outboxEntry("assets", id, "update")),
       }));
     },
@@ -568,13 +631,16 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
     (assetId: string, issueId: string, elements: AnnotationElement[], annotatedUri: string | null) => {
       mutateDb((prev) => {
         const existing = prev.annotations.find((an) => an.assetId === assetId);
+        const nextAnnotation = existing
+          ? touched({ ...existing, elements })
+          : { ...newBase(), assetId, issueId, elements, toolsetVersion: 1 };
         const annotations = existing
           ? prev.annotations.map((an) =>
-              an.assetId === assetId ? touched({ ...an, elements }) : an,
+              an.assetId === assetId ? nextAnnotation : an,
             )
           : [
               ...prev.annotations,
-              { ...newBase(), assetId, issueId, elements, toolsetVersion: 1 },
+              nextAnnotation,
             ];
         // Clearing all markup also clears the stale flattened copy so the
         // hit list and report fall back to the preserved original photo.
@@ -583,6 +649,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
             ? touched({
                 ...a,
                 annotatedUri: elements.length === 0 ? null : (annotatedUri ?? a.annotatedUri),
+                annotatedCloudRef: null,
               })
             : a,
         );
@@ -592,7 +659,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
           assets,
           outbox: appendOutbox(
             prev.outbox,
-            outboxEntry("annotations", assetId, existing ? "update" : "create"),
+            outboxEntry("annotations", nextAnnotation.id, existing ? "update" : "create"),
           ),
         };
       });
@@ -604,7 +671,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
 
   const addReportExport = useCallback(
     (input: { auditId: string; projectId: string; pdfUri: string; issueCount: number; photoCount: number; options: ReportOptions }): ReportExport => {
-      const record: ReportExport = { ...newBase(), ...input };
+      const record: ReportExport = { ...newBase(), ...input, pdfCloudRef: null };
       mutateDb((prev) => ({
         ...prev,
         reports: [record, ...prev.reports],

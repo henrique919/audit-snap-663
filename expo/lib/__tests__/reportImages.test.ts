@@ -31,7 +31,7 @@ describe("resolveReportImages", () => {
 
   it("fires progress callback once per URI (total times)", async () => {
     mockFileToDataUri.mockImplementation(async (uri: string) => `data:${uri}`);
-    const progress: Array<[number, number]> = [];
+    const progress: [number, number][] = [];
     const uris = ["a", "b", "c", "d", "e"];
 
     await resolveReportImages(uris, {
@@ -63,7 +63,7 @@ describe("resolveReportImages", () => {
     expect(mockFileToDataUri).toHaveBeenCalledTimes(2);
     expect(map.size).toBe(2);
 
-    const emptyProgress: Array<[number, number]> = [];
+    const emptyProgress: [number, number][] = [];
     const empty = await resolveReportImages([], {
       onProgress: (d, t) => emptyProgress.push([d, t]),
     });

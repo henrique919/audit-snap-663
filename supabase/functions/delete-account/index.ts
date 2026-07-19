@@ -3,7 +3,7 @@
 // Service-role key stays in Supabase function secrets only.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient } from "jsr:@supabase/supabase-js@2.52.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -58,60 +58,32 @@ Deno.serve(async (req) => {
     const buckets = ["project-media", "report-files"] as const;
 
     for (const bucket of buckets) {
-      const { data: listed, error: listError } = await admin.storage.from(bucket).list(userId, {
-        limit: 1000,
-      });
-      if (listError) {
-        console.error(`[delete-account] list ${bucket}`, listError.message);
-      } else if (listed && listed.length > 0) {
-        const paths: string[] = [];
-        const walk = async (prefix: string) => {
-          const { data: entries } = await admin.storage.from(bucket).list(prefix, { limit: 1000 });
-          if (!entries) return;
-          for (const entry of entries) {
-            const child = prefix ? `${prefix}/${entry.name}` : entry.name;
-            if (entry.id === null) {
-              await walk(child);
-            } else {
-              paths.push(child);
-            }
+      const paths: string[] = [];
+      const walk = async (prefix: string): Promise<void> => {
+        const pageSize = 1000;
+        for (let offset = 0; ; offset += pageSize) {
+          const { data: entries, error } = await admin.storage.from(bucket).list(prefix, {
+            limit: pageSize,
+            offset,
+          });
+          if (error) throw new Error(`Could not list ${bucket}: ${error.message}`);
+          for (const entry of entries ?? []) {
+            const child = `${prefix}/${entry.name}`;
+            if (entry.id === null) await walk(child);
+            else paths.push(child);
           }
-        };
-        await walk(userId);
-        for (let i = 0; i < paths.length; i += 100) {
-          const chunk = paths.slice(i, i + 100);
-          const { error: removeError } = await admin.storage.from(bucket).remove(chunk);
-          if (removeError) {
-            console.error(`[delete-account] remove ${bucket}`, removeError.message);
-          }
+          if ((entries?.length ?? 0) < pageSize) break;
         }
+      };
+      await walk(userId);
+      for (let i = 0; i < paths.length; i += 100) {
+        const { error } = await admin.storage.from(bucket).remove(paths.slice(i, i + 100));
+        if (error) throw new Error(`Could not remove ${bucket} objects: ${error.message}`);
       }
     }
 
-    const tables = [
-      "report_exports",
-      "annotation_records",
-      "photo_assets",
-      "issues",
-      "audits",
-      "assignees",
-      "project_locations",
-      "projects",
-      "user_settings",
-      "sync_checkpoints",
-      "profiles",
-    ] as const;
-
-    for (const table of tables) {
-      const { error } = await admin.from(table).delete().eq(
-        table === "profiles" ? "id" : "owner_id",
-        userId,
-      );
-      if (error) {
-        console.error(`[delete-account] delete ${table}`, error.message);
-      }
-    }
-
+    // Every PunchThis customer row references auth.users with ON DELETE
+    // CASCADE. Delete Auth only after Storage cleanup has fully succeeded.
     const { error: deleteUserError } = await admin.auth.admin.deleteUser(userId);
     if (deleteUserError) {
       return new Response(

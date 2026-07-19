@@ -17,7 +17,7 @@ import { font, palette, spacing } from "@/constants/theme";
 import { showAlert } from "@/lib/dialogs";
 import { useAuth } from "@/providers/AuthProvider";
 
-const MIN_PASSWORD_LENGTH = 6;
+const MIN_PASSWORD_LENGTH = 8;
 
 export default function ResetPasswordScreen() {
   const router = useRouter();

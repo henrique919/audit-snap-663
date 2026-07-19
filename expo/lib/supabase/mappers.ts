@@ -117,25 +117,11 @@ function normalizeReportOptions(value: Json | null | undefined): ReportOptions {
   };
 }
 
-function normalizeCheckpoint(value: Json | null | undefined): Record<string, boolean> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const raw = value as Record<string, unknown>;
-  const out: Record<string, boolean> = {};
-  let any = false;
-  for (const [key, v] of Object.entries(raw)) {
-    if (typeof v === "boolean") {
-      out[key] = v;
-      any = true;
-    }
-  }
-  return any ? out : null;
-}
-
 /* ----------------------------------- Projects ----------------------------------- */
 
 export function projectToRow(local: Project, ownerId: string): Tables["projects"]["Insert"] {
-  const cover = parseSupabaseRef(local.coverPhotoUri);
-  const logo = parseSupabaseRef(local.logoUri);
+  const cover = parseSupabaseRef(local.coverPhotoCloudRef ?? local.coverPhotoUri);
+  const logo = parseSupabaseRef(local.logoCloudRef ?? local.logoUri);
   return {
     ...baseToRow(local),
     owner_id: ownerId,
@@ -154,7 +140,12 @@ export function projectToRow(local: Project, ownerId: string): Tables["projects"
   };
 }
 
-export function projectFromRow(row: Tables["projects"]["Row"]): Project {
+export function projectFromRow(
+  row: Tables["projects"]["Row"],
+  fallback: Pick<Project, "coverPhotoUri" | "logoUri"> = { coverPhotoUri: null, logoUri: null },
+): Project {
+  const coverCloudRef = row.cover_bucket && row.cover_path ? toSupabaseRef(row.cover_bucket, row.cover_path) : null;
+  const logoCloudRef = row.logo_bucket && row.logo_path ? toSupabaseRef(row.logo_bucket, row.logo_path) : null;
   return {
     ...baseFromRow(row),
     name: row.name,
@@ -163,8 +154,10 @@ export function projectFromRow(row: Tables["projects"]["Row"]): Project {
     siteAddress: row.site_address,
     companyName: row.company_name,
     inspectorName: row.inspector_name,
-    coverPhotoUri: row.cover_bucket && row.cover_path ? toSupabaseRef(row.cover_bucket, row.cover_path) : null,
-    logoUri: row.logo_bucket && row.logo_path ? toSupabaseRef(row.logo_bucket, row.logo_path) : null,
+    coverPhotoUri: fallback.coverPhotoUri ?? coverCloudRef,
+    coverPhotoCloudRef: coverCloudRef,
+    logoUri: fallback.logoUri ?? logoCloudRef,
+    logoCloudRef,
     status: normalizeProjectStatus(row.status),
     lastReportThemeKey: themeKeyFromRow(row.last_report_theme_key),
   };
@@ -306,10 +299,10 @@ export function photoAssetToRow(
   ownerId: string,
   overrides: PhotoAssetMediaOverrides = {},
 ): Tables["photo_assets"]["Insert"] {
-  const original = overrides.original !== undefined ? overrides.original : parseSupabaseRef(local.originalUri);
-  const report = overrides.report !== undefined ? overrides.report : parseSupabaseRef(local.reportUri);
-  const thumb = overrides.thumb !== undefined ? overrides.thumb : parseSupabaseRef(local.thumbUri);
-  const annotated = overrides.annotated !== undefined ? overrides.annotated : parseSupabaseRef(local.annotatedUri);
+  const original = overrides.original !== undefined ? overrides.original : parseSupabaseRef(local.originalCloudRef ?? local.originalUri);
+  const report = overrides.report !== undefined ? overrides.report : parseSupabaseRef(local.reportCloudRef ?? local.reportUri);
+  const thumb = overrides.thumb !== undefined ? overrides.thumb : parseSupabaseRef(local.thumbCloudRef ?? local.thumbUri);
+  const annotated = overrides.annotated !== undefined ? overrides.annotated : parseSupabaseRef(local.annotatedCloudRef ?? local.annotatedUri);
   return {
     ...baseToRow(local),
     owner_id: ownerId,
@@ -346,24 +339,27 @@ export interface PhotoAssetFallbackUris {
  * only when there truly is no local copy either.
  */
 export function photoAssetFromRow(row: Tables["photo_assets"]["Row"], fallback: PhotoAssetFallbackUris = {}): PhotoAsset {
-  const original =
-    row.original_bucket && row.original_path ? toSupabaseRef(row.original_bucket, row.original_path) : fallback.originalUri ?? "";
-  const report =
-    row.report_bucket && row.report_path ? toSupabaseRef(row.report_bucket, row.report_path) : fallback.reportUri ?? "";
-  const thumb = row.thumb_bucket && row.thumb_path ? toSupabaseRef(row.thumb_bucket, row.thumb_path) : fallback.thumbUri ?? "";
-  const annotated =
-    row.annotated_bucket && row.annotated_path
-      ? toSupabaseRef(row.annotated_bucket, row.annotated_path)
-      : fallback.annotatedUri ?? null;
+  const originalCloudRef = row.original_bucket && row.original_path ? toSupabaseRef(row.original_bucket, row.original_path) : null;
+  const reportCloudRef = row.report_bucket && row.report_path ? toSupabaseRef(row.report_bucket, row.report_path) : null;
+  const thumbCloudRef = row.thumb_bucket && row.thumb_path ? toSupabaseRef(row.thumb_bucket, row.thumb_path) : null;
+  const annotatedCloudRef = row.annotated_bucket && row.annotated_path ? toSupabaseRef(row.annotated_bucket, row.annotated_path) : null;
+  const original = fallback.originalUri ?? originalCloudRef ?? "";
+  const report = fallback.reportUri ?? reportCloudRef ?? "";
+  const thumb = fallback.thumbUri ?? thumbCloudRef ?? "";
+  const annotated = fallback.annotatedUri ?? annotatedCloudRef ?? null;
   return {
     ...baseFromRow(row),
     issueId: row.issue_id,
     auditId: row.audit_id,
     projectId: row.project_id,
     originalUri: original,
+    originalCloudRef,
     reportUri: report,
+    reportCloudRef,
     thumbUri: thumb,
+    thumbCloudRef,
     annotatedUri: annotated,
+    annotatedCloudRef,
     width: row.width,
     height: row.height,
     capturedAt: row.captured_at,
@@ -400,7 +396,7 @@ export function reportExportToRow(
   ownerId: string,
   pdfOverride?: StoragePathParts | null,
 ): Tables["report_exports"]["Insert"] {
-  const pdf = pdfOverride !== undefined ? pdfOverride : parseSupabaseRef(local.pdfUri);
+  const pdf = pdfOverride !== undefined ? pdfOverride : parseSupabaseRef(local.pdfCloudRef ?? local.pdfUri);
   return {
     ...baseToRow(local),
     owner_id: ownerId,
@@ -415,12 +411,14 @@ export function reportExportToRow(
 }
 
 export function reportExportFromRow(row: Tables["report_exports"]["Row"], fallbackPdfUri?: string): ReportExport {
-  const pdf = row.pdf_bucket && row.pdf_path ? toSupabaseRef(row.pdf_bucket, row.pdf_path) : fallbackPdfUri ?? "";
+  const pdfCloudRef = row.pdf_bucket && row.pdf_path ? toSupabaseRef(row.pdf_bucket, row.pdf_path) : null;
+  const pdf = fallbackPdfUri ?? pdfCloudRef ?? "";
   return {
     ...baseFromRow(row),
     auditId: row.audit_id,
     projectId: row.project_id,
     pdfUri: pdf,
+    pdfCloudRef,
     issueCount: row.issue_count,
     photoCount: row.photo_count,
     options: normalizeReportOptions(row.options),
@@ -434,7 +432,7 @@ export function appSettingsToRow(
   ownerId: string,
   logoOverride?: StoragePathParts | null,
 ): Tables["user_settings"]["Insert"] {
-  const logo = logoOverride !== undefined ? logoOverride : parseSupabaseRef(settings.logoUri);
+  const logo = logoOverride !== undefined ? logoOverride : parseSupabaseRef(settings.logoCloudRef ?? settings.logoUri);
   return {
     owner_id: ownerId,
     inspector_name: settings.inspectorName,
@@ -452,8 +450,8 @@ export function appSettingsToRow(
     last_assignee_id: settings.lastAssigneeId,
     last_priority: settings.lastPriority,
     demo_seeded: settings.demoSeeded,
-    local_import_completed_at: settings.cloudImportCompletedAt,
-    local_import_checkpoint: (settings.cloudImportCheckpoint ?? {}) as unknown as Json,
+    // Device-local import progress intentionally is not written here. A
+    // shared account row cannot safely act as every device's cursor.
   };
 }
 
@@ -461,11 +459,15 @@ export function appSettingsFromRow(
   row: Tables["user_settings"]["Row"],
   fallbackLogoUri: string | null = null,
 ): AppSettings {
-  const logo = row.logo_bucket && row.logo_path ? toSupabaseRef(row.logo_bucket, row.logo_path) : fallbackLogoUri;
+  const logoCloudRef = row.logo_bucket && row.logo_path ? toSupabaseRef(row.logo_bucket, row.logo_path) : null;
+  const logo = fallbackLogoUri ?? logoCloudRef;
   return {
     inspectorName: row.inspector_name,
     companyName: row.company_name,
     logoUri: logo,
+    logoCloudRef,
+    cloudAccountId: null,
+    cloudLastPulledAt: null,
     reportFooterText: row.report_footer_text,
     defaultReportOptions: normalizeReportOptions(row.default_report_options),
     demoSeeded: row.demo_seeded,
@@ -477,8 +479,11 @@ export function appSettingsFromRow(
     keepAwakeWhileUploading: row.keep_awake_while_uploading,
     storageNoticeDismissedAt: row.storage_notice_dismissed_at,
     lastTimeToFirstIssueMs: row.last_time_to_first_issue_ms,
-    cloudImportCompletedAt: row.local_import_completed_at,
-    cloudImportCheckpoint: normalizeCheckpoint(row.local_import_checkpoint),
+    // Import progress and pull cursors are per-device state. Copying either
+    // from the account row can make a new device skip its own local import
+    // or skip historical rows pulled by another device.
+    cloudImportCompletedAt: null,
+    cloudImportCheckpoint: null,
   };
 }
 

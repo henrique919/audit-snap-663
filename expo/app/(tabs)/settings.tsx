@@ -44,7 +44,7 @@ function summarizeSyncResult(result: Awaited<ReturnType<typeof runSyncCycle>>): 
   return result.errors[0] ?? "Sync couldn't finish. Please try again.";
 }
 
-function CloudAccountSection() {
+function CloudAccountSection({ resetLocalData }: { resetLocalData: (reseedDemo: boolean) => Promise<import("@/providers/AppStore").ResetAllDataResult> }) {
   const router = useRouter();
   const { configured, session, user, profile, signOut, updateProfile, refreshProfile } = useAuth();
   const [displayName, setDisplayName] = React.useState<string>(profile?.displayName ?? "");
@@ -150,7 +150,7 @@ function CloudAccountSection() {
   const handleDeleteAccount = async () => {
     const ok = await showConfirm(
       "Delete account",
-      "This permanently deletes your cloud account and every project, audit and photo synced to it. This can't be undone. Data on this device is not affected.",
+      "This permanently deletes your cloud account, synced projects and photos, and PunchThis data stored on this device. This can't be undone.",
       "Delete account",
       true,
     );
@@ -162,8 +162,19 @@ function CloudAccountSection() {
         showAlert("Couldn't delete account", result.error ?? "Please try again.");
         return;
       }
-      await signOut();
-      showAlert("Account deleted", "Your cloud account has been removed.");
+      const localResult = await resetLocalData(false);
+      if (localResult.status === "persist_failed") {
+        showAlert(
+          "Cloud account deleted",
+          `Your cloud account was removed, but local data could not be cleared: ${localResult.error}`,
+        );
+        return;
+      }
+      if (localResult.status === "wipe_partial") {
+        showAlert("Cloud account deleted", `Your account was removed. ${summarizeWipe(localResult.wipe).message}`);
+        return;
+      }
+      showAlert("Account deleted", "Your cloud account and data on this device have been removed.");
     } catch (e) {
       showAlert("Couldn't delete account", e instanceof Error ? e.message : "Please try again.");
     } finally {
@@ -340,7 +351,7 @@ export default function SettingsTab() {
         </View>
       </View>
 
-      <CloudAccountSection />
+      <CloudAccountSection resetLocalData={resetAllData} />
 
       <SectionTitle title="Inspector defaults" />
       <Card>

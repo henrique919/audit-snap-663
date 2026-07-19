@@ -10,7 +10,7 @@ import { font, palette, spacing } from "@/constants/theme";
 import { showAlert } from "@/lib/dialogs";
 import { useAuth } from "@/providers/AuthProvider";
 
-const MIN_PASSWORD_LENGTH = 6;
+const MIN_PASSWORD_LENGTH = 8;
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());

@@ -16,6 +16,7 @@ import { processPickedPhotoWeb } from "@/lib/filesWeb";
 export const PHOTO_DIR = `${FileSystem.documentDirectory ?? ""}photos/`;
 export const REPORT_DIR = `${FileSystem.documentDirectory ?? ""}reports/`;
 export const BRAND_DIR = `${FileSystem.documentDirectory ?? ""}brand/`;
+export const CLOUD_CACHE_DIR = `${FileSystem.documentDirectory ?? ""}cloud-cache/`;
 
 export interface ProcessedPhoto {
   originalUri: string;
@@ -54,12 +55,12 @@ export async function deleteProcessedPhoto(p: ProcessedPhoto): Promise<void> {
  * Used before superseding files so duplicated issues that share the same paths are safe.
  */
 export function isUriReferencedByAssets(
-  assets: ReadonlyArray<{
+  assets: readonly {
     originalUri: string;
     reportUri: string;
     thumbUri: string;
     annotatedUri: string | null;
-  }>,
+  }[],
   uri: string,
 ): boolean {
   return assets.some(
@@ -77,12 +78,12 @@ export function isUriReferencedByAssets(
  */
 export async function deleteUriIfUnreferenced(
   uri: string | null | undefined,
-  assets: ReadonlyArray<{
+  assets: readonly {
     originalUri: string;
     reportUri: string;
     thumbUri: string;
     annotatedUri: string | null;
-  }>,
+  }[],
   protectOriginalUri?: string | null,
 ): Promise<boolean> {
   if (!uri || Platform.OS === "web") return false;

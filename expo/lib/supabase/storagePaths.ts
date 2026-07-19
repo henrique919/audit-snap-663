@@ -64,25 +64,39 @@ export function buildPhotoAssetPath(
   assetId: string,
   variant: PhotoAssetVariant,
   sourceUriOrExt?: string | null,
+  revision?: number,
 ): StoragePathParts {
   const ext = extOf(sourceUriOrExt, "jpg");
+  const revisionPath = revision == null ? "" : `/v${Math.max(1, Math.floor(revision))}`;
   return {
     bucket: STORAGE_BUCKETS.projectMedia,
-    path: `${ownerId}/${projectId}/${issueId}/${assetId}/${variant}.${ext}`,
+    path: `${ownerId}/${projectId}/${issueId}/${assetId}${revisionPath}/${variant}.${ext}`,
   };
 }
 
-export function buildProjectCoverPath(ownerId: string, projectId: string, sourceUriOrExt?: string | null): StoragePathParts {
+export function buildProjectCoverPath(
+  ownerId: string,
+  projectId: string,
+  sourceUriOrExt?: string | null,
+  revision?: number,
+): StoragePathParts {
+  const revisionPath = revision == null ? "" : `/v${Math.max(1, Math.floor(revision))}`;
   return {
     bucket: STORAGE_BUCKETS.projectMedia,
-    path: `${ownerId}/${projectId}/cover.${extOf(sourceUriOrExt, "jpg")}`,
+    path: `${ownerId}/${projectId}/cover${revisionPath}.${extOf(sourceUriOrExt, "jpg")}`,
   };
 }
 
-export function buildProjectLogoPath(ownerId: string, projectId: string, sourceUriOrExt?: string | null): StoragePathParts {
+export function buildProjectLogoPath(
+  ownerId: string,
+  projectId: string,
+  sourceUriOrExt?: string | null,
+  revision?: number,
+): StoragePathParts {
+  const revisionPath = revision == null ? "" : `/v${Math.max(1, Math.floor(revision))}`;
   return {
     bucket: STORAGE_BUCKETS.projectMedia,
-    path: `${ownerId}/${projectId}/logo.${extOf(sourceUriOrExt, "png")}`,
+    path: `${ownerId}/${projectId}/logo${revisionPath}.${extOf(sourceUriOrExt, "png")}`,
   };
 }
 

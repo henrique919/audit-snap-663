@@ -59,7 +59,7 @@ export function buildImportOutboxBatch(db: Db, checkpoint: LocalImportCheckpoint
   const at = nowIso();
 
   for (const table of pendingTables(checkpoint)) {
-    const records = db[table] as ReadonlyArray<{ id: string }>;
+    const records = db[table] as readonly { id: string }[];
     for (const record of records) {
       entries.push({ id: newId(), table, recordId: record.id, op: "create", at, updatedAt: at });
     }

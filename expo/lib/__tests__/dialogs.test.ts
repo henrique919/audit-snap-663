@@ -4,6 +4,8 @@
  * (since Alert.alert is a no-op in react-native-web).
  */
 
+/* eslint-disable import/first -- imports intentionally follow Jest module mocks */
+
 interface MockAlertButton {
   text?: string;
   style?: string;

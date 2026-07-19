@@ -17,7 +17,7 @@ import { ActivityIndicator, Linking, Platform, StyleSheet, Text, View } from "re
 import { BrandMark } from "@/components/BrandMark";
 import { AppButton } from "@/components/ui";
 import { font, palette, spacing } from "@/constants/theme";
-import { getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { consumePasswordRecovery, getSupabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { classifySyncError } from "@/lib/supabase/syncRetry";
 
 function extractParam(url: string | null, key: string): string | null {
@@ -66,7 +66,7 @@ export default function AuthCallbackScreen() {
           return;
         }
 
-        const isRecovery = extractParam(url, "type") === "recovery";
+        const isRecovery = consumePasswordRecovery() || extractParam(url, "type") === "recovery";
         router.replace(isRecovery ? "/auth/reset-password" : "/");
       } catch (e) {
         if (cancelled) return;

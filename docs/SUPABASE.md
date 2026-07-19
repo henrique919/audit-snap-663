@@ -10,8 +10,8 @@ This document describes the production Supabase backend for PunchThis. The app r
 | Table | Purpose |
 |-------|---------|
 | `profiles` | 1:1 with `auth.users` (display name, company, logo paths) |
-| `user_settings` | Synced inspector defaults / report options / import checkpoint |
-| `sync_checkpoints` | Per-user pull cursor |
+| `user_settings` | Synced inspector defaults / report options |
+| `sync_checkpoints` | Account-level sync activity telemetry (not a device cursor) |
 | `projects` | Site projects (`owner_id`) |
 | `project_locations` | Locations under a project |
 | `assignees` | Owner-scoped assignee directory |
@@ -30,7 +30,7 @@ All customer tables use UUID PKs compatible with client-generated IDs, `timestam
 | `project-media` | 50 MB | original / report / thumb / annotated photos, covers, logos |
 | `report-files` | 100 MB | PDF exports |
 
-**Path convention:** `{user_id}/{project_id}/{record_id}/{variant}.{ext}`  
+**Path convention:** `{user_id}/{project_id}/{record_id}/v{local_version}/{variant}.{ext}` for mutable media.
 Never persist signed URLs as permanent record values — generate them on demand.
 
 ## RLS model
@@ -56,18 +56,20 @@ Web: same-origin `/auth/callback`.
 
 ### Dashboard Auth URL allowlist (operator)
 
-In [Auth URL configuration](https://supabase.com/dashboard/project/ytjkfmigzrsoapvnzlof/auth/url-configuration) add:
+Configured in [Auth URL configuration](https://supabase.com/dashboard/project/ytjkfmigzrsoapvnzlof/auth/url-configuration):
 
-- Site URL: your deployed web origin (and `http://localhost:8081` for local Expo web)
+- Site URL: `https://punchthis.app`
 - Redirect allow list:
   - `http://localhost:8081/auth/callback`
   - `http://localhost:8081/auth/reset-password`
-  - `https://<your-production-host>/auth/callback`
-  - `https://<your-production-host>/auth/reset-password`
+  - `https://punchthis.app/auth/callback`
+  - `https://punchthis.app/auth/reset-password`
   - `punchthis://auth/callback`
   - `punchthis://auth/reset-password`
 
-Optional hardening: enable **Leaked password protection** (HaveIBeenPwned) in Auth settings.
+**Leaked password protection** is enabled and the server minimum is 8 characters. The app uses the same minimum.
+
+`punchthis.app` currently serves the marketing site, not this Expo application. Native callbacks are production-ready through the `punchthis://` scheme. Before offering web login publicly, deploy the Expo web build to a dedicated app origin (recommended: `app.punchthis.app`) and add that origin's two callback URLs here and in the dashboard.
 
 ## Sync lifecycle
 
@@ -76,9 +78,11 @@ Optional hardening: enable **Leaked password protection** (HaveIBeenPwned) in Au
    - imports existing local data once (idempotent)
    - pushes outbox in dependency order
    - uploads media variants
-   - pulls remote changes since checkpoint
-   - merges with conflict marking (no silent discard)
-3. Offline use continues; pending items retry with classified backoff.
+   - pulls remote changes since the device-local checkpoint
+   - detects concurrent edits with compare-and-swap, then resolves deterministically by newest edit timestamp and marks the record as conflicted
+3. Sign-in, foregrounding, reconnect, and a 60-second foreground heartbeat trigger a single-flight sync; failures retry with classified exponential backoff.
+
+Pull cursors and first-import progress are device-local. They are deliberately not copied through `user_settings`, because a shared cursor can make a newly installed device skip historical rows. Private Storage references are kept separately from renderable local/signed URIs; native downloads use the owned `cloud-cache/` directory and web signed URLs are refreshed.
 
 ## Account deletion
 
@@ -86,8 +90,8 @@ Edge Function `delete-account` (JWT required):
 
 1. Verifies caller via user JWT  
 2. Deletes Storage objects under `{user_id}/` in both buckets  
-3. Deletes owner-scoped rows  
-4. Deletes Auth user via service role (secret stays in Supabase function env)
+3. Deletes the Auth user via the service role; `ON DELETE CASCADE` removes every owner-scoped database row
+4. Clears the local session and device-owned PunchThis files/data
 
 ## Environment
 
@@ -126,9 +130,9 @@ Migrations under `supabase/migrations/` are the source of truth.
 From `expo/`:
 
 ```bash
-bun install --frozen-lockfile
-bun run typecheck
-bun run lint
-bun run test
-bun run build:web
+npm ci
+npm run typecheck
+npm run lint
+npm test -- --runInBand
+npm run build:web
 ```

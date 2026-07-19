@@ -3,7 +3,7 @@
 **Project URL:** https://ytjkfmigzrsoapvnzlof.supabase.co  
 **Project ref:** `ytjkfmigzrsoapvnzlof`  
 **Git branch:** `feature/supabase-integration`  
-**Ledger updated:** 2026-07-19 (Storage live RLS PASS; MCP `user-supabase` re-auth OK)
+**Ledger updated:** 2026-07-19 (takeover hardening complete; live security advisor clear)
 
 ## Access
 
@@ -15,7 +15,7 @@
 
 ### Auth
 - [x] Register (email/password) — UI + AuthProvider (`expo/app/auth/signup.tsx`)
-- [x] Email verification — signup uses emailRedirectTo callback (dashboard allowlist still required)
+- [x] Email verification flow — signup uses an allowlisted emailRedirectTo callback
 - [x] Login — `expo/app/auth/login.tsx`
 - [x] Password recovery request — `forgot-password.tsx`
 - [x] Password-reset callback + new-password screen — `callback.tsx` + `reset-password.tsx`
@@ -40,10 +40,10 @@
 - [x] PDF report exports sync
 - [x] Offline queue → reconnect sync — outbox + runSyncCycle
 - [x] Interrupted sync resumes — checkpoint + pending outbox
-- [x] Idempotent retries (no duplicates) — upsert + classified retry
-- [x] Fresh-device bootstrap — pull since checkpoint
-- [x] Multi-device merge — pull/merge + conflict marking
-- [x] Conflicts marked (no silent discard) — `conflicts.ts`
+- [x] Idempotent retries (no duplicates) — optimistic version checks + classified retry
+- [x] Fresh-device bootstrap — per-device pull cursor; established-account demo cleanup
+- [x] Multi-device merge — compare-and-swap push + pull/merge + conflict marking
+- [x] Concurrent edits detected with compare-and-swap; newest edit wins deterministically and the record is marked conflicted — `conflicts.ts`
 
 ### Security
 - [x] RLS on every exposed table — verified remotely
@@ -60,10 +60,10 @@
 - [x] Migrations applied remotely to `ytjkfmigzrsoapvnzlof`
 - [x] Migrations reproducible from repo (`supabase/migrations/`)
 - [x] Edge Function(s) deployed (`delete-account`)
-- [x] Advisors run; actionable FK index findings fixed; leaked-password = dashboard toggle
-- [x] Typecheck / tests / build:web pass (lint: 2 known markup warnings only)
+- [x] Advisors run; security advisor has zero findings; leaked-password protection enabled
+- [x] Typecheck / 294 tests / build:web pass; direct ESLint is clean with zero warnings
 - [x] Documentation complete — `docs/SUPABASE.md`
-- [x] Branch committed + pushed — `c79c3a6`
+- [x] Prior implementation commit pushed — `c79c3a6`; final takeover hardening is delivered in this branch history
 
 ## Migrations
 
@@ -72,6 +72,8 @@
 | punchthis_core_schema | `20260719075849_punchthis_core_schema.sql` | yes (`db push`) |
 | add_fk_covering_indexes (noop placeholder) | `20260718230518_add_fk_covering_indexes.sql` | yes |
 | add_fk_covering_indexes | `20260719090400_add_fk_covering_indexes.sql` | yes |
+| harden_sync_integrity (UTC ledger alignment) | `20260719044129_harden_sync_integrity.sql` | yes |
+| harden_sync_integrity (idempotent clean-install source) | `20260719090401_harden_sync_integrity.sql` | yes |
 
 ## Tables / policies / buckets / functions
 
@@ -81,7 +83,7 @@
 
 **Storage policies:** select/insert/update/delete own prefix for both buckets  
 
-**Edge Functions:** `delete-account` (JWT verify on)
+**Edge Functions:** `delete-account` v2 ACTIVE (JWT verify on)
 
 ## Commands run
 
@@ -91,26 +93,26 @@
 | `npx supabase db push` (core schema) | OK |
 | `npx supabase db push --include-all` (indexes) | OK |
 | `npx supabase functions deploy delete-account --use-api` | OK |
-| MCP `get_advisors` security | WARN: leaked password protection disabled (dashboard) |
+| MCP `get_advisors` security | PASS: zero findings |
 | MCP `get_advisors` performance | INFO: unused indexes (cold DB); FK indexes added |
 | MCP RLS SQL two-user test | `rls_ok` |
-| `bun run test` | 288 passed |
-| `bun run typecheck` | clean |
-| `bun run build:web` | OK |
-| `bun run lint` | 0 errors / 2 markup warnings |
+| `npm test -- --runInBand --silent` | 294 passed (38 suites) |
+| `npm run typecheck` | clean |
+| `npm run build:web` | OK |
+| direct ESLint `--max-warnings 0` | clean |
 | `node expo/scripts/verify-storage-rls.mjs` | PASS (upload/download + cross-user + anon + report bucket) |
 
 ## Current failures / gaps
 
-1. Auth redirect allowlist + leaked-password protection are dashboard settings (documented in `docs/SUPABASE.md`).
-2. Full interactive Auth/email verification requires mailbox + dashboard allowlist.
+1. Interactive email-delivery verification still requires a mailbox controlled for testing.
+2. `punchthis.app/auth/*` currently renders the marketing site. Native deep links are configured; public web Auth needs the Expo web app deployed to an app origin first.
 
 ## Exact next action
 
-1. Operator: set Auth redirect URLs (see `docs/SUPABASE.md`) + enable leaked password protection in Auth settings.
+1. Deploy the Expo web build to `app.punchthis.app` (or another final app origin), then add its callback/reset URLs and run mailbox click-through E2E there.
 
 ## Final branch / commit / push
 
 - Branch: `feature/supabase-integration`
-- Commit: `c79c3a6`
+- Commit: final takeover hardening changeset (see branch head)
 - Pushed: yes

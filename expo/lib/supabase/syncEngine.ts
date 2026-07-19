@@ -23,6 +23,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import {
   annotationFromRow,
   annotationToRow,
+  appSettingsFromRow,
   appSettingsToRow,
   assigneeFromRow,
   assigneeToRow,
@@ -40,13 +41,16 @@ import {
   reportExportToRow,
 } from "@/lib/supabase/mappers";
 import { resolveConflict, type VersionedRecord } from "@/lib/supabase/conflicts";
+import { materializeCloudRef } from "@/lib/supabase/mediaCache";
 import {
   buildAccountLogoPath,
   buildPhotoAssetPath,
   buildProjectCoverPath,
   buildProjectLogoPath,
   buildReportExportPath,
+  isSupabaseRef,
   needsUpload,
+  parseSupabaseRef,
   toSupabaseRef,
   type PhotoAssetVariant,
   type StoragePathParts,
@@ -150,15 +154,11 @@ interface UploadOutcome {
 }
 
 async function uploadLocalMedia(supabase: SupabaseClientT, dest: StoragePathParts, localUri: string): Promise<UploadOutcome> {
-  if (Platform.OS === "web") {
-    return {
-      ok: false,
-      skipped: true,
-      error: "Binary upload from a web build isn't supported yet — it will upload next time this account syncs from the mobile app.",
-    };
-  }
   try {
-    const bytes = await readFileAsBytes(localUri);
+    const bytes =
+      Platform.OS === "web"
+        ? await (await fetch(localUri)).arrayBuffer()
+        : await readFileAsBytes(localUri);
     const { error } = await supabase.storage.from(dest.bucket).upload(dest.path, bytes, {
       contentType: mimeFromPath(dest.path),
       upsert: true,
@@ -173,7 +173,7 @@ async function uploadLocalMedia(supabase: SupabaseClientT, dest: StoragePathPart
 /* --------------------------------------- Push helpers --------------------------------------- */
 
 type PushOutcome =
-  | { ok: true; db: Db; mediaUploaded?: number; mediaSkipped?: number }
+  | { ok: true; db: Db; mediaUploaded?: number; mediaSkipped?: number; pending?: boolean; warning?: string }
   | { ok: false; error: ClassifiedSyncError };
 
 interface UpsertResponse {
@@ -181,8 +181,43 @@ interface UpsertResponse {
   error: { message: string; code?: string; status?: number } | null;
 }
 
+type VersionedWrite = (row: unknown, expectedServerVersion: number) => Promise<UpsertResponse>;
+
+function remoteSyncedRow(row: unknown): unknown {
+  return { ...(row as Record<string, unknown>), sync_status: "synced" };
+}
+
+async function versionCheckedWrite(
+  expectedServerVersion: number,
+  probe: () => PromiseLike<unknown>,
+  insert: () => PromiseLike<unknown>,
+  update: () => PromiseLike<unknown>,
+): Promise<UpsertResponse> {
+  const current = (await probe()) as UpsertResponse;
+  if (current.error) return current;
+  if (!current.data) return (await insert()) as UpsertResponse;
+  if (current.data.server_version !== expectedServerVersion) {
+    return {
+      data: null,
+      error: {
+        status: 409,
+        code: "SYNC_VERSION_CONFLICT",
+        message: `Remote version ${current.data.server_version} no longer matches local base ${expectedServerVersion}.`,
+      },
+    };
+  }
+  const updated = (await update()) as UpsertResponse;
+  if (!updated.error && !updated.data) {
+    return {
+      data: null,
+      error: { status: 409, code: "SYNC_VERSION_CONFLICT", message: "The remote row changed during this sync." },
+    };
+  }
+  return updated;
+}
+
 async function pushSimple<TLocal extends VersionedRecord>(
-  upsert: (row: unknown) => PromiseLike<unknown>,
+  write: VersionedWrite,
   list: TLocal[],
   recordId: string,
   toRow: (local: TLocal, ownerId: string) => unknown,
@@ -191,7 +226,8 @@ async function pushSimple<TLocal extends VersionedRecord>(
   const record = list.find((r) => r.id === recordId);
   if (!record) return { ok: true, list };
 
-  const response = (await upsert(toRow(record, ownerId))) as UpsertResponse;
+  const row = remoteSyncedRow(toRow(record, ownerId));
+  const response = await write(row, record.serverVersion);
   if (response.error) return { ok: false, error: classifySyncError(response.error) };
 
   const nextList = list.map((r) =>
@@ -204,12 +240,15 @@ async function pushSimple<TLocal extends VersionedRecord>(
 
 async function pushLocation(supabase: SupabaseClientT, recordId: string, db: Db, ownerId: string): Promise<PushOutcome> {
   const result = await pushSimple(
-    (row) =>
-      supabase
-        .from("project_locations")
-        .upsert(row as Tables["project_locations"]["Insert"], { onConflict: "id" })
-        .select("server_version")
-        .single(),
+    (row, expected) => {
+      const typed = row as Tables["project_locations"]["Insert"];
+      return versionCheckedWrite(
+        expected,
+        () => supabase.from("project_locations").select("server_version").eq("id", typed.id).maybeSingle(),
+        () => supabase.from("project_locations").insert(typed).select("server_version").single(),
+        () => supabase.from("project_locations").update(typed).eq("id", typed.id).eq("server_version", expected).select("server_version").maybeSingle(),
+      );
+    },
     db.locations,
     recordId,
     locationToRow,
@@ -220,12 +259,15 @@ async function pushLocation(supabase: SupabaseClientT, recordId: string, db: Db,
 
 async function pushAssignee(supabase: SupabaseClientT, recordId: string, db: Db, ownerId: string): Promise<PushOutcome> {
   const result = await pushSimple(
-    (row) =>
-      supabase
-        .from("assignees")
-        .upsert(row as Tables["assignees"]["Insert"], { onConflict: "id" })
-        .select("server_version")
-        .single(),
+    (row, expected) => {
+      const typed = row as Tables["assignees"]["Insert"];
+      return versionCheckedWrite(
+        expected,
+        () => supabase.from("assignees").select("server_version").eq("id", typed.id).maybeSingle(),
+        () => supabase.from("assignees").insert(typed).select("server_version").single(),
+        () => supabase.from("assignees").update(typed).eq("id", typed.id).eq("server_version", expected).select("server_version").maybeSingle(),
+      );
+    },
     db.assignees,
     recordId,
     assigneeToRow,
@@ -236,12 +278,15 @@ async function pushAssignee(supabase: SupabaseClientT, recordId: string, db: Db,
 
 async function pushAudit(supabase: SupabaseClientT, recordId: string, db: Db, ownerId: string): Promise<PushOutcome> {
   const result = await pushSimple(
-    (row) =>
-      supabase
-        .from("audits")
-        .upsert(row as Tables["audits"]["Insert"], { onConflict: "id" })
-        .select("server_version")
-        .single(),
+    (row, expected) => {
+      const typed = row as Tables["audits"]["Insert"];
+      return versionCheckedWrite(
+        expected,
+        () => supabase.from("audits").select("server_version").eq("id", typed.id).maybeSingle(),
+        () => supabase.from("audits").insert(typed).select("server_version").single(),
+        () => supabase.from("audits").update(typed).eq("id", typed.id).eq("server_version", expected).select("server_version").maybeSingle(),
+      );
+    },
     db.audits,
     recordId,
     auditToRow,
@@ -252,12 +297,15 @@ async function pushAudit(supabase: SupabaseClientT, recordId: string, db: Db, ow
 
 async function pushIssue(supabase: SupabaseClientT, recordId: string, db: Db, ownerId: string): Promise<PushOutcome> {
   const result = await pushSimple(
-    (row) =>
-      supabase
-        .from("issues")
-        .upsert(row as Tables["issues"]["Insert"], { onConflict: "id" })
-        .select("server_version")
-        .single(),
+    (row, expected) => {
+      const typed = row as Tables["issues"]["Insert"];
+      return versionCheckedWrite(
+        expected,
+        () => supabase.from("issues").select("server_version").eq("id", typed.id).maybeSingle(),
+        () => supabase.from("issues").insert(typed).select("server_version").single(),
+        () => supabase.from("issues").update(typed).eq("id", typed.id).eq("server_version", expected).select("server_version").maybeSingle(),
+      );
+    },
     db.issues,
     recordId,
     issueToRow,
@@ -268,12 +316,15 @@ async function pushIssue(supabase: SupabaseClientT, recordId: string, db: Db, ow
 
 async function pushAnnotation(supabase: SupabaseClientT, recordId: string, db: Db, ownerId: string): Promise<PushOutcome> {
   const result = await pushSimple(
-    (row) =>
-      supabase
-        .from("annotation_records")
-        .upsert(row as Tables["annotation_records"]["Insert"], { onConflict: "id" })
-        .select("server_version")
-        .single(),
+    (row, expected) => {
+      const typed = row as Tables["annotation_records"]["Insert"];
+      return versionCheckedWrite(
+        expected,
+        () => supabase.from("annotation_records").select("server_version").eq("id", typed.id).maybeSingle(),
+        () => supabase.from("annotation_records").insert(typed).select("server_version").single(),
+        () => supabase.from("annotation_records").update(typed).eq("id", typed.id).eq("server_version", expected).select("server_version").maybeSingle(),
+      );
+    },
     db.annotations,
     recordId,
     annotationToRow,
@@ -289,43 +340,59 @@ async function pushProject(supabase: SupabaseClientT, recordId: string, db: Db, 
   let working: Project = record;
   let mediaUploaded = 0;
   let mediaSkipped = 0;
+  const mediaErrors: string[] = [];
 
-  if (needsUpload(working.coverPhotoUri)) {
-    const dest = buildProjectCoverPath(ownerId, working.id, working.coverPhotoUri);
+  if (needsUpload(working.coverPhotoUri) && !working.coverPhotoCloudRef) {
+    const dest = buildProjectCoverPath(ownerId, working.id, working.coverPhotoUri, working.localVersion);
     const outcome = await uploadLocalMedia(supabase, dest, working.coverPhotoUri as string);
     if (outcome.ok) {
-      working = { ...working, coverPhotoUri: toSupabaseRef(dest.bucket, dest.path) };
+      working = { ...working, coverPhotoCloudRef: toSupabaseRef(dest.bucket, dest.path) };
       mediaUploaded += 1;
     } else if (outcome.skipped) {
       mediaSkipped += 1;
+    } else if (outcome.error) {
+      mediaErrors.push(outcome.error);
     }
   }
-  if (needsUpload(working.logoUri)) {
-    const dest = buildProjectLogoPath(ownerId, working.id, working.logoUri);
+  if (needsUpload(working.logoUri) && !working.logoCloudRef) {
+    const dest = buildProjectLogoPath(ownerId, working.id, working.logoUri, working.localVersion);
     const outcome = await uploadLocalMedia(supabase, dest, working.logoUri as string);
     if (outcome.ok) {
-      working = { ...working, logoUri: toSupabaseRef(dest.bucket, dest.path) };
+      working = { ...working, logoCloudRef: toSupabaseRef(dest.bucket, dest.path) };
       mediaUploaded += 1;
     } else if (outcome.skipped) {
       mediaSkipped += 1;
+    } else if (outcome.error) {
+      mediaErrors.push(outcome.error);
     }
   }
 
-  const { data, error } = await supabase
-    .from("projects")
-    .upsert(projectToRow(working, ownerId), { onConflict: "id" })
-    .select("server_version")
-    .single();
+  const row = remoteSyncedRow(projectToRow(working, ownerId)) as Tables["projects"]["Insert"];
+  const { data, error } = await versionCheckedWrite(
+    record.serverVersion,
+    () => supabase.from("projects").select("server_version").eq("id", row.id).maybeSingle(),
+    () => supabase.from("projects").insert(row).select("server_version").single(),
+    () => supabase.from("projects").update(row).eq("id", row.id).eq("server_version", record.serverVersion).select("server_version").maybeSingle(),
+  );
   if (error) return { ok: false, error: classifySyncError(error) };
 
-  const stillPendingMedia = needsUpload(working.coverPhotoUri) || needsUpload(working.logoUri);
+  const stillPendingMedia =
+    (needsUpload(working.coverPhotoUri) && !working.coverPhotoCloudRef) ||
+    (needsUpload(working.logoUri) && !working.logoCloudRef);
   const nextRecord: Project = {
     ...working,
     syncStatus: stillPendingMedia ? "pending_upload" : "synced",
     serverVersion: data?.server_version ?? working.serverVersion,
   };
   const projects = db.projects.map((p) => (p.id === recordId ? nextRecord : p));
-  return { ok: true, db: { ...db, projects }, mediaUploaded, mediaSkipped };
+  return {
+    ok: true,
+    db: { ...db, projects },
+    mediaUploaded,
+    mediaSkipped,
+    pending: stillPendingMedia,
+    warning: mediaErrors[0],
+  };
 }
 
 async function pushAsset(supabase: SupabaseClientT, recordId: string, db: Db, ownerId: string): Promise<PushOutcome> {
@@ -335,53 +402,73 @@ async function pushAsset(supabase: SupabaseClientT, recordId: string, db: Db, ow
   let working: PhotoAsset = record;
   let mediaUploaded = 0;
   let mediaSkipped = 0;
+  const mediaErrors: string[] = [];
 
-  const variants: Array<[PhotoAssetVariant, string | null]> = [
-    ["original", working.originalUri],
-    ["report", working.reportUri],
-    ["thumb", working.thumbUri],
-    ["annotated", working.annotatedUri],
+  const variants: [PhotoAssetVariant, string | null, string | null | undefined][] = [
+    ["original", working.originalUri, working.originalCloudRef],
+    ["report", working.reportUri, working.reportCloudRef],
+    ["thumb", working.thumbUri, working.thumbCloudRef],
+    ["annotated", working.annotatedUri, working.annotatedCloudRef],
   ];
 
-  for (const [variant, uri] of variants) {
-    if (!needsUpload(uri)) continue;
-    const dest = buildPhotoAssetPath(ownerId, working.projectId, working.issueId, working.id, variant, uri);
+  for (const [variant, uri, cloudRef] of variants) {
+    if (!needsUpload(uri) || cloudRef) continue;
+    const dest = buildPhotoAssetPath(
+      ownerId,
+      working.projectId,
+      working.issueId,
+      working.id,
+      variant,
+      uri,
+      working.localVersion,
+    );
     const outcome = await uploadLocalMedia(supabase, dest, uri as string);
     if (outcome.ok) {
       const ref = toSupabaseRef(dest.bucket, dest.path);
       working =
         variant === "original"
-          ? { ...working, originalUri: ref }
+          ? { ...working, originalCloudRef: ref }
           : variant === "report"
-            ? { ...working, reportUri: ref }
+            ? { ...working, reportCloudRef: ref }
             : variant === "thumb"
-              ? { ...working, thumbUri: ref }
-              : { ...working, annotatedUri: ref };
+              ? { ...working, thumbCloudRef: ref }
+              : { ...working, annotatedCloudRef: ref };
       mediaUploaded += 1;
     } else if (outcome.skipped) {
       mediaSkipped += 1;
+    } else if (outcome.error) {
+      mediaErrors.push(outcome.error);
     }
   }
 
-  const { data, error } = await supabase
-    .from("photo_assets")
-    .upsert(photoAssetToRow(working, ownerId), { onConflict: "id" })
-    .select("server_version")
-    .single();
+  const row = remoteSyncedRow(photoAssetToRow(working, ownerId)) as Tables["photo_assets"]["Insert"];
+  const { data, error } = await versionCheckedWrite(
+    record.serverVersion,
+    () => supabase.from("photo_assets").select("server_version").eq("id", row.id).maybeSingle(),
+    () => supabase.from("photo_assets").insert(row).select("server_version").single(),
+    () => supabase.from("photo_assets").update(row).eq("id", row.id).eq("server_version", record.serverVersion).select("server_version").maybeSingle(),
+  );
   if (error) return { ok: false, error: classifySyncError(error) };
 
   const stillPending =
-    needsUpload(working.originalUri) ||
-    needsUpload(working.reportUri) ||
-    needsUpload(working.thumbUri) ||
-    needsUpload(working.annotatedUri);
+    (needsUpload(working.originalUri) && !working.originalCloudRef) ||
+    (needsUpload(working.reportUri) && !working.reportCloudRef) ||
+    (needsUpload(working.thumbUri) && !working.thumbCloudRef) ||
+    (needsUpload(working.annotatedUri) && !working.annotatedCloudRef);
   const nextRecord: PhotoAsset = {
     ...working,
     syncStatus: stillPending ? "pending_upload" : "synced",
     serverVersion: data?.server_version ?? working.serverVersion,
   };
   const assets = db.assets.map((a) => (a.id === recordId ? nextRecord : a));
-  return { ok: true, db: { ...db, assets }, mediaUploaded, mediaSkipped };
+  return {
+    ok: true,
+    db: { ...db, assets },
+    mediaUploaded,
+    mediaSkipped,
+    pending: stillPending,
+    warning: mediaErrors[0],
+  };
 }
 
 async function pushReport(supabase: SupabaseClientT, recordId: string, db: Db, ownerId: string): Promise<PushOutcome> {
@@ -391,32 +478,44 @@ async function pushReport(supabase: SupabaseClientT, recordId: string, db: Db, o
   let working: ReportExport = record;
   let mediaUploaded = 0;
   let mediaSkipped = 0;
+  let mediaError: string | undefined;
 
-  if (needsUpload(working.pdfUri)) {
+  if (needsUpload(working.pdfUri) && !working.pdfCloudRef) {
     const dest = buildReportExportPath(ownerId, working.auditId, working.id);
     const outcome = await uploadLocalMedia(supabase, dest, working.pdfUri);
     if (outcome.ok) {
-      working = { ...working, pdfUri: toSupabaseRef(dest.bucket, dest.path) };
+      working = { ...working, pdfCloudRef: toSupabaseRef(dest.bucket, dest.path) };
       mediaUploaded += 1;
     } else if (outcome.skipped) {
       mediaSkipped += 1;
+    } else {
+      mediaError = outcome.error;
     }
   }
 
-  const { data, error } = await supabase
-    .from("report_exports")
-    .upsert(reportExportToRow(working, ownerId), { onConflict: "id" })
-    .select("server_version")
-    .single();
+  const row = remoteSyncedRow(reportExportToRow(working, ownerId)) as Tables["report_exports"]["Insert"];
+  const { data, error } = await versionCheckedWrite(
+    record.serverVersion,
+    () => supabase.from("report_exports").select("server_version").eq("id", row.id).maybeSingle(),
+    () => supabase.from("report_exports").insert(row).select("server_version").single(),
+    () => supabase.from("report_exports").update(row).eq("id", row.id).eq("server_version", record.serverVersion).select("server_version").maybeSingle(),
+  );
   if (error) return { ok: false, error: classifySyncError(error) };
 
   const nextRecord: ReportExport = {
     ...working,
-    syncStatus: needsUpload(working.pdfUri) ? "pending_upload" : "synced",
+    syncStatus: needsUpload(working.pdfUri) && !working.pdfCloudRef ? "pending_upload" : "synced",
     serverVersion: data?.server_version ?? working.serverVersion,
   };
   const reports = db.reports.map((r) => (r.id === recordId ? nextRecord : r));
-  return { ok: true, db: { ...db, reports }, mediaUploaded, mediaSkipped };
+  return {
+    ok: true,
+    db: { ...db, reports },
+    mediaUploaded,
+    mediaSkipped,
+    pending: needsUpload(working.pdfUri) && !working.pdfCloudRef,
+    warning: mediaError,
+  };
 }
 
 async function pushOne(supabase: SupabaseClientT, table: PushTableName, recordId: string, db: Db, ownerId: string): Promise<PushOutcome> {
@@ -442,22 +541,26 @@ async function pushOne(supabase: SupabaseClientT, table: PushTableName, recordId
 
 /* --------------------------------------- Pull helpers --------------------------------------- */
 
-type PageFetcher<TRow> = (sinceIso: string) => PromiseLike<{ data: TRow[] | null; error: { message: string } | null }>;
+type PageFetcher<TRow> = (
+  sinceIso: string,
+  from: number,
+  to: number,
+) => PromiseLike<{ data: TRow[] | null; error: { message: string } | null }>;
 
 async function fetchChangedRows<TRow extends { updated_at: string }>(
   queryPage: PageFetcher<TRow>,
   sinceIso: string,
 ): Promise<TRow[]> {
   const rows: TRow[] = [];
-  let cursor = sinceIso;
+  let offset = 0;
   for (;;) {
-    const { data, error } = await queryPage(cursor);
+    const { data, error } = await queryPage(sinceIso, offset, offset + PAGE_SIZE - 1);
     if (error) throw error;
     const page = data ?? [];
     if (page.length === 0) break;
     rows.push(...page);
     if (page.length < PAGE_SIZE) break;
-    cursor = page[page.length - 1]!.updated_at;
+    offset += PAGE_SIZE;
   }
   return rows;
 }
@@ -485,6 +588,69 @@ function mergeRemoteIntoLocal<TLocal extends VersionedRecord>(
   return { list: Array.from(byId.values()), pulled };
 }
 
+async function materializeProjectMedia(project: Project): Promise<Project> {
+  const [coverPhotoUri, logoUri] = await Promise.all([
+    materializeCloudRef(project.coverPhotoCloudRef, project.coverPhotoUri),
+    materializeCloudRef(project.logoCloudRef, project.logoUri),
+  ]);
+  return coverPhotoUri === project.coverPhotoUri && logoUri === project.logoUri
+    ? project
+    : { ...project, coverPhotoUri, logoUri };
+}
+
+async function materializeAssetMedia(asset: PhotoAsset): Promise<PhotoAsset> {
+  const [originalUri, reportUri, thumbUri, annotatedUri] = await Promise.all([
+    materializeCloudRef(asset.originalCloudRef, asset.originalUri),
+    materializeCloudRef(asset.reportCloudRef, asset.reportUri),
+    materializeCloudRef(asset.thumbCloudRef, asset.thumbUri),
+    materializeCloudRef(asset.annotatedCloudRef, asset.annotatedUri),
+  ]);
+  if (
+    originalUri === asset.originalUri &&
+    reportUri === asset.reportUri &&
+    thumbUri === asset.thumbUri &&
+    annotatedUri === asset.annotatedUri
+  ) return asset;
+  return {
+    ...asset,
+    originalUri: originalUri ?? asset.originalUri,
+    reportUri: reportUri ?? asset.reportUri,
+    thumbUri: thumbUri ?? asset.thumbUri,
+    annotatedUri,
+  };
+}
+
+async function materializeReportMedia(report: ReportExport): Promise<ReportExport> {
+  const pdfUri = await materializeCloudRef(report.pdfCloudRef, report.pdfUri);
+  const nextPdfUri = pdfUri ?? report.pdfUri;
+  return nextPdfUri === report.pdfUri ? report : { ...report, pdfUri: nextPdfUri };
+}
+
+async function refreshMaterializedMedia(db: Db, settings: AppSettings): Promise<{ db: Db; settings: AppSettings }> {
+  const [projects, assets, reports, logoUri] = await Promise.all([
+    Promise.all(db.projects.map(materializeProjectMedia)),
+    Promise.all(db.assets.map(materializeAssetMedia)),
+    Promise.all(db.reports.map(materializeReportMedia)),
+    materializeCloudRef(settings.logoCloudRef, settings.logoUri),
+  ]);
+  return {
+    db: { ...db, projects, assets, reports },
+    settings:
+      (logoUri ?? settings.logoUri) === settings.logoUri
+        ? settings
+        : { ...settings, logoUri: logoUri ?? settings.logoUri },
+  };
+}
+
+function matchingLocalMediaUri(
+  currentCloudRef: string | null | undefined,
+  currentUri: string | null | undefined,
+  remoteCloudRef: string | null,
+): string | null | undefined {
+  const effectiveCurrentRef = currentCloudRef ?? (isSupabaseRef(currentUri) ? currentUri : null);
+  return effectiveCurrentRef === remoteCloudRef ? currentUri : undefined;
+}
+
 async function pullSimple<TRow extends { id: string; updated_at: string }, TLocal extends VersionedRecord>(
   queryPage: PageFetcher<TRow>,
   sinceIso: string,
@@ -496,26 +662,41 @@ async function pullSimple<TRow extends { id: string; updated_at: string }, TLoca
 }
 
 async function pullProjects(supabase: SupabaseClientT, ownerId: string, sinceIso: string, db: Db) {
-  const { list, pulled } = await pullSimple<Tables["projects"]["Row"], Project>(
-    (since) =>
-      supabase.from("projects").select("*").eq("owner_id", ownerId).gt("updated_at", since).order("updated_at", { ascending: true }).limit(PAGE_SIZE),
+  const existing = new Map(db.projects.map((project) => [project.id, project]));
+  const rows = await fetchChangedRows<Tables["projects"]["Row"]>(
+    (since, from, to) =>
+      supabase.from("projects").select("*").eq("owner_id", ownerId).gt("updated_at", since).order("updated_at", { ascending: true }).order("id", { ascending: true }).range(from, to),
     sinceIso,
-    db.projects,
-    projectFromRow,
   );
+  const mapped = await Promise.all(
+    rows.map(async (row) => {
+      const local = existing.get(row.id);
+      const remoteCoverRef = row.cover_bucket && row.cover_path ? toSupabaseRef(row.cover_bucket, row.cover_path) : null;
+      const remoteLogoRef = row.logo_bucket && row.logo_path ? toSupabaseRef(row.logo_bucket, row.logo_path) : null;
+      return materializeProjectMedia(
+        projectFromRow(row, {
+          coverPhotoUri:
+            matchingLocalMediaUri(local?.coverPhotoCloudRef, local?.coverPhotoUri, remoteCoverRef) ?? null,
+          logoUri: matchingLocalMediaUri(local?.logoCloudRef, local?.logoUri, remoteLogoRef) ?? null,
+        }),
+      );
+    }),
+  );
+  const { list, pulled } = mergeRemoteIntoLocal(db.projects, mapped);
   return { db: { ...db, projects: list }, pulled };
 }
 
 async function pullLocations(supabase: SupabaseClientT, ownerId: string, sinceIso: string, db: Db) {
   const { list, pulled } = await pullSimple<Tables["project_locations"]["Row"], Db["locations"][number]>(
-    (since) =>
+    (since, from, to) =>
       supabase
         .from("project_locations")
         .select("*")
         .eq("owner_id", ownerId)
         .gt("updated_at", since)
         .order("updated_at", { ascending: true })
-        .limit(PAGE_SIZE),
+        .order("id", { ascending: true })
+        .range(from, to),
     sinceIso,
     db.locations,
     locationFromRow,
@@ -525,8 +706,8 @@ async function pullLocations(supabase: SupabaseClientT, ownerId: string, sinceIs
 
 async function pullAssignees(supabase: SupabaseClientT, ownerId: string, sinceIso: string, db: Db) {
   const { list, pulled } = await pullSimple<Tables["assignees"]["Row"], Db["assignees"][number]>(
-    (since) =>
-      supabase.from("assignees").select("*").eq("owner_id", ownerId).gt("updated_at", since).order("updated_at", { ascending: true }).limit(PAGE_SIZE),
+    (since, from, to) =>
+      supabase.from("assignees").select("*").eq("owner_id", ownerId).gt("updated_at", since).order("updated_at", { ascending: true }).order("id", { ascending: true }).range(from, to),
     sinceIso,
     db.assignees,
     assigneeFromRow,
@@ -536,8 +717,8 @@ async function pullAssignees(supabase: SupabaseClientT, ownerId: string, sinceIs
 
 async function pullAudits(supabase: SupabaseClientT, ownerId: string, sinceIso: string, db: Db) {
   const { list, pulled } = await pullSimple<Tables["audits"]["Row"], Db["audits"][number]>(
-    (since) =>
-      supabase.from("audits").select("*").eq("owner_id", ownerId).gt("updated_at", since).order("updated_at", { ascending: true }).limit(PAGE_SIZE),
+    (since, from, to) =>
+      supabase.from("audits").select("*").eq("owner_id", ownerId).gt("updated_at", since).order("updated_at", { ascending: true }).order("id", { ascending: true }).range(from, to),
     sinceIso,
     db.audits,
     auditFromRow,
@@ -547,8 +728,8 @@ async function pullAudits(supabase: SupabaseClientT, ownerId: string, sinceIso: 
 
 async function pullIssues(supabase: SupabaseClientT, ownerId: string, sinceIso: string, db: Db) {
   const { list, pulled } = await pullSimple<Tables["issues"]["Row"], Db["issues"][number]>(
-    (since) =>
-      supabase.from("issues").select("*").eq("owner_id", ownerId).gt("updated_at", since).order("updated_at", { ascending: true }).limit(PAGE_SIZE),
+    (since, from, to) =>
+      supabase.from("issues").select("*").eq("owner_id", ownerId).gt("updated_at", since).order("updated_at", { ascending: true }).order("id", { ascending: true }).range(from, to),
     sinceIso,
     db.issues,
     issueFromRow,
@@ -558,14 +739,15 @@ async function pullIssues(supabase: SupabaseClientT, ownerId: string, sinceIso: 
 
 async function pullAnnotations(supabase: SupabaseClientT, ownerId: string, sinceIso: string, db: Db) {
   const { list, pulled } = await pullSimple<Tables["annotation_records"]["Row"], Db["annotations"][number]>(
-    (since) =>
+    (since, from, to) =>
       supabase
         .from("annotation_records")
         .select("*")
         .eq("owner_id", ownerId)
         .gt("updated_at", since)
         .order("updated_at", { ascending: true })
-        .limit(PAGE_SIZE),
+        .order("id", { ascending: true })
+        .range(from, to),
     sinceIso,
     db.annotations,
     annotationFromRow,
@@ -575,34 +757,45 @@ async function pullAnnotations(supabase: SupabaseClientT, ownerId: string, since
 
 async function pullAssets(supabase: SupabaseClientT, ownerId: string, sinceIso: string, db: Db) {
   const rows = await fetchChangedRows<Tables["photo_assets"]["Row"]>(
-    (since) =>
-      supabase.from("photo_assets").select("*").eq("owner_id", ownerId).gt("updated_at", since).order("updated_at", { ascending: true }).limit(PAGE_SIZE),
+    (since, from, to) =>
+      supabase.from("photo_assets").select("*").eq("owner_id", ownerId).gt("updated_at", since).order("updated_at", { ascending: true }).order("id", { ascending: true }).range(from, to),
     sinceIso,
   );
   if (rows.length === 0) return { db, pulled: 0 };
   const existingById = new Map(db.assets.map((a) => [a.id, a]));
-  const mapped = rows.map((row) => {
+  const mapped = await Promise.all(rows.map(async (row) => {
     const existing = existingById.get(row.id);
-    return photoAssetFromRow(row, {
-      originalUri: existing?.originalUri,
-      reportUri: existing?.reportUri,
-      thumbUri: existing?.thumbUri,
-      annotatedUri: existing?.annotatedUri ?? undefined,
-    });
-  });
+    const remoteOriginalRef = row.original_bucket && row.original_path ? toSupabaseRef(row.original_bucket, row.original_path) : null;
+    const remoteReportRef = row.report_bucket && row.report_path ? toSupabaseRef(row.report_bucket, row.report_path) : null;
+    const remoteThumbRef = row.thumb_bucket && row.thumb_path ? toSupabaseRef(row.thumb_bucket, row.thumb_path) : null;
+    const remoteAnnotatedRef = row.annotated_bucket && row.annotated_path ? toSupabaseRef(row.annotated_bucket, row.annotated_path) : null;
+    return materializeAssetMedia(photoAssetFromRow(row, {
+      originalUri: matchingLocalMediaUri(existing?.originalCloudRef, existing?.originalUri, remoteOriginalRef) ?? undefined,
+      reportUri: matchingLocalMediaUri(existing?.reportCloudRef, existing?.reportUri, remoteReportRef) ?? undefined,
+      thumbUri: matchingLocalMediaUri(existing?.thumbCloudRef, existing?.thumbUri, remoteThumbRef) ?? undefined,
+      annotatedUri: matchingLocalMediaUri(existing?.annotatedCloudRef, existing?.annotatedUri, remoteAnnotatedRef),
+    }));
+  }));
   const { list, pulled } = mergeRemoteIntoLocal(db.assets, mapped);
   return { db: { ...db, assets: list }, pulled };
 }
 
 async function pullReports(supabase: SupabaseClientT, ownerId: string, sinceIso: string, db: Db) {
   const rows = await fetchChangedRows<Tables["report_exports"]["Row"]>(
-    (since) =>
-      supabase.from("report_exports").select("*").eq("owner_id", ownerId).gt("updated_at", since).order("updated_at", { ascending: true }).limit(PAGE_SIZE),
+    (since, from, to) =>
+      supabase.from("report_exports").select("*").eq("owner_id", ownerId).gt("updated_at", since).order("updated_at", { ascending: true }).order("id", { ascending: true }).range(from, to),
     sinceIso,
   );
   if (rows.length === 0) return { db, pulled: 0 };
   const existingById = new Map(db.reports.map((r) => [r.id, r]));
-  const mapped = rows.map((row) => reportExportFromRow(row, existingById.get(row.id)?.pdfUri));
+  const mapped = await Promise.all(
+    rows.map((row) => {
+      const existing = existingById.get(row.id);
+      const remotePdfRef = row.pdf_bucket && row.pdf_path ? toSupabaseRef(row.pdf_bucket, row.pdf_path) : null;
+      const localPdfUri = matchingLocalMediaUri(existing?.pdfCloudRef, existing?.pdfUri, remotePdfRef) ?? undefined;
+      return materializeReportMedia(reportExportFromRow(row, localPdfUri));
+    }),
+  );
   const { list, pulled } = mergeRemoteIntoLocal(db.reports, mapped);
   return { db: { ...db, reports: list }, pulled };
 }
@@ -630,6 +823,95 @@ async function pullTable(supabase: SupabaseClientT, table: PushTableName, ownerI
 
 const PULL_ORDER: PushTableName[] = ["projects", "locations", "assignees", "audits", "issues", "assets", "annotations", "reports"];
 
+function inferLegacyCloudOwners(db: Db, settings: AppSettings): Set<string> {
+  const owners = new Set<string>();
+  const add = (value: string | null | undefined) => {
+    const parsed = parseSupabaseRef(value);
+    const owner = parsed?.path.split("/")[0];
+    if (owner) owners.add(owner);
+  };
+  add(settings.logoCloudRef ?? settings.logoUri);
+  for (const project of db.projects) {
+    add(project.coverPhotoCloudRef ?? project.coverPhotoUri);
+    add(project.logoCloudRef ?? project.logoUri);
+  }
+  for (const asset of db.assets) {
+    add(asset.originalCloudRef ?? asset.originalUri);
+    add(asset.reportCloudRef ?? asset.reportUri);
+    add(asset.thumbCloudRef ?? asset.thumbUri);
+    add(asset.annotatedCloudRef ?? asset.annotatedUri);
+  }
+  for (const report of db.reports) add(report.pdfCloudRef ?? report.pdfUri);
+  return owners;
+}
+
+/** Remove only the exact bundled SAMPLE graph when an established account is opened on a fresh device. */
+function stripBundledDemo(db: Db): { db: Db; changedTables: (keyof Db)[] } {
+  const sampleProjectIds = new Set(
+    db.projects
+      .filter(
+        (project) =>
+          project.reference === "HVA-ST2-2026" &&
+          project.name === "Sample — Harbourview Apartments Stage 2",
+      )
+      .map((project) => project.id),
+  );
+  if (sampleProjectIds.size === 0) return { db, changedTables: [] };
+
+  const sampleAuditIds = new Set(
+    db.audits.filter((audit) => sampleProjectIds.has(audit.projectId)).map((audit) => audit.id),
+  );
+  const sampleIssueIds = new Set(
+    db.issues.filter((issue) => sampleProjectIds.has(issue.projectId)).map((issue) => issue.id),
+  );
+  const sampleAssetIds = new Set(
+    db.assets.filter((asset) => sampleProjectIds.has(asset.projectId)).map((asset) => asset.id),
+  );
+  const sampleAnnotationIds = new Set(
+    db.annotations
+      .filter((annotation) => sampleIssueIds.has(annotation.issueId) || sampleAssetIds.has(annotation.assetId))
+      .map((annotation) => annotation.id),
+  );
+  const sampleReportIds = new Set(
+    db.reports.filter((report) => sampleProjectIds.has(report.projectId)).map((report) => report.id),
+  );
+  const sampleAssigneeIds = new Set(
+    db.issues
+      .filter((issue) => sampleIssueIds.has(issue.id) && issue.assigneeId)
+      .map((issue) => issue.assigneeId as string),
+  );
+  const remainingIssues = db.issues.filter((issue) => !sampleIssueIds.has(issue.id));
+  const assigneeIdsStillUsed = new Set(
+    remainingIssues.map((issue) => issue.assigneeId).filter((id): id is string => Boolean(id)),
+  );
+  const removableAssigneeIds = new Set(
+    Array.from(sampleAssigneeIds).filter((id) => !assigneeIdsStillUsed.has(id)),
+  );
+
+  const removedIds = new Set<string>([
+    ...sampleProjectIds,
+    ...sampleAuditIds,
+    ...sampleIssueIds,
+    ...sampleAssetIds,
+    ...sampleAnnotationIds,
+    ...sampleReportIds,
+    ...removableAssigneeIds,
+  ]);
+  const next: Db = {
+    projects: db.projects.filter((project) => !sampleProjectIds.has(project.id)),
+    locations: db.locations.filter((location) => !sampleProjectIds.has(location.projectId)),
+    assignees: db.assignees.filter((assignee) => !removableAssigneeIds.has(assignee.id)),
+    audits: db.audits.filter((audit) => !sampleAuditIds.has(audit.id)),
+    issues: remainingIssues,
+    assets: db.assets.filter((asset) => !sampleAssetIds.has(asset.id)),
+    annotations: db.annotations.filter((annotation) => !sampleAnnotationIds.has(annotation.id)),
+    reports: db.reports.filter((report) => !sampleReportIds.has(report.id)),
+    outbox: db.outbox.filter((entry) => !removedIds.has(entry.recordId)),
+  };
+  const changedTables = (Object.keys(next) as (keyof Db)[]).filter((table) => next[table] !== db[table]);
+  return { db: next, changedTables };
+}
+
 /**
  * A "conflict" resolution can keep the *local* content (when the local edit
  * was the more recent one) — but it still needs to reach the server to
@@ -642,7 +924,7 @@ function requeueConflicts(db: Db): { db: Db; changed: boolean } {
   const additions: OutboxEntry[] = [];
   const at = nowIso();
   for (const table of PUSH_TABLE_ORDER) {
-    const records = db[table] as ReadonlyArray<{ id: string; syncStatus: string }>;
+    const records = db[table] as readonly { id: string; syncStatus: string }[];
     for (const record of records) {
       if (record.syncStatus === "conflict" && !existingKeys.has(`${table}\u0000${record.id}`)) {
         additions.push({ id: newId(), table, recordId: record.id, op: "update", at, updatedAt: at });
@@ -655,74 +937,78 @@ function requeueConflicts(db: Db): { db: Db; changed: boolean } {
 
 /* ----------------------------------------- Settings ----------------------------------------- */
 
-/**
- * Settings have no per-record version history (unlike the table rows
- * above), so there's no reliable way to detect a true conflict. Instead:
- * this device's user-facing fields (inspector name, footer text, etc.)
- * always win and get pushed as-is — but the one-time cloud-import
- * bookkeeping (`cloudImportCompletedAt` / `cloudImportCheckpoint`) is
- * merged in from whichever device is furthest along, so import progress
- * converges correctly across devices.
- */
-function mergeCloudImportBookkeeping(local: AppSettings, remoteRow: Tables["user_settings"]["Row"]): AppSettings {
-  if (local.cloudImportCompletedAt) return local;
-  if (remoteRow.local_import_completed_at) {
-    return { ...local, cloudImportCompletedAt: remoteRow.local_import_completed_at, cloudImportCheckpoint: null };
-  }
-  const remoteCheckpoint = remoteRow.local_import_checkpoint;
-  if (remoteCheckpoint && typeof remoteCheckpoint === "object" && !Array.isArray(remoteCheckpoint)) {
-    const merged: Record<string, boolean> = { ...(local.cloudImportCheckpoint ?? {}) };
-    let any = false;
-    for (const [key, value] of Object.entries(remoteCheckpoint as Record<string, unknown>)) {
-      if (value === true) {
-        merged[key] = true;
-        any = true;
-      }
-    }
-    if (any) return { ...local, cloudImportCheckpoint: merged };
-  }
-  return local;
+function hasMeaningfulRemoteSettings(row: Tables["user_settings"]["Row"]): boolean {
+  return Boolean(
+    row.local_import_completed_at ||
+      row.inspector_name ||
+      row.company_name ||
+      row.logo_path ||
+      row.report_footer_text ||
+      row.last_audit_id,
+  );
 }
 
-async function syncSettings(supabase: SupabaseClientT, ownerId: string, settings: AppSettings): Promise<{ settings: AppSettings; error?: string }> {
+async function syncSettings(
+  supabase: SupabaseClientT,
+  ownerId: string,
+  settings: AppSettings,
+  preferRemote: boolean,
+): Promise<{ settings: AppSettings; remoteEstablished: boolean; error?: string }> {
   let working = settings;
+  let remoteEstablished = false;
   try {
-    const { data } = await supabase.from("user_settings").select("*").eq("owner_id", ownerId).maybeSingle();
-    if (data) working = mergeCloudImportBookkeeping(working, data);
+    const { data, error } = await supabase.from("user_settings").select("*").eq("owner_id", ownerId).maybeSingle();
+    if (error) throw error;
+    if (data) {
+      let remoteHasProject = false;
+      if (preferRemote) {
+        const projectProbe = await supabase.from("projects").select("id").eq("owner_id", ownerId).limit(1);
+        if (projectProbe.error) throw projectProbe.error;
+        remoteHasProject = (projectProbe.data?.length ?? 0) > 0;
+      }
+      remoteEstablished = remoteHasProject || hasMeaningfulRemoteSettings(data);
+      if (preferRemote && remoteEstablished) {
+        const remote = appSettingsFromRow(data);
+        working = {
+          ...remote,
+          cloudAccountId: ownerId,
+          cloudLastPulledAt: settings.cloudLastPulledAt,
+          cloudImportCompletedAt: settings.cloudImportCompletedAt,
+          cloudImportCheckpoint: settings.cloudImportCheckpoint,
+        };
+      }
+    }
   } catch (e) {
-    // A failed pull shouldn't block pushing this device's settings.
-    console.log("[syncEngine] settings pull failed", e);
+    return { settings: working, remoteEstablished, error: classifySyncError(e).message };
   }
 
-  if (needsUpload(working.logoUri)) {
+  if (needsUpload(working.logoUri) && !working.logoCloudRef) {
     const dest = buildAccountLogoPath(ownerId, working.logoUri);
     const outcome = await uploadLocalMedia(supabase, dest, working.logoUri as string);
     if (outcome.ok) {
-      working = { ...working, logoUri: toSupabaseRef(dest.bucket, dest.path) };
+      working = { ...working, logoCloudRef: toSupabaseRef(dest.bucket, dest.path) };
+    } else if (outcome.error) {
+      return { settings: working, remoteEstablished, error: outcome.error };
     }
   }
 
+  working = {
+    ...working,
+    logoUri: (await materializeCloudRef(working.logoCloudRef, working.logoUri)) ?? working.logoUri,
+  };
+
   const { error } = await supabase.from("user_settings").upsert(appSettingsToRow(working, ownerId), { onConflict: "owner_id" });
-  if (error) return { settings: working, error: classifySyncError(error).message };
-  return { settings: working };
+  if (error) return { settings: working, remoteEstablished, error: classifySyncError(error).message };
+  return { settings: working, remoteEstablished };
 }
 
 /* --------------------------------------- Checkpoints --------------------------------------- */
 
-async function fetchLastPulledAt(supabase: SupabaseClientT, ownerId: string): Promise<string> {
+async function touchCheckpoint(supabase: SupabaseClientT, ownerId: string, at: string): Promise<void> {
   try {
-    const { data } = await supabase.from("sync_checkpoints").select("last_pulled_at").eq("owner_id", ownerId).maybeSingle();
-    return data?.last_pulled_at ?? EPOCH_ISO;
-  } catch {
-    return EPOCH_ISO;
-  }
-}
-
-async function touchCheckpoint(supabase: SupabaseClientT, ownerId: string): Promise<void> {
-  const at = nowIso();
-  try {
+    const touchedAt = nowIso();
     await supabase.from("sync_checkpoints").upsert(
-      { owner_id: ownerId, last_pulled_at: at, last_push_at: at, updated_at: at },
+      { owner_id: ownerId, last_pulled_at: at, last_push_at: touchedAt, updated_at: touchedAt },
       { onConflict: "owner_id" },
     );
   } catch (e) {
@@ -732,7 +1018,7 @@ async function touchCheckpoint(supabase: SupabaseClientT, ownerId: string): Prom
 
 /* ---------------------------------------- Entry point ---------------------------------------- */
 
-export async function runSyncCycle(): Promise<SyncCycleResult> {
+async function runSyncCycleOnce(): Promise<SyncCycleResult> {
   const result = emptyResult();
   result.configured = isSupabaseConfigured();
   if (!result.configured) {
@@ -762,6 +1048,55 @@ export async function runSyncCycle(): Promise<SyncCycleResult> {
     let settings: AppSettings = await loadSettings();
     const dirtyTables = new Set<keyof Db>();
 
+    if (settings.cloudAccountId && settings.cloudAccountId !== ownerId) {
+      result.errors.push(
+        "This device's local data is linked to a different cloud account. Clear local data before signing in with another account.",
+      );
+      return result;
+    }
+    if (!settings.cloudAccountId) {
+      const legacyOwners = inferLegacyCloudOwners(db, settings);
+      if (legacyOwners.size > 0 && (legacyOwners.size !== 1 || !legacyOwners.has(ownerId))) {
+        result.errors.push(
+          "This device contains cloud media linked to another account. Clear local data before signing in with this account.",
+        );
+        return result;
+      }
+    }
+    const newlyBound = !settings.cloudAccountId;
+    settings = { ...settings, cloudAccountId: ownerId };
+
+    // Persist ownership before making any cloud write. If the process is
+    // interrupted mid-cycle, a later sign-in cannot silently redirect this
+    // local database into a different account.
+    if (newlyBound) {
+      const bindingSave = await saveSettings(settings);
+      if (!bindingSave.ok) {
+        result.errors.push(bindingSave.error);
+        return result;
+      }
+    }
+
+    const settingsOutcome = await syncSettings(supabase, ownerId, settings, newlyBound);
+    settings = settingsOutcome.settings;
+    if (settingsOutcome.error) {
+      result.errors.push(settingsOutcome.error);
+      if (newlyBound) return result;
+    }
+
+    if (newlyBound && settingsOutcome.remoteEstablished) {
+      const stripped = stripBundledDemo(db);
+      db = stripped.db;
+      stripped.changedTables.forEach((table) => dirtyTables.add(table));
+    }
+
+    const materialized = await refreshMaterializedMedia(db, settings);
+    if (materialized.db.projects.some((record, index) => record !== db.projects[index])) dirtyTables.add("projects");
+    if (materialized.db.assets.some((record, index) => record !== db.assets[index])) dirtyTables.add("assets");
+    if (materialized.db.reports.some((record, index) => record !== db.reports[index])) dirtyTables.add("reports");
+    db = materialized.db;
+    settings = materialized.settings;
+
     // ---- One-time local → cloud import (first sync after sign-in) ----
     if (detectNeedsImport(settings, db)) {
       const batch = buildImportOutboxBatch(db, settings.cloudImportCheckpoint);
@@ -769,14 +1104,15 @@ export async function runSyncCycle(): Promise<SyncCycleResult> {
       settings = {
         ...settings,
         cloudImportCheckpoint: batch.checkpoint,
-        ...(isImportComplete(batch.checkpoint) ? markImportCompleted() : {}),
       };
       if (batch.entries.length > 0) dirtyTables.add("outbox");
+    } else if (
+      newlyBound &&
+      !settings.cloudImportCompletedAt &&
+      !PUSH_TABLE_ORDER.some((table) => db[table].length > 0)
+    ) {
+      settings = { ...settings, ...markImportCompleted() };
     }
-
-    const settingsOutcome = await syncSettings(supabase, ownerId, settings);
-    settings = settingsOutcome.settings;
-    if (settingsOutcome.error) result.errors.push(settingsOutcome.error);
 
     // ---- Push ----
     const originalOutboxLength = db.outbox.length;
@@ -806,6 +1142,11 @@ export async function runSyncCycle(): Promise<SyncCycleResult> {
         result.pushed += 1;
         result.mediaUploaded += outcome.mediaUploaded ?? 0;
         result.mediaSkipped += outcome.mediaSkipped ?? 0;
+        if (outcome.pending) {
+          remaining.push(entry);
+          result.pushFailed += 1;
+          result.errors.push(outcome.warning ?? "Some media is still waiting to upload.");
+        }
       } else {
         remaining.push(entry);
         result.pushFailed += 1;
@@ -821,7 +1162,10 @@ export async function runSyncCycle(): Promise<SyncCycleResult> {
     // ---- Pull ----
     if (!authFailed) {
       try {
-        const sinceIso = await fetchLastPulledAt(supabase, ownerId);
+        // Keep an overlap window so writes committed while tables are being
+        // pulled cannot fall into the checkpoint race. Merge is idempotent.
+        const nextCheckpoint = new Date(Date.now() - 5 * 60 * 1_000).toISOString();
+        const sinceIso = settings.cloudLastPulledAt ?? EPOCH_ISO;
         for (const table of PULL_ORDER) {
           const { db: nextDb, pulled } = await pullTable(supabase, table, ownerId, sinceIso, db);
           db = nextDb;
@@ -830,7 +1174,8 @@ export async function runSyncCycle(): Promise<SyncCycleResult> {
             result.pulled += pulled;
           }
         }
-        await touchCheckpoint(supabase, ownerId);
+        await touchCheckpoint(supabase, ownerId, nextCheckpoint);
+        settings = { ...settings, cloudLastPulledAt: nextCheckpoint };
       } catch (e) {
         result.errors.push(classifySyncError(e).message);
       }
@@ -839,6 +1184,11 @@ export async function runSyncCycle(): Promise<SyncCycleResult> {
     const requeue = requeueConflicts(db);
     db = requeue.db;
     if (requeue.changed) dirtyTables.add("outbox");
+
+    const importQueueEmpty = !db.outbox.some((entry) => isPushTableName(entry.table));
+    if (!settings.cloudImportCompletedAt && isImportComplete(settings.cloudImportCheckpoint) && importQueueEmpty) {
+      settings = { ...settings, ...markImportCompleted(), cloudAccountId: ownerId };
+    }
 
     // ---- Persist ----
     if (dirtyTables.size > 0) {
@@ -855,3 +1205,22 @@ export async function runSyncCycle(): Promise<SyncCycleResult> {
     return result;
   }
 }
+
+let activeSyncCycle: Promise<SyncCycleResult> | null = null;
+
+/** Single-flight entry point so foreground, timer, reconnect and manual sync cannot race local outbox persistence. */
+export function runSyncCycle(): Promise<SyncCycleResult> {
+  if (activeSyncCycle) return activeSyncCycle;
+  activeSyncCycle = runSyncCycleOnce().finally(() => {
+    activeSyncCycle = null;
+  });
+  return activeSyncCycle;
+}
+
+export const syncEngineInternals = {
+  versionCheckedWrite,
+  fetchChangedRows,
+  stripBundledDemo,
+  matchingLocalMediaUri,
+  inferLegacyCloudOwners,
+};
