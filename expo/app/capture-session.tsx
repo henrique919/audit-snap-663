@@ -33,7 +33,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppButton, Chip, Field, Segmented, ToggleRow } from "@/components/ui";
 import { REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/constants/config";
-import { font, palette, radius, shadow, spacing } from "@/constants/theme";
+import { font, layout, palette, radius, shadow, spacing } from "@/constants/theme";
 import { showAlert, showConfirm } from "@/lib/dialogs";
 import { issueRef } from "@/lib/format";
 import { newId } from "@/lib/ids";
@@ -332,7 +332,8 @@ export default function CaptureSession() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
+      <View style={styles.container}>
+      <View style={[styles.webShell, { paddingTop: insets.top + spacing.sm }]}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -476,6 +477,7 @@ export default function CaptureSession() {
           {/* Spacer balances Gallery column width at 390×844 (Voice control removed). */}
           <View style={styles.sideBtn} pointerEvents="none" accessibilityElementsHidden />
         </View>
+      </View>
       </View>
 
       {/* Fast issue sheet */}
@@ -671,7 +673,18 @@ export default function CaptureSession() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: palette.carbonDeep, paddingHorizontal: spacing.lg },
+  container: { flex: 1, backgroundColor: palette.carbonDeep },
+  // Unlike the light-background screens (dashboard, project, issue detail),
+  // this screen's dark carbonDeep fill has to stay full-bleed on web - the
+  // page chrome behind it is light (`palette.background`), so capping
+  // `container` itself would show a light seam around a floating dark box.
+  // Instead the outer box stays edge-to-edge and only the actual content
+  // (header/chips/thumbnail strip/shutter row) is capped and centered.
+  webShell: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    ...(Platform.OS === "web" ? { maxWidth: layout.webMaxWidth, width: "100%", alignSelf: "center" } : null),
+  },
   missing: { flex: 1, alignItems: "center", justifyContent: "center" },
   missingText: { color: palette.textMuted },
   header: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.md },
