@@ -1117,6 +1117,7 @@ export default function MarkupStudio() {
             Selection chrome, crop overlay, and blur draft outline live in a sibling SVG. */}
         <View style={styles.canvasWrap}>
           <View
+            testID="markup-photo-canvas"
             style={[styles.canvas, { aspectRatio: imageAspect }]}
             onLayout={(e) => setCanvas({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
           >
