@@ -91,6 +91,13 @@ interface FieldProps {
   /** Shown below the field in red with a matching border; also marks it invalid for a11y. */
   error?: string;
   maxLength?: number;
+  secureTextEntry?: boolean;
+  keyboardType?: React.ComponentProps<typeof TextInput>["keyboardType"];
+  autoCapitalize?: React.ComponentProps<typeof TextInput>["autoCapitalize"];
+  autoComplete?: React.ComponentProps<typeof TextInput>["autoComplete"];
+  textContentType?: React.ComponentProps<typeof TextInput>["textContentType"];
+  returnKeyType?: React.ComponentProps<typeof TextInput>["returnKeyType"];
+  onSubmitEditing?: () => void;
 }
 
 export function Field({
@@ -104,6 +111,13 @@ export function Field({
   testID,
   error,
   maxLength,
+  secureTextEntry,
+  keyboardType,
+  autoCapitalize,
+  autoComplete,
+  textContentType,
+  returnKeyType,
+  onSubmitEditing,
 }: FieldProps) {
   const errorId = testID ? `${testID}-error` : undefined;
   return (
@@ -122,6 +136,13 @@ export function Field({
         multiline={multiline}
         autoFocus={autoFocus}
         maxLength={maxLength}
+        secureTextEntry={secureTextEntry}
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+        autoComplete={autoComplete}
+        textContentType={textContentType}
+        returnKeyType={returnKeyType}
+        onSubmitEditing={onSubmitEditing}
         accessibilityLabel={error ? `${label}. ${error}` : label}
       />
       {error ? (

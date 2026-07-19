@@ -12,6 +12,7 @@ import { StorageErrorBanner } from "@/components/StorageErrorBanner";
 import { font, palette } from "@/constants/theme";
 import { useAppFonts } from "@/constants/typography";
 import { AppStoreProvider } from "@/providers/AppStore";
+import { AuthProvider } from "@/providers/AuthProvider";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -51,6 +52,7 @@ function RootLayoutNav() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="auth" options={{ headerShown: false }} />
       <Stack.Screen name="project-new" options={{ title: "New Project", presentation: "modal" }} />
       <Stack.Screen name="audit-new" options={{ title: "Start Audit" }} />
       <Stack.Screen name="data-privacy" options={{ title: "Data & privacy" }} />
@@ -76,14 +78,16 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
-        <AppStoreProvider>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <StorageErrorBanner />
-            <ActionSheetHost />
-            <MediaGcScheduler />
-            <RootLayoutNav />
-          </GestureHandlerRootView>
-        </AppStoreProvider>
+        <AuthProvider>
+          <AppStoreProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <StorageErrorBanner />
+              <ActionSheetHost />
+              <MediaGcScheduler />
+              <RootLayoutNav />
+            </GestureHandlerRootView>
+          </AppStoreProvider>
+        </AuthProvider>
       </SafeAreaProvider>
     </QueryClientProvider>
   );

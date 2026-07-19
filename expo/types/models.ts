@@ -247,6 +247,18 @@ export interface AppSettings {
   storageNoticeDismissedAt: string | null;
   /** Pilot metric (LP-20): last Quick Walk time-to-first-issue in ms, or null. */
   lastTimeToFirstIssueMs: number | null;
+  /**
+   * ISO timestamp once every pre-existing local record has been queued for
+   * cloud sync at least once after signing in, or null while import is
+   * pending/in progress. See lib/supabase/localImport.ts.
+   */
+  cloudImportCompletedAt: string | null;
+  /**
+   * Per-table progress checkpoint for the one-time local→cloud import, so an
+   * interrupted import can resume without re-queuing already-imported
+   * tables. Null until an import has started. See lib/supabase/localImport.ts.
+   */
+  cloudImportCheckpoint: Record<string, boolean> | null;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -264,4 +276,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   keepAwakeWhileUploading: false,
   storageNoticeDismissedAt: null,
   lastTimeToFirstIssueMs: null,
+  cloudImportCompletedAt: null,
+  cloudImportCheckpoint: null,
 };
