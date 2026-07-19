@@ -153,10 +153,15 @@ const SEED_ISSUES: SeedIssue[] = [
     // photo, not a showcase of every tool at once. The full tool set (incl.
     // circle/pen/callout/blur) is still demonstrated live in the Markup
     // Studio's own tool palette - it doesn't need to all land on one photo.
+    // Text sits clear of the box AND clear of the marketing site's "SAMPLE"
+    // band (bottom ~15% of the frame) - stacking a red annotation label on
+    // a red band was a real, reported "red on red" collision, not a design
+    // choice. The arrow does the connecting; the label just needs its own
+    // clean space.
     annotations: [
       { id: "ann_100", type: "rect", x: 0.1, y: 0.16, width: 0.36, height: 0.34, stroke: "#E53935", strokeWidth: 8 },
-      { id: "ann_102", type: "arrow", x1: 0.58, y1: 0.74, x2: 0.4, y2: 0.48, stroke: "#E53935", strokeWidth: 8 },
-      { id: "ann_104", type: "text", x: 0.5, y: 0.8, text: "Door left open", color: "#E53935", fontSize: 42, bg: true },
+      { id: "ann_102", type: "arrow", x1: 0.6, y1: 0.6, x2: 0.4, y2: 0.42, stroke: "#E53935", strokeWidth: 8 },
+      { id: "ann_104", type: "text", x: 0.72, y: 0.6, text: "Door left open", color: "#E53935", fontSize: 42, bg: true },
     ],
   },
 ];
