@@ -19,10 +19,14 @@ export function ActionSheetHost() {
     return () => __registerActionSheetListener(null);
   }, []);
 
-  const close = () => setRequest(null);
+  const close = () => {
+    const dismissed = request;
+    setRequest(null);
+    dismissed?.onDismiss?.();
+  };
 
   const handlePress = (action: DialogAction) => {
-    close();
+    setRequest(null);
     void action.onPress?.();
   };
 
@@ -30,12 +34,15 @@ export function ActionSheetHost() {
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={close} testID="action-sheet-modal">
+      {/* Backdrop is a presentational tap-to-dismiss layer, NOT a button — a
+          button role here renders as <button> on web and would nest the action
+          <button>s inside it (invalid HTML + confuses screen readers). Dismissal
+          stays available via the action rows and Escape (onRequestClose). */}
       <Pressable
         style={styles.backdrop}
         onPress={close}
         testID="action-sheet-backdrop"
-        accessibilityRole="button"
-        accessibilityLabel="Close"
+        importantForAccessibility="no"
       >
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.header} accessibilityRole="header">

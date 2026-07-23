@@ -24,6 +24,7 @@ import {
 export const PHOTO_DIR = `${FileSystem.documentDirectory ?? ""}photos/`;
 export const REPORT_DIR = `${FileSystem.documentDirectory ?? ""}reports/`;
 export const BRAND_DIR = `${FileSystem.documentDirectory ?? ""}brand/`;
+export const CLOUD_CACHE_DIR = `${FileSystem.documentDirectory ?? ""}cloud-cache/`;
 
 export interface ProcessedPhoto {
   originalUri: string;

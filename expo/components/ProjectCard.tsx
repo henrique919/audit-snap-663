@@ -40,7 +40,13 @@ function ProjectCardInner({ project, openIssues, completedIssues, lastAuditDate,
     >
       <View style={styles.topRow}>
         {project.coverPhotoUri ? (
-          <Image source={{ uri: project.coverPhotoUri }} style={styles.cover} contentFit="cover" />
+          <Image
+            source={{ uri: project.coverPhotoUri }}
+            style={styles.cover}
+            contentFit="cover"
+            accessible
+            accessibilityLabel={`Cover photo for ${project.name}`}
+          />
         ) : (
           <View style={[styles.cover, styles.coverPlaceholder]}>
             <Building2 color={palette.textFaint} size={22} />

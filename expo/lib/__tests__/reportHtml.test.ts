@@ -320,4 +320,31 @@ describe("buildReportHtml — large fixture & redaction", () => {
 
     expect(html).toContain("--pw:66%");
   });
+
+  it("caps photo height so a tall/portrait photo cannot fill a full page", () => {
+    const issue = fixture.issues[0];
+    const oneAsset = fixture.assets.find((a) => a.issueId === issue.id)!;
+    // Tall portrait phone photo — the case that used to fill a whole A4 page.
+    const portrait = { ...oneAsset, width: 3024, height: 4032 };
+    const html = buildReportHtml({
+      project: fixture.project,
+      audit: fixture.audit,
+      issues: [issue],
+      locations: fixture.locations,
+      assignees: fixture.assignees,
+      assets: [portrait],
+      annotations: [],
+      options: { ...fixture.options, imageSize: "large" },
+      branding: { companyName: "CleanRun IQ", inspectorName: "Ada", logoUri: null, footerText: "" },
+      imageSrc: (uri) => uri,
+    });
+
+    // Height cap is wired: container carries a max-height var, the photo carries
+    // its aspect (w/h), and the CSS caps .photo width = max-height * aspect.
+    expect(html).toContain("--mh:");
+    expect(html).toMatch(/--ar:0\.75/); // 3024/4032
+    expect(html).toContain("max-width: calc(var(--mh, 999mm) * var(--ar, 1))");
+    // The aspect box stays exact so annotation overlays keep aligning.
+    expect(html).toContain("padding-top:133.33%");
+  });
 });

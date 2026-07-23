@@ -152,6 +152,8 @@ export default function IssueDetailScreen() {
                 source={{ uri: asset.annotatedUri ?? asset.reportUri }}
                 style={[styles.photo, { aspectRatio: asset.width / Math.max(1, asset.height) }]}
                 contentFit="cover"
+                accessible
+                accessibilityLabel={`Photo, ${issueRef(issue.issueNumber)}`}
               />
               <View style={styles.photoActions}>
                 <TouchableOpacity

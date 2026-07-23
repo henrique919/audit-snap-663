@@ -1,0 +1,6 @@
+-- Migration-history alignment placeholder.
+--
+-- The production migration API recorded the hardening change at this UTC
+-- version even though the repository's pre-existing core migration was
+-- future-dated. The idempotent, clean-install source remains the later
+-- 20260719090401_harden_sync_integrity.sql migration, after the core schema.

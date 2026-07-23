@@ -13,13 +13,6 @@ import { processPickedPhotoWeb } from "@/lib/filesWeb";
 import { newId, nowIso } from "@/lib/ids";
 import { SEED_COVER, SEED_ISSUE_PHOTOS } from "@/lib/seedAssets";
 import type { Db } from "@/lib/store";
-
-/** ISO timestamp N days before now (keeps demo captures from looking stale). */
-function daysAgoIso(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString();
-}
 import type {
   AnnotationElement,
   Assignee,
@@ -33,6 +26,12 @@ import type {
   ProjectLocation,
 } from "@/types/models";
 
+/** ISO timestamp N days before now (keeps demo captures from looking stale). */
+function daysAgoIso(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString();
+}
 function base(): BaseRecord {
   const now = nowIso();
   return {

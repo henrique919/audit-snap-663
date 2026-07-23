@@ -28,7 +28,8 @@ export const palette = {
   cobaltSoft: "#EAF1FF",
 
   /** Success / verified. */
-  green: "#1E9E5A",
+  /** AA-safe success text on white and greenSoft. */
+  green: "#147A45",
   greenBright: "#2BB56A",
   greenSoft: "#E7F3EC",
 
@@ -44,7 +45,8 @@ export const palette = {
   infoSoft: "#EAF1FF",
 
   /** Open / high / destructive. */
-  red: "#C93B3B",
+  /** AA-safe on redSoft and white for status labels. */
+  red: "#B63232",
   redSoft: "#FBEBEB",
 
   /** For-review (reserved for future status). */
@@ -158,9 +160,9 @@ export const shadow = Platform.select({
 
 /** Colors available in the markup studio palette. */
 export const MARKUP_COLORS = [
-  "#C93B3B",
+  "#B63232",
   "#E5A016",
-  "#1E9E5A",
+  "#147A45",
   "#4C82FF",
   "#7B61E0",
   "#1C232B",

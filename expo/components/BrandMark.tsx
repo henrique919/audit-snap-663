@@ -50,7 +50,12 @@ export function BrandMark({ size = 40, style, variant = "default", bare = false 
   if (BrandConfig.logoUri) {
     return (
       <View style={[{ width: size, height: size, borderRadius, overflow: "hidden" }, style]}>
-        <Image source={{ uri: BrandConfig.logoUri }} style={{ width: size, height: size }} contentFit="cover" />
+        <Image
+          source={{ uri: BrandConfig.logoUri }}
+          style={{ width: size, height: size }}
+          contentFit="cover"
+          accessible={false}
+        />
       </View>
     );
   }

@@ -19,7 +19,12 @@ import { formatDate, formatDateTime, issueRef } from "@/lib/format";
 import { buildReportHtml } from "@/lib/report";
 import { getReportFontFaceCss } from "@/lib/reportFonts";
 import { resolveReportImages } from "@/lib/reportImages";
-import { openBlankPrintWindow, printHtmlInWindow, WEB_PRINT_SENTINEL } from "@/lib/reportPrintWeb";
+import {
+  openBlankPrintWindow,
+  printHtmlInWindow,
+  shareOrDownloadHtmlReport,
+  WEB_PRINT_SENTINEL,
+} from "@/lib/reportPrintWeb";
 import { useAppStore, useAudit, useIssuesForAudit, useProject, useReportFreshness } from "@/providers/AppStore";
 import { DEFAULT_REPORT_OPTIONS, ReportOptions } from "@/types/models";
 
@@ -48,6 +53,7 @@ export default function ReportPreviewScreen() {
   const [generationPhase, setGenerationPhase] = useState<string | null>(null);
   const [pdfUri, setPdfUri] = useState<string | null>(null);
   const generatingRef = useRef(false);
+  const latestHtmlRef = useRef<string | null>(null);
 
   const theme = REPORT_THEMES[resolveThemeKey(options.themeKey)];
   const brandLogoUri = project?.logoUri ?? settings.logoUri;
@@ -171,6 +177,7 @@ export default function ReportPreviewScreen() {
         },
         imageSrc: (uri) => uriMap.get(uri) ?? "",
       });
+      latestHtmlRef.current = html;
 
       let persisted: string;
       if (Platform.OS === "web") {
@@ -271,8 +278,20 @@ export default function ReportPreviewScreen() {
   const doShare = useCallback(async (uri: string) => {
     try {
       if (Platform.OS === "web") {
-        // withFreshPdf already regenerated and opened the print window
-        // above — that IS the web "share" action (Save as PDF from there).
+        const html = latestHtmlRef.current;
+        if (!html) {
+          showAlert("Report not ready", "Generate the report before sharing it.");
+          return;
+        }
+        const filename = `${BrandConfig.reportName}_${project?.name ?? "inspection"}_${audit?.auditDate ?? "report"}`
+          .replace(/[^a-z0-9._-]+/gi, "-")
+          .replace(/-+/g, "-")
+          .toLowerCase()
+          .concat(".html");
+        const delivery = await shareOrDownloadHtmlReport(html, filename, audit?.title ?? BrandConfig.reportName);
+        if (delivery === "downloaded") {
+          showAlert("Report HTML downloaded", "Attach the downloaded report file to any message or share it from your device.");
+        }
         return;
       }
       const available = await Sharing.isAvailableAsync();
@@ -283,7 +302,7 @@ export default function ReportPreviewScreen() {
       console.log("[preview] share failed", e);
       showAlert("Share failed", "The saved PDF may have been removed. Regenerate and try again.");
     }
-  }, []);
+  }, [audit?.auditDate, audit?.title, project?.name]);
 
   const share = useCallback(() => withFreshPdf(doShare), [withFreshPdf, doShare]);
 
@@ -329,7 +348,13 @@ export default function ReportPreviewScreen() {
         <Card style={styles.coverCard}>
           <View style={[styles.coverBand, { backgroundColor: theme.primary }]}>
             {brandLogoUri ? (
-              <Image source={{ uri: brandLogoUri }} style={styles.coverLogo} resizeMode="contain" />
+              <Image
+                source={{ uri: brandLogoUri }}
+                style={styles.coverLogo}
+                resizeMode="contain"
+                accessible
+                accessibilityLabel="Company logo"
+              />
             ) : (
               <BrandMark size={42} />
             )}
@@ -419,6 +444,8 @@ export default function ReportPreviewScreen() {
                 <Image
                   source={{ uri: sampleAsset.annotatedUri ?? sampleAsset.thumbUri }}
                   style={styles.itemThumb}
+                  accessible
+                  accessibilityLabel={`Photo for ${issueRef(sampleIssue.issueNumber)}`}
                 />
               ) : (
                 <View style={[styles.itemThumb, styles.itemThumbEmpty]}>

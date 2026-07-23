@@ -3,7 +3,7 @@
 import Constants from "expo-constants";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { Database, ImagePlus, Mail, RefreshCcw, Shield, Trash2, X } from "lucide-react-native";
+import { CloudOff, Database, ImagePlus, Mail, RefreshCcw, Shield, Trash2, UserX, X } from "lucide-react-native";
 import React from "react";
 import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,6 +12,7 @@ import { BrandMark, BrandWordmark } from "@/components/BrandMark";
 import { AppButton, Card, Field, SectionTitle } from "@/components/ui";
 import { BrandConfig, REPORT_THEMES, ReportThemeKey, resolveThemeKey } from "@/constants/config";
 import { font, palette, radius, spacing } from "@/constants/theme";
+import { deleteAccount } from "@/lib/supabase/account";
 import { showAlert, showConfirm } from "@/lib/dialogs";
 import {
   buildExportSuccessMessage,
@@ -23,10 +24,219 @@ import {
 import { persistBrandLogo } from "@/lib/files";
 import { BUILD_ID, buildSupportMailto, PUBLISHER_NAME } from "@/lib/legalCopy";
 import { estimateMediaStorage, formatBytes, runMediaGc } from "@/lib/mediaRegistry";
+import { runSyncCycle } from "@/lib/supabase/syncEngine";
 import { summarizeWipe } from "@/lib/wipe";
 import { useAppStore } from "@/providers/AppStore";
+import { useAuth } from "@/providers/AuthProvider";
 
 const APP_VERSION = Constants.expoConfig?.version ?? "1.0.0";
+
+function summarizeSyncResult(result: Awaited<ReturnType<typeof runSyncCycle>>): string {
+  if (!result.configured) return "Cloud sync isn't configured for this build yet.";
+  if (!result.authenticated) return "Sign in to sync your projects and photos to the cloud.";
+  if (result.ok) {
+    const parts: string[] = [];
+    if (result.pushed > 0) parts.push(`${result.pushed} change${result.pushed === 1 ? "" : "s"} uploaded`);
+    if (result.pulled > 0) parts.push(`${result.pulled} update${result.pulled === 1 ? "" : "s"} downloaded`);
+    if (result.mediaUploaded > 0) parts.push(`${result.mediaUploaded} photo${result.mediaUploaded === 1 ? "" : "s"} uploaded`);
+    return parts.length > 0 ? `Everything's up to date — ${parts.join(", ")}.` : "Everything's already up to date.";
+  }
+  return result.errors[0] ?? "Sync couldn't finish. Please try again.";
+}
+
+function CloudAccountSection({ resetLocalData }: { resetLocalData: (reseedDemo: boolean) => Promise<import("@/providers/AppStore").ResetAllDataResult> }) {
+  const router = useRouter();
+  const { configured, session, user, profile, signOut, updateProfile, refreshProfile } = useAuth();
+  const [displayName, setDisplayName] = React.useState<string>(profile?.displayName ?? "");
+  const [savingProfile, setSavingProfile] = React.useState(false);
+  const [syncing, setSyncing] = React.useState(false);
+  const [signingOut, setSigningOut] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+
+  React.useEffect(() => {
+    setDisplayName(profile?.displayName ?? "");
+  }, [profile?.displayName]);
+
+  React.useEffect(() => {
+    if (session) void refreshProfile();
+    // Only re-run when the signed-in user changes, not on every profile update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user.id]);
+
+  if (!configured) {
+    return (
+      <>
+        <SectionTitle title="Cloud account" />
+        <Card>
+          <View style={styles.cloudUnavailableRow}>
+            <CloudOff color={palette.textFaint} size={18} />
+            <Text style={styles.note}>
+              Cloud backup is not set up for this build yet. Everything still works fully offline on this device.
+            </Text>
+          </View>
+        </Card>
+      </>
+    );
+  }
+
+  if (!session || !user) {
+    return (
+      <>
+        <SectionTitle title="Cloud account" />
+        <Card>
+          <Text style={styles.note}>
+            Sign in to back up your projects, audits and photos to the cloud and sync them across devices. This is
+            entirely optional — the app keeps working offline either way.
+          </Text>
+          <View style={styles.cloudButtonRow}>
+            <AppButton
+              testID="cloud-sign-in"
+              label="Sign in"
+              variant="secondary"
+              onPress={() => router.push("/auth/login")}
+              style={styles.cloudButtonHalf}
+            />
+            <AppButton
+              testID="cloud-create-account"
+              label="Create account"
+              onPress={() => router.push("/auth/signup")}
+              style={styles.cloudButtonHalf}
+            />
+          </View>
+        </Card>
+      </>
+    );
+  }
+
+  const profileDirty = displayName.trim() !== (profile?.displayName ?? "");
+
+  const handleSaveProfile = async () => {
+    try {
+      setSavingProfile(true);
+      await updateProfile({ displayName: displayName.trim() });
+    } catch (e) {
+      showAlert("Couldn't save profile", e instanceof Error ? e.message : "Please try again.");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    try {
+      setSyncing(true);
+      const result = await runSyncCycle();
+      showAlert(result.ok ? "Sync complete" : "Sync finished with issues", summarizeSyncResult(result));
+    } catch (e) {
+      console.log("[settings] sync now failed", e);
+      showAlert("Sync failed", "Could not sync with the cloud. Please try again.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    const ok = await showConfirm("Sign out", "You'll still be able to use this app offline.", "Sign out");
+    if (!ok) return;
+    try {
+      setSigningOut(true);
+      await signOut();
+    } catch (e) {
+      showAlert("Couldn't sign out", e instanceof Error ? e.message : "Please try again.");
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const ok = await showConfirm(
+      "Delete account",
+      "This permanently deletes your cloud account, synced projects and photos, and PunchThis data stored on this device. This can't be undone.",
+      "Delete account",
+      true,
+    );
+    if (!ok) return;
+    try {
+      setDeleting(true);
+      const result = await deleteAccount();
+      if (!result.ok) {
+        showAlert("Couldn't delete account", result.error ?? "Please try again.");
+        return;
+      }
+      const localResult = await resetLocalData(false);
+      if (localResult.status === "persist_failed") {
+        showAlert(
+          "Cloud account deleted",
+          `Your cloud account was removed, but local data could not be cleared: ${localResult.error}`,
+        );
+        return;
+      }
+      if (localResult.status === "wipe_partial") {
+        showAlert("Cloud account deleted", `Your account was removed. ${summarizeWipe(localResult.wipe).message}`);
+        return;
+      }
+      showAlert("Account deleted", "Your cloud account and data on this device have been removed.");
+    } catch (e) {
+      showAlert("Couldn't delete account", e instanceof Error ? e.message : "Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <>
+      <SectionTitle title="Cloud account" />
+      <Card>
+        <Text style={styles.fieldLbl}>Signed in as</Text>
+        <Text style={styles.cloudEmail} testID="cloud-account-email">
+          {profile?.email ?? user.email ?? "—"}
+        </Text>
+        <Field
+          label="Display name"
+          value={displayName}
+          onChangeText={setDisplayName}
+          placeholder="Your name"
+          testID="cloud-display-name"
+        />
+        <AppButton
+          testID="cloud-save-profile"
+          label="Save profile"
+          variant="secondary"
+          disabled={!profileDirty}
+          loading={savingProfile}
+          onPress={handleSaveProfile}
+          style={styles.cleanupBtn}
+        />
+      </Card>
+
+      <Card style={styles.cloudActionsCard}>
+        <AppButton
+          testID="cloud-sync-now"
+          label="Sync now"
+          icon={<RefreshCcw color={palette.white} size={17} />}
+          loading={syncing}
+          onPress={handleSyncNow}
+        />
+        <AppButton
+          testID="cloud-sign-out"
+          label="Sign out"
+          variant="secondary"
+          loading={signingOut}
+          onPress={handleSignOut}
+          style={styles.cloudSecondaryBtn}
+        />
+        <AppButton
+          testID="cloud-delete-account"
+          label="Delete account"
+          variant="danger"
+          icon={<UserX color={palette.white} size={17} />}
+          loading={deleting}
+          onPress={handleDeleteAccount}
+          style={styles.cloudSecondaryBtn}
+        />
+      </Card>
+    </>
+  );
+}
 
 export default function SettingsTab() {
   const router = useRouter();
@@ -141,6 +351,8 @@ export default function SettingsTab() {
         </View>
       </View>
 
+      <CloudAccountSection resetLocalData={resetAllData} />
+
       <SectionTitle title="Inspector defaults" />
       <Card>
         <Field
@@ -165,9 +377,22 @@ export default function SettingsTab() {
       <Card>
         <Text style={styles.fieldLbl}>Company logo</Text>
         <View style={styles.logoRow}>
-          <TouchableOpacity style={styles.logoBox} onPress={pickLogo} activeOpacity={0.8} testID="pick-logo">
+          <TouchableOpacity
+            style={styles.logoBox}
+            onPress={pickLogo}
+            activeOpacity={0.8}
+            testID="pick-logo"
+            accessibilityRole="button"
+            accessibilityLabel={settings.logoUri ? "Replace company logo" : "Upload company logo"}
+          >
             {settings.logoUri ? (
-              <Image source={{ uri: settings.logoUri }} style={styles.logoImg} resizeMode="contain" />
+              <Image
+                source={{ uri: settings.logoUri }}
+                style={styles.logoImg}
+                resizeMode="contain"
+                accessible
+                accessibilityLabel="Current company logo"
+              />
             ) : (
               <>
                 <ImagePlus color={palette.textFaint} size={22} />
@@ -180,7 +405,12 @@ export default function SettingsTab() {
               Appears on report covers and brand areas. Projects with their own logo override this.
             </Text>
             {settings.logoUri ? (
-              <TouchableOpacity style={styles.logoRemove} onPress={() => updateSettings({ logoUri: null })}>
+              <TouchableOpacity
+                style={styles.logoRemove}
+                onPress={() => updateSettings({ logoUri: null })}
+                accessibilityRole="button"
+                accessibilityLabel="Remove company logo"
+              >
                 <X color={palette.red} size={13} />
                 <Text style={styles.logoRemoveText}>Remove logo</Text>
               </TouchableOpacity>
@@ -345,6 +575,12 @@ const styles = StyleSheet.create({
   brandSub: { fontSize: font.size.xs, color: palette.textMuted, marginTop: 1 },
   brandSite: { fontSize: font.size.xs, color: palette.textFaint, marginTop: 1 },
   note: { fontSize: font.size.xs, color: palette.textFaint, lineHeight: 17 },
+  cloudUnavailableRow: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
+  cloudButtonRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+  cloudButtonHalf: { flex: 1 },
+  cloudEmail: { fontSize: font.size.md, fontFamily: font.family.bodySemibold, color: palette.text, marginBottom: spacing.lg },
+  cloudActionsCard: { marginTop: spacing.md, gap: spacing.sm },
+  cloudSecondaryBtn: { marginTop: 0 },
   fieldLbl: {
     fontSize: font.size.xs,
     fontFamily: font.family.bodyBold,

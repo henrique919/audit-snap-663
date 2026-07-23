@@ -5,7 +5,7 @@
  * (Image/canvas) that isn't present under the Node jest environment.
  */
 
-import { fitDimensions, processPickedPhotoWeb } from "@/lib/filesWeb";
+import { fitDimensions, processPickedPhotoWeb, reencodeWebImage } from "@/lib/filesWeb";
 
 describe("fitDimensions", () => {
   it("leaves an image unchanged when already within bounds", () => {
@@ -116,6 +116,14 @@ describe("processPickedPhotoWeb", () => {
     const result = await processPickedPhotoWeb("blob:http://localhost/small");
     expect(result.width).toBe(300);
     expect(result.height).toBe(200);
+  });
+
+  it("turns ephemeral transform blob URLs into durable JPEG data URIs", async () => {
+    installDomStubs(1200, 800);
+    const result = await reencodeWebImage("blob:http://localhost/rotated", 1200, 0.8);
+    expect(result.dataUri).toMatch(/^data:image\/jpeg/);
+    expect(result.dataUri).not.toContain("blob:");
+    expect(result).toMatchObject({ width: 1200, height: 800 });
   });
 
   it("draws onto the canvas at the computed target size (not the source size)", async () => {

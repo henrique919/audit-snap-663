@@ -27,7 +27,11 @@
       "versionCode": 1
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "output": "static"
+    },
+    "extra": {
+      "sentryDsn": "https://a3f9059192e434484d184ce3189ac98d@o4511786220126208.ingest.us.sentry.io/4511786232905728"
     },
     "plugins": [
       "expo-router",
@@ -39,6 +43,14 @@
         {
           "photosPermission": "PunchThis uses your photo library so you can attach existing site photos to inspection issues.",
           "cameraPermission": "PunchThis uses the camera to photograph site issues for your inspection reports."
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "henrique919",
+          "project": "punchthis",
+          "disableAutoUpload": true
         }
       ]
     ],

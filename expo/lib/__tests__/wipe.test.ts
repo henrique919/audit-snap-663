@@ -2,7 +2,7 @@
  * Owned-media wipe unit tests — FileSystem mocked (native path).
  */
 
-import { BRAND_DIR, PHOTO_DIR, REPORT_DIR } from "@/lib/files";
+import { BRAND_DIR, CLOUD_CACHE_DIR, PHOTO_DIR, REPORT_DIR } from "@/lib/files";
 import { summarizeWipe, wipeOwnedMediaDirs } from "@/lib/wipe";
 
 const mockGetInfoAsync = jest.fn();
@@ -47,15 +47,16 @@ describe("wipeOwnedMediaDirs", () => {
     mockReadDirectoryAsync.mockReset();
   });
 
-  it("deletes files across photos, reports, and brand dirs", async () => {
+  it("deletes files across photos, reports, brand, and cloud cache dirs", async () => {
     mockGetInfoAsync.mockImplementation(async (uri: string) => {
-      if (uri === PHOTO_DIR || uri === REPORT_DIR || uri === BRAND_DIR) return existsDir();
+      if (uri === PHOTO_DIR || uri === REPORT_DIR || uri === BRAND_DIR || uri === CLOUD_CACHE_DIR) return existsDir();
       return existsFile();
     });
     mockReadDirectoryAsync.mockImplementation(async (dir: string) => {
       if (dir === PHOTO_DIR) return ["a.jpg", "b.jpg"];
       if (dir === REPORT_DIR) return ["r.pdf"];
       if (dir === BRAND_DIR) return ["logo.png"];
+      if (dir === CLOUD_CACHE_DIR) return ["download.jpg"];
       return [];
     });
     mockDeleteAsync.mockResolvedValue(undefined);
@@ -63,19 +64,20 @@ describe("wipeOwnedMediaDirs", () => {
     const result = await wipeOwnedMediaDirs();
 
     expect(result.ok).toBe(true);
-    expect(result.deletedFiles).toBe(4);
+    expect(result.deletedFiles).toBe(5);
     expect(result.failed).toEqual([]);
-    expect(mockDeleteAsync).toHaveBeenCalledTimes(4);
+    expect(mockDeleteAsync).toHaveBeenCalledTimes(5);
     expect(mockDeleteAsync).toHaveBeenCalledWith(`${PHOTO_DIR}a.jpg`, { idempotent: true });
     expect(mockDeleteAsync).toHaveBeenCalledWith(`${PHOTO_DIR}b.jpg`, { idempotent: true });
     expect(mockDeleteAsync).toHaveBeenCalledWith(`${REPORT_DIR}r.pdf`, { idempotent: true });
     expect(mockDeleteAsync).toHaveBeenCalledWith(`${BRAND_DIR}logo.png`, { idempotent: true });
+    expect(mockDeleteAsync).toHaveBeenCalledWith(`${CLOUD_CACHE_DIR}download.jpg`, { idempotent: true });
   });
 
   it("tolerates a missing owned directory", async () => {
     mockGetInfoAsync.mockImplementation(async (uri: string) => {
       if (uri === PHOTO_DIR) return { exists: false };
-      if (uri === REPORT_DIR || uri === BRAND_DIR) return existsDir();
+      if (uri === REPORT_DIR || uri === BRAND_DIR || uri === CLOUD_CACHE_DIR) return existsDir();
       return existsFile();
     });
     mockReadDirectoryAsync.mockImplementation(async (dir: string) => {
@@ -95,7 +97,7 @@ describe("wipeOwnedMediaDirs", () => {
 
   it("collects individual delete failures and sets ok:false", async () => {
     mockGetInfoAsync.mockImplementation(async (uri: string) => {
-      if (uri === PHOTO_DIR || uri === REPORT_DIR || uri === BRAND_DIR) return existsDir();
+      if (uri === PHOTO_DIR || uri === REPORT_DIR || uri === BRAND_DIR || uri === CLOUD_CACHE_DIR) return existsDir();
       return existsFile();
     });
     mockReadDirectoryAsync.mockImplementation(async (dir: string) => {
@@ -115,7 +117,7 @@ describe("wipeOwnedMediaDirs", () => {
 
   it("succeeds when owned dirs exist but are empty", async () => {
     mockGetInfoAsync.mockImplementation(async (uri: string) => {
-      if (uri === PHOTO_DIR || uri === REPORT_DIR || uri === BRAND_DIR) return existsDir();
+      if (uri === PHOTO_DIR || uri === REPORT_DIR || uri === BRAND_DIR || uri === CLOUD_CACHE_DIR) return existsDir();
       return { exists: false };
     });
     mockReadDirectoryAsync.mockResolvedValue([]);
@@ -139,7 +141,7 @@ describe("wipeOwnedMediaDirs", () => {
 
   it("treats not-found delete errors as non-failures (idempotent)", async () => {
     mockGetInfoAsync.mockImplementation(async (uri: string) => {
-      if (uri === PHOTO_DIR || uri === REPORT_DIR || uri === BRAND_DIR) return existsDir();
+      if (uri === PHOTO_DIR || uri === REPORT_DIR || uri === BRAND_DIR || uri === CLOUD_CACHE_DIR) return existsDir();
       return existsFile();
     });
     mockReadDirectoryAsync.mockImplementation(async (dir: string) => {

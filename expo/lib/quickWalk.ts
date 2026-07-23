@@ -8,6 +8,16 @@ import { formatShortDate } from "@/lib/dates";
 import { todayIsoDate } from "@/lib/format";
 import type { AppSettings, Project } from "@/types/models";
 
+export const SAMPLE_PROJECT_NAME = "Sample — Harbourview Apartments Stage 2";
+
+/** The bundled demo is useful to explore, but must never be the default
+ * destination for a real user's first Quick Walk. */
+export function shouldStartQuickWalkWithNewProject(
+  projects: readonly Pick<Project, "name">[],
+): boolean {
+  return projects.length === 0 || (projects.length === 1 && projects[0]?.name === SAMPLE_PROJECT_NAME);
+}
+
 export interface QuickWalkProjectDefaults {
   name: string;
   reference: string;

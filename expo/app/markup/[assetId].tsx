@@ -105,9 +105,9 @@ const ELEMENT_LABEL: Record<AnnotationElement["type"], string> = {
 
 /** Screen-reader-friendly names for MARKUP_COLORS, in the same order. */
 const MARKUP_COLOR_NAMES: Record<string, string> = {
-  "#C93B3B": "Red",
+  "#B63232": "Red",
   "#E5A016": "Amber",
-  "#1E9E5A": "Green",
+  "#147A45": "Green",
   "#4C82FF": "Blue",
   "#7B61E0": "Purple",
   "#1C232B": "Black",
@@ -165,7 +165,7 @@ export default function MarkupStudio() {
   const { assetId } = useLocalSearchParams<{ assetId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { db, saveAnnotation, updateAsset, persistStatus, flushPersistNow, hydrated } = useAppStore();
+  const { db, saveAnnotation, updateAsset, persistStatus, hydrated, flushPersistNow } = useAppStore();
 
   const asset = useMemo(() => db.assets.find((a) => a.id === assetId) ?? null, [db.assets, assetId]);
   const existing = useMemo(
@@ -275,11 +275,6 @@ export default function MarkupStudio() {
     setSelectedId(null);
     setDirty(true);
   }, [applyElements]);
-
-  const nextCalloutNumber = useMemo(() => {
-    const nums = elements.filter((e) => e.type === "callout").map((e) => (e.type === "callout" ? e.number : 0));
-    return nums.length === 0 ? 1 : Math.max(...nums) + 1;
-  }, [elements]);
 
   const norm = useCallback(
     (px: number, py: number): NormPoint => ({
@@ -544,7 +539,7 @@ export default function MarkupStudio() {
         // instead of silently dropping it.
         onPanResponderTerminate: () => endGesture(),
       }),
-    [tool, selectedId, color, stroke, blurIntensity, norm, aspect, handleAtPoint, openTextEditor, applyElements, setDraft, endGesture],
+    [tool, selectedId, color, stroke, blurIntensity, norm, aspect, handleAtPoint, applyElements, setDraft, endGesture],
   );
 
   if (!asset) {
@@ -820,6 +815,14 @@ export default function MarkupStudio() {
         });
       }
       saveAnnotation(asset.id, asset.issueId, elementsToSave, annotatedUri);
+      const persisted = await flushPersistNow();
+      if (!persisted) {
+        showAlert(
+          "Save failed",
+          "Your markup couldn't be written to device storage. Free up space and try again — see the banner for details.",
+        );
+        return;
+      }
 
       // After store update: delete superseded files that nothing else references.
       const assetsAfter: PhotoAsset[] = db.assets.map((a) =>
@@ -838,17 +841,6 @@ export default function MarkupStudio() {
       await deleteUriIfUnreferenced(previousThumbUri, assetsAfter, asset.originalUri);
       await deleteUriIfUnreferenced(previousAnnotatedUri, assetsAfter, asset.originalUri);
 
-      // Only claim success once the debounced write has actually landed —
-      // a failed flush keeps the dirty state so Save stays available and the
-      // indicator/banner tell the truth (see saveState.ts).
-      const persisted = await flushPersistNow();
-      if (!persisted) {
-        showAlert(
-          "Save failed",
-          "Your markup couldn't be written to device storage. Free up space and try again — see the banner for details.",
-        );
-        return;
-      }
       setDirty(false);
       successHaptic();
       AccessibilityInfo.announceForAccessibility("Markup saved on device");
@@ -1084,6 +1076,7 @@ export default function MarkupStudio() {
         <View style={styles.actionsRow}>
           <TouchableOpacity
             style={[styles.miniBtn, undoRef.current.length === 0 && styles.miniBtnDisabled]}
+            hitSlop={4}
             onPress={undo}
             disabled={undoRef.current.length === 0}
             testID="markup-undo"
@@ -1095,6 +1088,7 @@ export default function MarkupStudio() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.miniBtn, redoRef.current.length === 0 && styles.miniBtnDisabled]}
+            hitSlop={4}
             onPress={redo}
             disabled={redoRef.current.length === 0}
             testID="markup-redo"
@@ -1107,6 +1101,7 @@ export default function MarkupStudio() {
           <View style={styles.actionsSpacer} />
           <TouchableOpacity
             style={styles.miniBtn}
+            hitSlop={4}
             onPress={rotate}
             accessibilityRole="button"
             accessibilityLabel="Rotate photo"
@@ -1115,6 +1110,7 @@ export default function MarkupStudio() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.miniBtn, elements.length === 0 && styles.miniBtnDisabled]}
+            hitSlop={4}
             onPress={clearAll}
             accessibilityRole="button"
             accessibilityLabel="Clear all annotations"
@@ -1187,6 +1183,7 @@ export default function MarkupStudio() {
             <Text style={styles.selectionText}>Drag to select crop area</Text>
             <TouchableOpacity
               style={styles.selectionBtn}
+              hitSlop={4}
               onPress={applyCrop}
               accessibilityRole="button"
               accessibilityLabel="Apply crop"
@@ -1196,6 +1193,7 @@ export default function MarkupStudio() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.selectionBtn}
+              hitSlop={4}
               onPress={() => {
                 setCropRect(null);
                 setTool("select");
@@ -1218,6 +1216,7 @@ export default function MarkupStudio() {
             {selectedEl.type === "text" ? (
               <TouchableOpacity
                 style={styles.selectionBtn}
+                hitSlop={4}
                 onPress={() => openTextEditor({ mode: "edit", id: selectedEl.id })}
                 accessibilityRole="button"
                 accessibilityLabel="Edit text label"
@@ -1228,6 +1227,7 @@ export default function MarkupStudio() {
             ) : null}
             <TouchableOpacity
               style={styles.selectionBtn}
+              hitSlop={4}
               onPress={duplicateSelected}
               accessibilityRole="button"
               accessibilityLabel={`Duplicate ${ELEMENT_LABEL[selectedEl.type]}`}
@@ -1237,6 +1237,7 @@ export default function MarkupStudio() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.selectionIconBtn}
+              hitSlop={9}
               onPress={() => moveLayer(1)}
               accessibilityRole="button"
               accessibilityLabel="Bring forward"
@@ -1245,6 +1246,7 @@ export default function MarkupStudio() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.selectionIconBtn}
+              hitSlop={9}
               onPress={() => moveLayer(-1)}
               accessibilityRole="button"
               accessibilityLabel="Send backward"
@@ -1253,6 +1255,7 @@ export default function MarkupStudio() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.selectionBtn}
+              hitSlop={4}
               onPress={deleteSelected}
               accessibilityRole="button"
               accessibilityLabel={`Delete ${ELEMENT_LABEL[selectedEl.type]}, destructive action`}
@@ -1271,6 +1274,7 @@ export default function MarkupStudio() {
                 <TouchableOpacity
                   key={c}
                   disabled={colorsDisabled}
+                  hitSlop={9}
                   style={[
                     styles.colorDot,
                     { backgroundColor: c },
@@ -1298,6 +1302,7 @@ export default function MarkupStudio() {
                   <TouchableOpacity
                     key={s}
                     disabled={disabled}
+                    hitSlop={5}
                     style={[styles.strokeBtn, active && styles.strokeBtnActive, disabled && styles.strokeBtnDisabled]}
                     onPress={() =>
                       showTextSizes ? applyTextSize(s) : showBlurIntensity ? applyBlurIntensity(s) : applyStroke(s)
@@ -1326,6 +1331,7 @@ export default function MarkupStudio() {
           {tools.map((t) => (
             <TouchableOpacity
               key={t.key}
+              hitSlop={{ top: 8, bottom: 8, left: 3, right: 3 }}
               style={[styles.toolBtn, tool === t.key && styles.toolBtnActive]}
               onPress={() => {
                 if (t.key !== tool) tapHaptic();
@@ -1441,7 +1447,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.green,
     borderRadius: radius.pill,
     paddingHorizontal: 16,
-    height: 40,
+    height: 44,
     minWidth: 84,
     justifyContent: "center",
   },
@@ -1456,9 +1462,9 @@ const styles = StyleSheet.create({
   },
   actionsSpacer: { flex: 1 },
   miniBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: "rgba(255,255,255,0.09)",
     alignItems: "center",
     justifyContent: "center",
@@ -1498,8 +1504,8 @@ const styles = StyleSheet.create({
     fontFamily: font.family.bodyBold,
     letterSpacing: 0.2,
   },
-  selectionBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 8, paddingHorizontal: 8 },
-  selectionIconBtn: { paddingVertical: 8, paddingHorizontal: 7 },
+  selectionBtn: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 8, paddingHorizontal: 8 },
+  selectionIconBtn: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center", paddingVertical: 8, paddingHorizontal: 7 },
   selectionBtnText: { color: palette.white, fontSize: font.size.sm, fontFamily: font.family.bodyBold },
   styleBar: {
     flexDirection: "row",

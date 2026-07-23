@@ -75,7 +75,13 @@ function IssueCardInner({
         <View style={[styles.spine, { backgroundColor: spineColor }]} />
         <View style={styles.thumbWrap}>
           {thumb ? (
-            <Image source={{ uri: thumb }} style={styles.thumb} contentFit="cover" />
+            <Image
+              source={{ uri: thumb }}
+              style={styles.thumb}
+              contentFit="cover"
+              accessible
+              accessibilityLabel={`Photo, ${issueRef(issue.issueNumber)}`}
+            />
           ) : (
             <View style={[styles.thumb, styles.thumbPlaceholder]}>
               <Camera color={palette.textFaint} size={18} />
@@ -203,11 +209,11 @@ const styles = StyleSheet.create({
   pillRow: { flexDirection: "row", gap: 6, marginTop: 6 },
   moreBtn: {
     position: "absolute",
-    top: 6,
-    right: 6,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    top: 2,
+    right: 2,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1,

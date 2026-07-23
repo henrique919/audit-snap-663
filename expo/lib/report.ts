@@ -44,16 +44,16 @@ export interface ReportData {
 
 /** PunchThis status palette (open / assigned / in progress / verified). */
 const STATUS_COLORS: Record<IssueStatus, string> = {
-  open: "#C93B3B",
+  open: "#B63232",
   assigned: "#E5A016",
   in_progress: "#4C82FF",
-  completed: "#1E9E5A",
+  completed: "#147A45",
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
   low: "#7E8B96",
   medium: "#E5A016",
-  high: "#C93B3B",
+  high: "#B63232",
 };
 
 function locationName(locations: ProjectLocation[], id: string | null): string {
@@ -110,10 +110,15 @@ function photoFigure({ asset, annotation, annotated, imageSrc, label }: IssuePho
   // padding-top ratio box instead of CSS aspect-ratio — reliable in the
   // print/PDF renderer across platforms.
   const framePad = ((asset.height / Math.max(1, asset.width)) * 100).toFixed(2);
+  // Aspect (w/h) drives the height cap in CSS: frame max-width = --mh * --ar,
+  // so a tall/portrait photo is narrowed (and centred) rather than growing to
+  // a full page. The frame still matches the photo's aspect exactly, so the
+  // annotation overlay (inset:0) stays pixel-aligned.
+  const aspectWoverH = (asset.width / Math.max(1, asset.height)).toFixed(4);
   // Missing/unreadable files resolve to "" — keep the grey frame, skip <img>.
   const imgTag = src ? `<img src="${src}" alt=""/>` : "";
   return `
-    <figure class="photo">
+    <figure class="photo" style="--ar:${aspectWoverH}">
       <div class="photo-frame" style="padding-top:${framePad}%">
         ${imgTag}
         ${overlay}
@@ -360,6 +365,16 @@ export function buildReportHtml(data: ReportData): string {
             // A single photo gets a larger layout so the markup stays readable.
             const itemPhotoWidth =
               figures.length === 1 && options.imageSize !== "large" ? "66%" : photoWidthCss;
+            // Height cap (mm) per layout width — a tall photo is bounded to this
+            // so it can never fill a full A4 page (see .photo-frame max-width).
+            const maxPhotoHeightMm =
+              itemPhotoWidth === "100%"
+                ? 150
+                : itemPhotoWidth === "66%"
+                  ? 118
+                  : itemPhotoWidth === "48.5%"
+                    ? 94
+                    : 62;
 
             const metaCells: string[] = [
               `<div class="meta"><span>Location</span>${escapeHtml(locationName(locations, issue.locationId))}</div>`,
@@ -383,7 +398,7 @@ export function buildReportHtml(data: ReportData): string {
               </div>
               <div class="item-meta">${metaCells.join("")}</div>
               ${issue.description ? `<div class="item-desc">${escapeHtml(issue.description)}</div>` : ""}
-              ${figures.length > 0 ? `<div class="photos" style="--pw:${itemPhotoWidth}">${figures.join("")}</div>` : ""}
+              ${figures.length > 0 ? `<div class="photos" style="--pw:${itemPhotoWidth};--mh:${maxPhotoHeightMm}mm">${figures.join("")}</div>` : ""}
             </article>`;
           })
           .join("");
@@ -544,8 +559,10 @@ export function buildReportHtml(data: ReportData): string {
   .meta { font-size: 10px; font-weight: 600; }
   .meta span { display: block; color: #69747D; font-size: 8px; text-transform: uppercase; letter-spacing: 0.45px; font-weight: 800; margin-bottom: 1px; }
   .item-desc { font-size: 10.5px; color: #283238; margin-bottom: 9px; white-space: pre-wrap; }
-  .photos { display: flex; flex-wrap: wrap; gap: 2.5%; }
-  .photo { width: var(--pw, 48.5%); margin-bottom: 8px; background: #fff; border: 1px solid #DDE3E8; border-radius: 8px; padding: 5px; page-break-inside: avoid; }
+  .photos { display: flex; flex-wrap: wrap; gap: 2.5%; justify-content: center; }
+  /* max-width caps a tall/portrait photo's WIDTH so its padding-top height box
+     (resolved against this element's width) can never grow to a full page. */
+  .photo { width: var(--pw, 48.5%); max-width: calc(var(--mh, 999mm) * var(--ar, 1)); margin-bottom: 8px; background: #fff; border: 1px solid #DDE3E8; border-radius: 8px; padding: 5px; page-break-inside: avoid; }
   .photo-frame { position: relative; width: 100%; height: 0; border-radius: 5px; overflow: hidden; background: #EDF0F3; }
   .photo-frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
   figcaption { color: #69747D; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.45px; margin-top: 4px; font-weight: 800; }

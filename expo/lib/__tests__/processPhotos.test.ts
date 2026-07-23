@@ -73,7 +73,7 @@ describe("processPhotosBounded", () => {
 
   it("fires progress callback once per photo (total times)", async () => {
     mockProcessPickedPhoto.mockImplementation(async (uri: string) => photo(uri));
-    const progress: Array<[number, number]> = [];
+    const progress: [number, number][] = [];
     const uris = ["a", "b", "c", "d"];
 
     await processPhotosBounded(uris, {
@@ -87,7 +87,7 @@ describe("processPhotosBounded", () => {
   });
 
   it("handles empty input without calling the processor", async () => {
-    const emptyProgress: Array<[number, number]> = [];
+    const emptyProgress: [number, number][] = [];
     const results = await processPhotosBounded([], {
       onProgress: (d, t) => emptyProgress.push([d, t]),
     });

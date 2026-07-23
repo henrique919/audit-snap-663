@@ -31,8 +31,12 @@ export interface Project extends BaseRecord {
   inspectorName: string;
   /** Local URI or remote URL for an optional cover photo. */
   coverPhotoUri: string | null;
+  /** Stable private Storage reference; kept separate so local/offline rendering remains usable. */
+  coverPhotoCloudRef?: string | null;
   /** Local URI or remote URL for an optional project logo. */
   logoUri: string | null;
+  /** Stable private Storage reference; never rendered directly. */
+  logoCloudRef?: string | null;
   status: ProjectStatus;
   /**
    * Last report theme preset chosen on this project (LP-22).
@@ -112,12 +116,16 @@ export interface PhotoAsset extends BaseRecord {
   projectId: string;
   /** Full-size original, preserved untouched. */
   originalUri: string;
+  originalCloudRef?: string | null;
   /** Report-size compressed working copy (used for markup + PDF). */
   reportUri: string;
+  reportCloudRef?: string | null;
   /** Small thumbnail for lists. */
   thumbUri: string;
+  thumbCloudRef?: string | null;
   /** Flattened annotated copy, generated on markup save. */
   annotatedUri: string | null;
+  annotatedCloudRef?: string | null;
   width: number;
   height: number;
   capturedAt: string;
@@ -207,6 +215,8 @@ export interface ReportExport extends BaseRecord {
   auditId: string;
   projectId: string;
   pdfUri: string;
+  /** Stable private Storage reference; `pdfUri` remains a usable local/cache URI. */
+  pdfCloudRef?: string | null;
   issueCount: number;
   photoCount: number;
   options: ReportOptions;
@@ -233,6 +243,12 @@ export interface AppSettings {
   companyName: string;
   /** User's own logo — appears on report covers and brand areas. */
   logoUri: string | null;
+  /** Stable private Storage reference for the settings/report logo. */
+  logoCloudRef: string | null;
+  /** Account this device-local database is allowed to synchronize into. */
+  cloudAccountId: string | null;
+  /** Device-local pull cursor. Never shared between devices through Supabase. */
+  cloudLastPulledAt: string | null;
   /** Custom footer line printed on every report (falls back to brand default). */
   reportFooterText: string;
   defaultReportOptions: ReportOptions;
@@ -247,12 +263,27 @@ export interface AppSettings {
   storageNoticeDismissedAt: string | null;
   /** Pilot metric (LP-20): last Quick Walk time-to-first-issue in ms, or null. */
   lastTimeToFirstIssueMs: number | null;
+  /**
+   * ISO timestamp once every pre-existing local record has been queued for
+   * cloud sync at least once after signing in, or null while import is
+   * pending/in progress. See lib/supabase/localImport.ts.
+   */
+  cloudImportCompletedAt: string | null;
+  /**
+   * Per-table progress checkpoint for the one-time local→cloud import, so an
+   * interrupted import can resume without re-queuing already-imported
+   * tables. Null until an import has started. See lib/supabase/localImport.ts.
+   */
+  cloudImportCheckpoint: Record<string, boolean> | null;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   inspectorName: "",
   companyName: "",
   logoUri: null,
+  logoCloudRef: null,
+  cloudAccountId: null,
+  cloudLastPulledAt: null,
   reportFooterText: "",
   defaultReportOptions: DEFAULT_REPORT_OPTIONS,
   demoSeeded: false,
@@ -264,4 +295,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   keepAwakeWhileUploading: false,
   storageNoticeDismissedAt: null,
   lastTimeToFirstIssueMs: null,
+  cloudImportCompletedAt: null,
+  cloudImportCheckpoint: null,
 };
