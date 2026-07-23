@@ -42,10 +42,10 @@ describe("savedToastMessage", () => {
     expect(savedToastMessage("#001", "idle")).toBe("#001 saved on device");
   });
 
-  it("does not claim 'saved on device' when a persistence failure is already ongoing", () => {
+  it("does not claim 'saved on device' when the flushed save failed", () => {
     const message = savedToastMessage("#001", "error");
     expect(message).not.toMatch(/saved on device/i);
-    expect(message).toBe("#001 saved — sync to storage failed");
+    expect(message).toBe("#001 NOT saved — storage problem, see banner");
   });
 
   it("claims success mid-save (saving is not a failure)", () => {

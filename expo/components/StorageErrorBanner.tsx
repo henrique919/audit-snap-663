@@ -7,21 +7,25 @@ import { font, palette, radius, shadow, spacing } from "@/constants/theme";
 import { useAppStore } from "@/providers/AppStore";
 
 export function StorageErrorBanner() {
-  const { persistStatus, lastPersistError, persistFailureVersion } = useAppStore();
+  const { lastPersistError, persistFailureVersion } = useAppStore();
   const [dismissedFailureVersion, setDismissedFailureVersion] = useState<number | null>(null);
   const announcedFailureVersion = useRef<number | null>(null);
 
   useEffect(() => {
-    // A successful save clears persistStatus; a new failure gets a new message.
-    if (persistStatus !== "error") {
+    // Only a SUCCESSFUL save clears lastPersistError (markPersistSuccess).
+    // Keying off it — rather than persistStatus — keeps the banner up through
+    // the error→saving→error thrash of retried batches: during continuous
+    // capture each new save flips status to "saving" for most of the cycle,
+    // and a status-gated banner blinks so briefly it is effectively invisible.
+    if (!lastPersistError) {
       setDismissedFailureVersion(null);
     }
-  }, [persistStatus]);
+  }, [lastPersistError]);
 
   const visible = useMemo(() => {
-    if (persistStatus !== "error" || !lastPersistError) return false;
+    if (!lastPersistError) return false;
     return dismissedFailureVersion !== persistFailureVersion;
-  }, [dismissedFailureVersion, lastPersistError, persistFailureVersion, persistStatus]);
+  }, [dismissedFailureVersion, lastPersistError, persistFailureVersion]);
 
   // Announce once per distinct failure — the banner's accessibilityRole="alert"
   // covers screen readers that watch for new alert-role content, but an

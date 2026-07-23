@@ -33,13 +33,13 @@ export const SAVE_INDICATOR_LABEL: Record<SaveIndicatorState, string> = {
 };
 
 /**
- * Toast text for a record just written locally. Reflects an
- * already-ongoing persistence failure at the moment of saving — a brand
- * new failure caused by THIS save can't be known synchronously (the
- * debounced flush hasn't run yet), so this only catches the common,
- * dangerous case of the user continuing to work while storage is already
- * broken; StorageErrorBanner is the source of truth for that failure itself.
+ * Toast text for a record the caller has just tried to persist. Call sites
+ * flush the pending write (`flushPersistNow`) BEFORE showing this toast, so
+ * the status passed here reflects the outcome of THIS save, not a stale
+ * earlier one — never claim "saved on device" for a write that failed.
  */
 export function savedToastMessage(label: string, persistStatus: PersistStatus): string {
-  return persistStatus === "error" ? `${label} saved — sync to storage failed` : `${label} saved on device`;
+  return persistStatus === "error"
+    ? `${label} NOT saved — storage problem, see banner`
+    : `${label} saved on device`;
 }
