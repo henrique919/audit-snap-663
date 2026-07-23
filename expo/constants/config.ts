@@ -44,6 +44,12 @@ export interface ReportTheme {
   description: string;
   primary: string;
   accent: string;
+  /** `accent` as text on `primary` — several themes' `accent` fails AA
+   * contrast as small text on their own `primary` (e.g. #4C82FF on #1C232B
+   * is ~4.49:1, and worse on the lighter #22303C). Use this, not `accent`,
+   * for the cover's theme-name tag text; `accent` stays as-is for
+   * borders/swatches, which aren't held to text contrast rules. */
+  accentText: string;
   heading: string;
   /** Cover page layout variant. */
   coverVariant: "executive" | "compact" | "formal";
@@ -57,6 +63,7 @@ export const REPORT_THEMES: Record<ReportThemeKey, ReportTheme> = {
     description: "Polished client handover — strong cover, premium spacing",
     primary: "#1C232B",
     accent: "#4C82FF",
+    accentText: "#6C94FF",
     heading: "#1C232B",
     coverVariant: "executive",
     density: "comfortable",
@@ -66,6 +73,7 @@ export const REPORT_THEMES: Record<ReportThemeKey, ReportTheme> = {
     description: "Fast field report — compact, issue-dense, strong hit list",
     primary: "#22303C",
     accent: "#4C82FF",
+    accentText: "#6C94FF",
     heading: "#1C232B",
     coverVariant: "compact",
     density: "compact",
@@ -75,6 +83,7 @@ export const REPORT_THEMES: Record<ReportThemeKey, ReportTheme> = {
     description: "Formal closeout — status-focused with sign-off block",
     primary: "#12181F",
     accent: "#E5A016",
+    accentText: "#E5A016",
     heading: "#1C232B",
     coverVariant: "formal",
     density: "comfortable",

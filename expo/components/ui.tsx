@@ -247,6 +247,7 @@ export function ToggleRow({ label, value, onToggle, sub, testID }: ToggleRowProp
       accessibilityRole="switch"
       accessibilityLabel={sub ? `${label}. ${sub}` : label}
       accessibilityState={{ checked: value }}
+      aria-checked={value}
       style={styles.toggleRow}
     >
       <View style={styles.toggleTextWrap}>
@@ -282,6 +283,7 @@ export function Segmented<T extends string>({ options, value, onChange }: Segmen
             accessibilityRole="radio"
             accessibilityLabel={opt.label}
             accessibilityState={{ checked: active, selected: active }}
+            aria-checked={active}
             style={[styles.segment, active && styles.segmentActive]}
           >
             <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]} numberOfLines={1}>

@@ -365,7 +365,7 @@ export default function ReportPreviewScreen() {
               <Text style={styles.coverTag}>{BrandConfig.reportName.toUpperCase()}</Text>
             </View>
             <View style={[styles.coverThemeTag, { borderColor: theme.accent }]}>
-              <Text style={[styles.coverThemeTagText, { color: theme.accent }]}>{theme.label}</Text>
+              <Text style={[styles.coverThemeTagText, { color: theme.accentText }]}>{theme.label}</Text>
             </View>
           </View>
           <View style={[styles.coverAccentRule, { backgroundColor: theme.accent }]} />

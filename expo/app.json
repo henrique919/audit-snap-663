@@ -27,8 +27,7 @@
       "versionCode": 1
     },
     "web": {
-      "favicon": "./assets/images/favicon.png",
-      "output": "static"
+      "favicon": "./assets/images/favicon.png"
     },
     "extra": {
       "sentryDsn": "https://a3f9059192e434484d184ce3189ac98d@o4511786220126208.ingest.us.sentry.io/4511786232905728"

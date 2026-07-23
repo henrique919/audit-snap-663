@@ -26,6 +26,7 @@ export default function DataPrivacyScreen() {
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
       showsVerticalScrollIndicator={false}
+      tabIndex={0}
     >
       <View style={styles.notice} testID="provisional-notice">
         <Info color={palette.amberText} size={16} />

@@ -26,6 +26,11 @@ export const palette = {
   cobaltText: "#2B5FCC",
   cobaltDeep: "#2857D6",
   cobaltSoft: "#EAF1FF",
+  /** `cobalt` itself is only ~4.49:1 on `carbon` (and worse, ~3.82:1, on the
+   * lighter `charcoal`) — fails AA at small text sizes (e.g. an uppercase
+   * kicker label). Lightened variant for cobalt-as-text on dark surfaces;
+   * ≥4.5:1 on both `carbon` and `charcoal`. */
+  cobaltTextOnDark: "#6C94FF",
 
   /** Success / verified. */
   /** AA-safe success text on white and greenSoft. */
@@ -64,7 +69,11 @@ export const palette = {
   steel: "#7E8B96",
 
   text: "#1C232B",
-  textMuted: "#69747D",
+  /** Darkened from the original #69747D (4.21:1 on `surfaceAlt` — failed AA's
+   * 4.5:1 for the small body/meta text this token is used for) so textMuted
+   * reaches ≥5.5:1 against every near-white surface in the app (white,
+   * `background`, `surfaceAlt`). */
+  textMuted: "#57616B",
   /** Darkened from the original #96A0A9 (~2.7:1 on white, failed AA) so
    * textFaint reaches ≥4.5:1 against every near-white surface in the app
    * (white, `background`, `surfaceAlt`). Use `textFaintOnDark` — the
