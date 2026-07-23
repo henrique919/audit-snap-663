@@ -232,6 +232,21 @@ async function readMediaBase64(sourceUri: string): Promise<string> {
     throw new Error("No PDF file exists for this platform (web preview is print-only).");
   }
   if (Platform.OS === "web") {
+    // blob: object URLs are how IndexedDB-stored media resolves after a
+    // reload (see persistence/webMediaStore.ts) — read the payload back
+    // through fetch. data: URIs cover fresh captures and legacy records.
+    if (sourceUri.startsWith("blob:")) {
+      const blob = await (await fetch(sourceUri)).blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error ?? new Error("Could not read stored photo."));
+        reader.readAsDataURL(blob);
+      });
+      const idx = dataUrl.indexOf(",");
+      if (idx === -1) throw new Error("Could not read stored photo.");
+      return dataUrl.slice(idx + 1);
+    }
     const commaIdx = sourceUri.indexOf(",");
     if (!sourceUri.startsWith("data:") || commaIdx === -1) {
       throw new Error("Web export only supports photos already stored in the app, not remote links.");
