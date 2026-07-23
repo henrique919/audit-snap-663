@@ -688,6 +688,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       saveAnnotation,
       addReportExport,
       resetAllData,
+      flushPersistNow,
     }),
     [
       hydrated,
@@ -712,6 +713,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       saveAnnotation,
       addReportExport,
       resetAllData,
+      flushPersistNow,
     ],
   );
 });

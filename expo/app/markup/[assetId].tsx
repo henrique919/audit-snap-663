@@ -165,7 +165,7 @@ export default function MarkupStudio() {
   const { assetId } = useLocalSearchParams<{ assetId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { db, saveAnnotation, updateAsset, persistStatus, hydrated } = useAppStore();
+  const { db, saveAnnotation, updateAsset, persistStatus, flushPersistNow, hydrated } = useAppStore();
 
   const asset = useMemo(() => db.assets.find((a) => a.id === assetId) ?? null, [db.assets, assetId]);
   const existing = useMemo(
@@ -838,6 +838,17 @@ export default function MarkupStudio() {
       await deleteUriIfUnreferenced(previousThumbUri, assetsAfter, asset.originalUri);
       await deleteUriIfUnreferenced(previousAnnotatedUri, assetsAfter, asset.originalUri);
 
+      // Only claim success once the debounced write has actually landed —
+      // a failed flush keeps the dirty state so Save stays available and the
+      // indicator/banner tell the truth (see saveState.ts).
+      const persisted = await flushPersistNow();
+      if (!persisted) {
+        showAlert(
+          "Save failed",
+          "Your markup couldn't be written to device storage. Free up space and try again — see the banner for details.",
+        );
+        return;
+      }
       setDirty(false);
       successHaptic();
       AccessibilityInfo.announceForAccessibility("Markup saved on device");

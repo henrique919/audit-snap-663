@@ -74,7 +74,7 @@ export default function CaptureSession() {
     createIssue,
     findOrCreateLocation,
     findOrCreateAssignee,
-    persistStatus,
+    flushPersistNow,
     updateAudit,
     updateProject,
     updateSettings,
@@ -281,7 +281,13 @@ export default function CaptureSession() {
         draft.photos,
       );
       setDraft(null);
-      showSavedToast(savedToastMessage(issueRef(saved.issue.issueNumber), persistStatus));
+      // Flush the pending write before claiming success — the toast must
+      // reflect THIS save's outcome, not the last one's (see saveState.ts).
+      const toastLabel = issueRef(saved.issue.issueNumber);
+      void (async () => {
+        const persisted = await flushPersistNow();
+        showSavedToast(savedToastMessage(toastLabel, persisted ? "idle" : "error"));
+      })();
 
       const markupAssetId = next === "markup" ? (saved.assets[0]?.id ?? null) : null;
 
@@ -313,7 +319,7 @@ export default function CaptureSession() {
       findOrCreateLocation,
       findOrCreateAssignee,
       showSavedToast,
-      persistStatus,
+      flushPersistNow,
       isQuickWalk,
       walkStartedAt,
       updateSettings,
