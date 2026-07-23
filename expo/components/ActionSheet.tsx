@@ -19,10 +19,14 @@ export function ActionSheetHost() {
     return () => __registerActionSheetListener(null);
   }, []);
 
-  const close = () => setRequest(null);
+  const close = () => {
+    const dismissed = request;
+    setRequest(null);
+    dismissed?.onDismiss?.();
+  };
 
   const handlePress = (action: DialogAction) => {
-    close();
+    setRequest(null);
     void action.onPress?.();
   };
 

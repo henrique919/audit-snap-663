@@ -14,6 +14,50 @@
 
 export const WEB_PRINT_SENTINEL = "web-print";
 
+export type WebReportDelivery = "shared" | "downloaded" | "cancelled";
+
+/**
+ * Give web users a real, portable report artifact even when the browser cannot
+ * provide a PDF file. Chrome Android can share the HTML file directly; other
+ * browsers receive the same file as a download for attachment/sharing later.
+ */
+export async function shareOrDownloadHtmlReport(
+  html: string,
+  filename: string,
+  title: string,
+): Promise<WebReportDelivery> {
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const nav = navigator as Navigator & {
+    share?: (data: { files?: File[]; title?: string; text?: string }) => Promise<void>;
+    canShare?: (data: { files?: File[] }) => boolean;
+  };
+
+  if (typeof File !== "undefined" && nav.share) {
+    const file = new File([blob], filename, { type: blob.type });
+    const payload = { files: [file], title, text: "PunchThis inspection report" };
+    if (!nav.canShare || nav.canShare(payload)) {
+      try {
+        await nav.share(payload);
+        return "shared";
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
+        console.log("[reportPrintWeb] Web Share failed; downloading HTML instead", error);
+      }
+    }
+  }
+
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.download = filename;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 0);
+  return "downloaded";
+}
+
 /**
  * Open a blank same-origin window. Must be called SYNCHRONOUSLY, before any
  * `await`, so browsers still attribute it to the user's click and don't

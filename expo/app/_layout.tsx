@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { ErrorBoundary as ExpoRouterErrorBoundary, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import * as Sentry from "@sentry/react-native";
 
 import { ActionSheetHost } from "@/components/ActionSheet";
 import { MediaGcScheduler } from "@/components/MediaGcScheduler";
@@ -13,6 +14,13 @@ import { font, palette } from "@/constants/theme";
 import { useAppFonts } from "@/constants/typography";
 import { AppStoreProvider } from "@/providers/AppStore";
 import { AuthProvider } from "@/providers/AuthProvider";
+import { initializeTelemetry } from "@/lib/telemetry";
+
+initializeTelemetry();
+
+// Expo Router catches render failures in its own boundary. Wrap it so those
+// otherwise-swallowed crashes are also captured by the telemetry client.
+export const ErrorBoundary = Sentry.wrapExpoRouterErrorBoundary(ExpoRouterErrorBoundary);
 
 SplashScreen.preventAutoHideAsync();
 

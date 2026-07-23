@@ -17,6 +17,7 @@ import { mergeFailedWrite } from "@/lib/persistence/pendingWrite";
 import { type PersistStatus } from "@/lib/persistence/types";
 import { computeReportFreshness } from "@/lib/reportFreshness";
 import { buildDemoDb } from "@/lib/seed";
+import { recordPersistenceFailure } from "@/lib/telemetry";
 import {
   clearAllData,
   Db,
@@ -116,6 +117,10 @@ export interface CreateIssueInput {
   includeInReport: boolean;
 }
 
+export type PersistedIssueResult =
+  | { ok: true; issue: Issue; assets: PhotoAsset[] }
+  | { ok: false; error: string };
+
 export const [AppStoreProvider, useAppStore] = createContextHook(() => {
   const [db, setDb] = useState<Db>(EMPTY_DB);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -132,11 +137,14 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
   const persistEpochRef = useRef(0);
   const pendingEpochRef = useRef(0);
   const persistChainRef = useRef<Promise<boolean>>(Promise.resolve(true));
+  const dbRef = useRef<Db>(EMPTY_DB);
+  const settingsRef = useRef<AppSettings>(DEFAULT_SETTINGS);
 
   const markPersistFailure = useCallback((error: string) => {
     setPersistStatus("error");
     setLastPersistError(error);
     setPersistFailureVersion((version) => version + 1);
+    recordPersistenceFailure();
   }, []);
 
   const markPersistSuccess = useCallback(() => {
@@ -244,6 +252,8 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
           inspectorName: loadedSettings.inspectorName || "Alex Carter",
           lastAuditId: demo.audits[0]?.id ?? null,
         };
+        dbRef.current = demo;
+        settingsRef.current = seededSettings;
         setDb(demo);
         setSettings(seededSettings);
         queuePersist(demo, TABLE_NAMES);
@@ -252,6 +262,8 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
           else if (!pendingDbRef.current && !hadWarnings) markPersistSuccess();
         });
       } else {
+        dbRef.current = loadedDb;
+        settingsRef.current = loadedSettings;
         setDb(loadedDb);
         setSettings(loadedSettings);
       }
@@ -277,11 +289,11 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
 
   const mutateDb = useCallback(
     (fn: (prev: Db) => Db) => {
-      setDb((prev) => {
-        const next = fn(prev);
-        queuePersist(next, dirtyTables(prev, next));
-        return next;
-      });
+      const prev = dbRef.current;
+      const next = fn(prev);
+      dbRef.current = next;
+      queuePersist(next, dirtyTables(prev, next));
+      setDb(next);
     },
     [queuePersist],
   );
@@ -294,6 +306,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
           ...patch,
           ...(Object.prototype.hasOwnProperty.call(patch, "logoUri") ? { logoCloudRef: null } : {}),
         };
+        settingsRef.current = next;
         setPersistStatus("saving");
         void saveSettings(next).then((result) => {
           if (!result.ok) markPersistFailure(result.error);
@@ -479,6 +492,160 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       return { issue, assets: newAssets };
     },
     [db.issues, mutateDb, nextIssueNumber, updateSettings],
+  );
+
+  /**
+   * Capture-path transaction. The issue is not published to React state until
+   * its issue, assets, lookup rows, and outbox entries are durable.
+   */
+  const createIssuePersisted = useCallback(
+    async (
+      input: Omit<CreateIssueInput, "locationId" | "assigneeId"> & {
+        locationName: string;
+        assigneeName: string;
+      },
+      photos: ProcessedPhoto[],
+    ): Promise<PersistedIssueResult> => {
+      const priorFlushed = await flushPersistNow();
+      if (!priorFlushed) {
+        return {
+          ok: false,
+          error: lastPersistError ?? "Earlier changes are still waiting to be saved.",
+        };
+      }
+
+      const previous = dbRef.current;
+      let next = previous;
+      const entries: OutboxEntry[] = [];
+
+      const locationName = input.locationName.trim();
+      let locationId: string | null = null;
+      if (locationName) {
+        const existing = next.locations.find(
+          (location) =>
+            location.projectId === input.projectId &&
+            !location.deletedAt &&
+            location.name.toLowerCase() === locationName.toLowerCase(),
+        );
+        if (existing) {
+          locationId = existing.id;
+        } else {
+          const location: ProjectLocation = {
+            ...newBase(),
+            projectId: input.projectId,
+            name: locationName,
+            sortOrder: next.locations.filter((item) => item.projectId === input.projectId).length,
+          };
+          locationId = location.id;
+          next = { ...next, locations: [...next.locations, location] };
+          entries.push(outboxEntry("locations", location.id, "create"));
+        }
+      }
+
+      const assigneeName = input.assigneeName.trim();
+      let assigneeId: string | null = null;
+      if (assigneeName) {
+        const existing = next.assignees.find(
+          (assignee) =>
+            !assignee.deletedAt &&
+            assignee.name.toLowerCase() === assigneeName.toLowerCase(),
+        );
+        if (existing) {
+          assigneeId = existing.id;
+        } else {
+          const assignee: Assignee = {
+            ...newBase(),
+            name: assigneeName,
+            email: "",
+            phone: "",
+            company: "",
+            trade: "",
+          };
+          assigneeId = assignee.id;
+          next = { ...next, assignees: [...next.assignees, assignee] };
+          entries.push(outboxEntry("assignees", assignee.id, "create"));
+        }
+      }
+
+      const issueNumbers = next.issues
+        .filter((issue) => issue.auditId === input.auditId)
+        .map((issue) => issue.issueNumber);
+      const issue: Issue = {
+        ...newBase(),
+        auditId: input.auditId,
+        projectId: input.projectId,
+        locationId,
+        title: input.title,
+        description: input.description,
+        status: input.status,
+        priority: input.priority,
+        assigneeId,
+        includeInReport: input.includeInReport,
+        issueNumber: issueNumbers.length === 0 ? 1 : Math.max(...issueNumbers) + 1,
+        sortOrder: next.issues.filter((item) => item.auditId === input.auditId).length,
+      };
+      const assets: PhotoAsset[] = photos.map((photo) => ({
+        ...newBase(),
+        issueId: issue.id,
+        auditId: input.auditId,
+        projectId: input.projectId,
+        originalUri: photo.originalUri,
+        originalCloudRef: null,
+        reportUri: photo.reportUri,
+        reportCloudRef: null,
+        thumbUri: photo.thumbUri,
+        thumbCloudRef: null,
+        annotatedUri: null,
+        annotatedCloudRef: null,
+        width: photo.width,
+        height: photo.height,
+        capturedAt: nowIso(),
+      }));
+      entries.push(
+        outboxEntry("issues", issue.id, "create"),
+        ...assets.map((asset) => outboxEntry("assets", asset.id, "create")),
+      );
+      next = {
+        ...next,
+        issues: [...next.issues, issue],
+        assets: [...next.assets, ...assets],
+        outbox: appendOutbox(next.outbox, entries),
+      };
+
+      setPersistStatus("saving");
+      const result = await saveDb(next, dirtyTables(previous, next));
+      if (!result.ok) {
+        markPersistFailure(result.error);
+        return { ok: false, error: result.error };
+      }
+
+      dbRef.current = next;
+      setDb(next);
+
+      const nextSettings: AppSettings = {
+        ...settingsRef.current,
+        lastAuditId: input.auditId,
+        lastLocationId: locationId,
+        lastAssigneeId: assigneeId,
+        lastPriority: input.priority,
+      };
+      settingsRef.current = nextSettings;
+      setSettings(nextSettings);
+      const settingsResult = await saveSettings(nextSettings);
+      if (!settingsResult.ok) {
+        markPersistFailure(settingsResult.error);
+      } else {
+        markPersistSuccess();
+      }
+
+      return { ok: true, issue, assets };
+    },
+    [
+      flushPersistNow,
+      lastPersistError,
+      markPersistFailure,
+      markPersistSuccess,
+    ],
   );
 
   const updateIssue = useCallback(
@@ -710,6 +877,8 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
 
     const freshDb = reseedDemo ? await buildDemoDb() : EMPTY_DB;
     const freshSettings: AppSettings = { ...DEFAULT_SETTINGS, demoSeeded: true };
+    dbRef.current = freshDb;
+    settingsRef.current = freshSettings;
     setDb(freshDb);
     setSettings(freshSettings);
 
@@ -747,6 +916,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       createAudit,
       updateAudit,
       createIssue,
+      createIssuePersisted,
       updateIssue,
       deleteIssue,
       duplicateIssue,
@@ -755,6 +925,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       saveAnnotation,
       addReportExport,
       resetAllData,
+      flushPersistNow,
     }),
     [
       hydrated,
@@ -771,6 +942,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       createAudit,
       updateAudit,
       createIssue,
+      createIssuePersisted,
       updateIssue,
       deleteIssue,
       duplicateIssue,
@@ -779,6 +951,7 @@ export const [AppStoreProvider, useAppStore] = createContextHook(() => {
       saveAnnotation,
       addReportExport,
       resetAllData,
+      flushPersistNow,
     ],
   );
 });

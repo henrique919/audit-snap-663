@@ -3,7 +3,7 @@
 **Project URL:** https://ytjkfmigzrsoapvnzlof.supabase.co  
 **Project ref:** `ytjkfmigzrsoapvnzlof`  
 **Git branch:** `feature/supabase-integration`  
-**Ledger updated:** 2026-07-19 (takeover hardening complete; live security advisor clear)
+**Ledger updated:** 2026-07-23 (storage launch hardening applied; live security advisor clear)
 
 ## Access
 
@@ -52,6 +52,8 @@
 - [x] Cross-user DB access fails — included in `rls_ok`
 - [x] Private buckets `project-media` + `report-files` — `public=false`
 - [x] Storage policies tested (+/-) with real object upload — `expo/scripts/verify-storage-rls.mjs` PASS
+- [x] Storage paths restricted to PunchThis-owned media/report shapes; arbitrary owner-folder uploads rejected
+- [x] Database media references constrained to the correct private bucket, owner, project/audit/issue/asset path
 - [x] Anonymous Storage fails — `anon_download_denied`
 - [x] Cross-user Storage fails — `b_download_denied` + `report_cross_user_denied`
 - [x] Zero client-exposed service-role/secret keys — only EXPO_PUBLIC URL + anon in client
@@ -61,7 +63,9 @@
 - [x] Migrations reproducible from repo (`supabase/migrations/`)
 - [x] Edge Function(s) deployed (`delete-account`)
 - [x] Advisors run; security advisor has zero findings; leaked-password protection enabled
-- [x] Typecheck / 294 tests / build:web pass; direct ESLint is clean with zero warnings
+- [x] Typecheck / 297 tests / build:web pass; direct ESLint is clean with zero warnings
+- [x] Web media moved from localStorage to transactional IndexedDB Blob storage; 50-photo restart test passes
+- [x] Chrome gallery upload + durable save + reload/fresh-page restore passes with a real image
 - [x] Documentation complete — `docs/SUPABASE.md`
 - [x] Prior implementation commit pushed — `c79c3a6`; final takeover hardening is delivered in this branch history
 
@@ -74,6 +78,8 @@
 | add_fk_covering_indexes | `20260719090400_add_fk_covering_indexes.sql` | yes |
 | harden_sync_integrity (UTC ledger alignment) | `20260719044129_harden_sync_integrity.sql` | yes |
 | harden_sync_integrity (idempotent clean-install source) | `20260719090401_harden_sync_integrity.sql` | yes |
+| harden_storage_references | `20260723135635_harden_storage_references.sql` | yes |
+| correct_storage_reference_constraints | `20260723141803_correct_storage_reference_constraints.sql` | yes |
 
 ## Tables / policies / buckets / functions
 
@@ -81,7 +87,7 @@
 
 **Buckets:** project-media (50MB, private), report-files (100MB, private)  
 
-**Storage policies:** select/insert/update/delete own prefix for both buckets  
+**Storage policies:** select/insert/update/delete require authenticated object ownership plus valid PunchThis path shape
 
 **Edge Functions:** `delete-account` v2 ACTIVE (JWT verify on)
 
@@ -95,17 +101,21 @@
 | `npx supabase functions deploy delete-account --use-api` | OK |
 | MCP `get_advisors` security | PASS: zero findings |
 | MCP `get_advisors` performance | INFO: unused indexes (cold DB); FK indexes added |
+| MCP `apply_migration` storage path correction | OK |
+| MCP storage path + constraint verification | unrevisioned/revisioned valid; wrong owner rejected; 9 constraints present |
 | MCP RLS SQL two-user test | `rls_ok` |
-| `npm test -- --runInBand --silent` | 294 passed (38 suites) |
+| `npm test -- --runInBand --silent` | 297 passed (39 suites) |
 | `npm run typecheck` | clean |
 | `npm run build:web` | OK |
 | direct ESLint `--max-warnings 0` | clean |
+| Chrome gallery upload → save → reload → fresh page | PASS: issue #009 and 1200×900 Blob-backed photo restored |
 | `node expo/scripts/verify-storage-rls.mjs` | PASS (upload/download + cross-user + anon + report bucket) |
 
 ## Current failures / gaps
 
 1. Interactive email-delivery verification still requires a mailbox controlled for testing.
 2. `punchthis.app/auth/*` currently renders the marketing site. Native deep links are configured; public web Auth needs the Expo web app deployed to an app origin first.
+3. Re-run the live Storage API upload/download script with a service-role key after the path-hardening migration; current verification covers the deployed SQL helpers, constraints, policies, and security advisor.
 
 ## Exact next action
 
@@ -114,5 +124,4 @@
 ## Final branch / commit / push
 
 - Branch: `feature/supabase-integration`
-- Commit: final takeover hardening changeset (see branch head)
-- Pushed: yes
+- Storage takeover hardening: applied to Supabase and present in the local working tree; not committed or pushed in this review.

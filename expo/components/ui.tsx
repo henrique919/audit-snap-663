@@ -354,12 +354,13 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surfaceAlt,
     borderRadius: radius.pill,
     paddingHorizontal: 14,
+    minHeight: 44,
     paddingVertical: 9,
     borderWidth: 1,
     borderColor: palette.border,
     maxWidth: 220,
   },
-  chipSmall: { paddingHorizontal: 10, paddingVertical: 6 },
+  chipSmall: { minHeight: 44, paddingHorizontal: 10, paddingVertical: 6 },
   // cobaltDeep, not cobalt — the active label is white (see theme.ts).
   chipActive: { backgroundColor: palette.cobaltDeep, borderColor: palette.cobaltDeep },
   chipLabel: { fontSize: font.size.sm, fontFamily: font.family.bodySemibold, color: palette.text },
@@ -432,6 +433,8 @@ const styles = StyleSheet.create({
   segment: {
     flex: 1,
     alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
     paddingVertical: 9,
     borderRadius: radius.sm,
   },

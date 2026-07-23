@@ -82,7 +82,10 @@ try {
     0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00, 0x7f, 0xff, 0xd9,
   ]);
-  const pathA = `${userA.id}/verify/probe.jpg`;
+  const projectId = randomUUID();
+  const issueId = randomUUID();
+  const assetId = randomUUID();
+  const pathA = `${userA.id}/${projectId}/${issueId}/${assetId}/v1/original.jpg`;
 
   const up = await clientA.storage.from("project-media").upload(pathA, jpeg, {
     contentType: "image/jpeg",
@@ -111,7 +114,9 @@ try {
 
   // Minimal PDF for report-files bucket
   const pdf = new TextEncoder().encode("%PDF-1.1\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n");
-  const reportPath = `${userA.id}/verify/probe.pdf`;
+  const auditId = randomUUID();
+  const reportId = randomUUID();
+  const reportPath = `${userA.id}/${auditId}/${reportId}.pdf`;
   const upPdf = await clientA.storage.from("report-files").upload(reportPath, pdf, {
     contentType: "application/pdf",
     upsert: true,

@@ -25,13 +25,25 @@
       "package": "com.punchthis.app"
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "output": "static"
+    },
+    "extra": {
+      "sentryDsn": "https://a3f9059192e434484d184ce3189ac98d@o4511786220126208.ingest.us.sentry.io/4511786232905728"
     },
     "plugins": [
       "expo-router",
       "expo-font",
       "expo-web-browser",
-      "expo-mail-composer"
+      "expo-mail-composer",
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "henrique919",
+          "project": "punchthis",
+          "disableAutoUpload": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

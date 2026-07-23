@@ -216,7 +216,7 @@ export default function HitListScreen() {
                 <AlertTriangle color={palette.amber} size={16} />
                 <Text style={styles.warningTitle}>
                   {completenessWarnings.length} issue
-                  {completenessWarnings.length === 1 ? "" : "s"} need details
+                  {completenessWarnings.length === 1 ? "needs" : "need"} details
                 </Text>
               </View>
               {completenessWarnings.slice(0, 6).map((w) => (
@@ -389,6 +389,8 @@ const styles = StyleSheet.create({
   warningTitle: { fontSize: font.size.sm, fontFamily: font.family.bodyHeavy, color: palette.text },
   warningRow: {
     paddingVertical: 6,
+    minHeight: 44,
+    justifyContent: "center",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: palette.border,
   },

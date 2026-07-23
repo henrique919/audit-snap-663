@@ -9,7 +9,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppButton, Card, Chip, EmptyState, Field, SectionTitle } from "@/components/ui";
 import { font, palette, radius, spacing } from "@/constants/theme";
 import { formatDate } from "@/lib/format";
-import { buildQuickWalkAuditInput, buildQuickWalkProjectInput } from "@/lib/quickWalk";
+import {
+  buildQuickWalkAuditInput,
+  buildQuickWalkProjectInput,
+  shouldStartQuickWalkWithNewProject,
+} from "@/lib/quickWalk";
 import { useAppStore } from "@/providers/AppStore";
 
 const NAME_MAX = 80;
@@ -55,7 +59,7 @@ export default function CaptureTab() {
   const openQuickWalk = () => {
     setQuickOpen(true);
     setAttempted(false);
-    if (projects.length > 0) {
+    if (!shouldStartQuickWalkWithNewProject(projects) && projects.length > 0) {
       setSelectedProjectId(projects[0].id);
       setNewProjectName("");
     } else {

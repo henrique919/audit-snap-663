@@ -64,6 +64,20 @@ function drawToDataUri(img: HTMLImageElement, maxDim: number, quality: number): 
   return { dataUri: canvas.toDataURL("image/jpeg", quality), width, height };
 }
 
+/**
+ * Re-encode an in-memory web image (including an ephemeral `blob:` URI) as a
+ * durable JPEG data URI. Callers may then keep it in state until the
+ * IndexedDB driver commits it as a Blob.
+ */
+export async function reencodeWebImage(
+  sourceUri: string,
+  maxDim: number,
+  quality: number,
+): Promise<WebImageVariant> {
+  const img = await loadImageElement(sourceUri);
+  return drawToDataUri(img, maxDim, quality);
+}
+
 /** Decode a picked image and produce report (<=1800px, q0.72) + thumb (<=500px, q0.6) JPEG data URIs. */
 export async function processPickedPhotoWeb(sourceUri: string): Promise<ProcessedWebPhoto> {
   const img = await loadImageElement(sourceUri);

@@ -7,7 +7,7 @@
  * hardest (lowest-luminance) "light" surface in the palette.
  */
 
-import { contrastRatio, meetsAA, relativeLuminance, WCAG_AA_LARGE, WCAG_AA_NORMAL } from "@/lib/contrast";
+import { contrastRatio, relativeLuminance, WCAG_AA_NORMAL } from "@/lib/contrast";
 import { palette } from "@/constants/theme";
 
 describe("contrastRatio / relativeLuminance", () => {
@@ -73,26 +73,13 @@ describe("LP-06 fixed token pairs meet WCAG AA", () => {
     });
   });
 
-  /**
-   * Documented pre-existing exceptions — NOT part of this fix (out of the
-   * LP-06 scope, which only covers textFaint/cobalt/amber), left here so a
-   * future pass has the numbers on hand. `red`/`green` as pill text sit
-   * around 3–3.5:1 on their own `*Soft` backgrounds: they fail AA normal
-   * text (4.5:1) but every usage in the app is short, bold, uppercase
-   * status/priority text ≥13px bold, which is close to (but not quite)
-   * the WCAG "large text" definition — flagged as a remaining risk in the
-   * LP-06 report rather than silently fixed, since widening scope to every
-   * status colour was not requested.
-   */
-  describe("documented remaining risks (out of LP-06 scope)", () => {
-    it("red-on-redSoft pill text is below AA normal but above AA large", () => {
-      const ratio = contrastRatio(palette.red, palette.redSoft);
-      expect(meetsAA(palette.red, palette.redSoft, true)).toBe(ratio >= WCAG_AA_LARGE);
+  describe("status pill text", () => {
+    it("red-on-redSoft is AA normal", () => {
+      expect(contrastRatio(palette.red, palette.redSoft)).toBeGreaterThanOrEqual(WCAG_AA_NORMAL);
     });
 
-    it("green-on-greenSoft pill text is below AA normal", () => {
-      const ratio = contrastRatio(palette.green, palette.greenSoft);
-      expect(ratio).toBeLessThan(WCAG_AA_NORMAL);
+    it("green-on-greenSoft is AA normal", () => {
+      expect(contrastRatio(palette.green, palette.greenSoft)).toBeGreaterThanOrEqual(WCAG_AA_NORMAL);
     });
   });
 });

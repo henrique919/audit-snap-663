@@ -1,0 +1,18 @@
+{
+  "id": "/",
+  "name": "PunchThis — Site Inspection Reports",
+  "short_name": "PunchThis",
+  "description": "Capture site issues, mark them up, and produce professional inspection reports.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1C232B",
+  "theme_color": "#1C232B",
+  "icons": [
+    {
+      "src": "/punchthis-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

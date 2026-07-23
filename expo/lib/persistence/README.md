@@ -3,16 +3,21 @@
 Local-first storage is accessed through a `StorageDriver` interface
 (`driver.ts`). The app store and UI never talk to AsyncStorage directly.
 
-## Wave 1 (current)
+## Current drivers
 
-- **Driver:** `asyncStorageDriver.ts` — one JSON array per table under `caiq:*`.
+- **Native:** `asyncStorageDriver.ts` — one JSON array per table under `caiq:*`.
+- **Web:** `indexedDbDriver.ts` — records and media in IndexedDB. Data/blob
+  media is stored as `Blob` values and materialised to session object URLs on
+  read. Existing `caiq:*` localStorage data migrates automatically on first
+  read, then the migrated legacy key is removed to release quota.
 - **Facade:** `lib/store.ts` — `loadDb` / `saveDb` / settings / clear.
 - **Retry:** failed writes retry twice with 100ms / 500ms backoff.
-- **Dirty tables:** `saveDb(db, tables?)` can persist only changed tables;
-  retries always re-write the full dirty set (partial `multiSet` safe).
+- **Dirty tables:** `saveDb(db, tables?)` persists only changed tables.
+  IndexedDB commits all dirty record tables and their media blobs in one
+  transaction; retries always re-write the full dirty set.
 - **Outbox:** compacted by `(table, recordId)` in `outbox.ts` (no hard cap).
 
-## Wave 2 — SQLite migration plan (not implemented)
+## Native SQLite migration plan (not implemented)
 
 1. Add a `SqliteStorageDriver` implementing the same `StorageDriver` interface
    (expo-sqlite or similar), mapping each `keyof Db` to a table or a

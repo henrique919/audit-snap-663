@@ -40,6 +40,9 @@ Never persist signed URLs as permanent record values — generate them on demand
 - Child inserts/updates also validate parent ownership via `private.owns_*` helpers.
 - `anon` has no customer-data grants.
 - Storage object policies require the first path folder to equal `auth.uid()::text`.
+- Storage object policies also require Storage-assigned `owner_id` and a valid
+  PunchThis photo/project/account/report path. Database check constraints bind
+  every stored bucket/path back to the row owner and related record IDs.
 
 ## Auth
 
@@ -83,6 +86,11 @@ Configured in [Auth URL configuration](https://supabase.com/dashboard/project/yt
 3. Sign-in, foregrounding, reconnect, and a 60-second foreground heartbeat trigger a single-flight sync; failures retry with classified exponential backoff.
 
 Pull cursors and first-import progress are device-local. They are deliberately not copied through `user_settings`, because a shared cursor can make a newly installed device skip historical rows. Private Storage references are kept separately from renderable local/signed URIs; native downloads use the owned `cloud-cache/` directory and web signed URLs are refreshed.
+
+On web, records and media are persisted in IndexedDB. Data/blob media and
+temporary private signed URLs are stored as durable Blob values; `localStorage`
+is used only as a legacy migration source. This removes the former 5 MB media
+ceiling and keeps cloud-downloaded evidence usable after signed URLs expire.
 
 ## Account deletion
 

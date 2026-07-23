@@ -377,9 +377,22 @@ export default function SettingsTab() {
       <Card>
         <Text style={styles.fieldLbl}>Company logo</Text>
         <View style={styles.logoRow}>
-          <TouchableOpacity style={styles.logoBox} onPress={pickLogo} activeOpacity={0.8} testID="pick-logo">
+          <TouchableOpacity
+            style={styles.logoBox}
+            onPress={pickLogo}
+            activeOpacity={0.8}
+            testID="pick-logo"
+            accessibilityRole="button"
+            accessibilityLabel={settings.logoUri ? "Replace company logo" : "Upload company logo"}
+          >
             {settings.logoUri ? (
-              <Image source={{ uri: settings.logoUri }} style={styles.logoImg} resizeMode="contain" />
+              <Image
+                source={{ uri: settings.logoUri }}
+                style={styles.logoImg}
+                resizeMode="contain"
+                accessible
+                accessibilityLabel="Current company logo"
+              />
             ) : (
               <>
                 <ImagePlus color={palette.textFaint} size={22} />
@@ -392,7 +405,12 @@ export default function SettingsTab() {
               Appears on report covers and brand areas. Projects with their own logo override this.
             </Text>
             {settings.logoUri ? (
-              <TouchableOpacity style={styles.logoRemove} onPress={() => updateSettings({ logoUri: null })}>
+              <TouchableOpacity
+                style={styles.logoRemove}
+                onPress={() => updateSettings({ logoUri: null })}
+                accessibilityRole="button"
+                accessibilityLabel="Remove company logo"
+              >
                 <X color={palette.red} size={13} />
                 <Text style={styles.logoRemoveText}>Remove logo</Text>
               </TouchableOpacity>

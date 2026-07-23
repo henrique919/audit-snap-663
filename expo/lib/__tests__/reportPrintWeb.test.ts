@@ -4,7 +4,12 @@
  * populate ourselves. These tests stub `window`/a fake print window.
  */
 
-import { openBlankPrintWindow, printHtmlInWindow, WEB_PRINT_SENTINEL } from "@/lib/reportPrintWeb";
+import {
+  openBlankPrintWindow,
+  printHtmlInWindow,
+  shareOrDownloadHtmlReport,
+  WEB_PRINT_SENTINEL,
+} from "@/lib/reportPrintWeb";
 
 interface FakeDocument {
   open: jest.Mock;
@@ -32,6 +37,26 @@ function fakeWindow(readyState: "loading" | "complete"): FakeWindow {
 afterEach(() => {
   delete (globalThis as { window?: unknown }).window;
   jest.useRealTimers();
+});
+
+describe("shareOrDownloadHtmlReport", () => {
+  it("uses the Web Share API with a portable HTML file when supported", async () => {
+    const share = jest.fn().mockResolvedValue(undefined);
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: { share, canShare: jest.fn(() => true) },
+    });
+    (globalThis as typeof globalThis & { File: typeof File }).File = class FakeFile extends Blob {
+      name: string;
+      constructor(parts: BlobPart[], name: string, options?: FilePropertyBag) {
+        super(parts, options);
+        this.name = name;
+      }
+    } as unknown as typeof File;
+
+    await expect(shareOrDownloadHtmlReport("<html />", "report.html", "Report")).resolves.toBe("shared");
+    expect(share).toHaveBeenCalledWith(expect.objectContaining({ title: "Report" }));
+  });
 });
 
 describe("WEB_PRINT_SENTINEL", () => {

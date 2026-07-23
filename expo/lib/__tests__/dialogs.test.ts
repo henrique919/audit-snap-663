@@ -12,10 +12,7 @@ interface MockAlertButton {
   onPress?: () => void;
 }
 
-interface WindowStub {
-  alert: jest.Mock;
-  confirm: jest.Mock;
-}
+interface WindowStub { alert: jest.Mock }
 
 const mockAlert = jest.fn();
 
@@ -37,8 +34,8 @@ function setPlatform(os: "ios" | "web"): void {
   (Platform as { OS: string }).OS = os;
 }
 
-function stubWindow(confirmReturns: boolean): WindowStub {
-  const stub: WindowStub = { alert: jest.fn(), confirm: jest.fn(() => confirmReturns) };
+function stubWindow(): WindowStub {
+  const stub: WindowStub = { alert: jest.fn() };
   (globalThis as unknown as { window: WindowStub }).window = stub;
   return stub;
 }
@@ -59,7 +56,7 @@ describe("showAlert", () => {
 
   it("uses window.alert on web, combining title and message", () => {
     setPlatform("web");
-    const win = stubWindow(true);
+    const win = stubWindow();
     showAlert("Title", "Message");
     expect(win.alert).toHaveBeenCalledWith("Title\n\nMessage");
     expect(mockAlert).not.toHaveBeenCalled();
@@ -67,7 +64,7 @@ describe("showAlert", () => {
 
   it("uses window.alert with just the title when no message is given", () => {
     setPlatform("web");
-    const win = stubWindow(true);
+    const win = stubWindow();
     showAlert("Title only");
     expect(win.alert).toHaveBeenCalledWith("Title only");
   });
@@ -103,17 +100,26 @@ describe("showConfirm", () => {
     expect(buttons[1].style).toBe("destructive");
   });
 
-  it("resolves via window.confirm on web", async () => {
+  it("uses the branded sheet and resolves true when confirmed on web", async () => {
     setPlatform("web");
-    stubWindow(true);
-    const result = await showConfirm("Delete?", "Sure?", "Delete", true);
+    const listener = jest.fn();
+    __registerActionSheetListener(listener);
+    const resultPromise = showConfirm("Delete?", "Sure?", "Delete", true);
+    const request = listener.mock.calls[0]?.[0] as import("@/lib/dialogs").ActionSheetRequest;
+    request.actions[1]?.onPress?.();
+    const result = await resultPromise;
     expect(result).toBe(true);
+    expect(request.actions.map((action) => action.text)).toEqual(["Cancel", "Delete"]);
   });
 
-  it("resolves false via window.confirm on web when declined", async () => {
+  it("resolves false when the branded sheet is dismissed on web", async () => {
     setPlatform("web");
-    stubWindow(false);
-    const result = await showConfirm("Delete?", "Sure?", "Delete", true);
+    const listener = jest.fn();
+    __registerActionSheetListener(listener);
+    const resultPromise = showConfirm("Delete?", "Sure?", "Delete", true);
+    const request = listener.mock.calls[0]?.[0] as import("@/lib/dialogs").ActionSheetRequest;
+    request.onDismiss?.();
+    const result = await resultPromise;
     expect(result).toBe(false);
   });
 });

@@ -11,7 +11,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ImageManipulator from "expo-image-manipulator";
 import { Platform } from "react-native";
 
-import { processPickedPhotoWeb } from "@/lib/filesWeb";
+import { processPickedPhotoWeb, reencodeWebImage } from "@/lib/filesWeb";
 
 export const PHOTO_DIR = `${FileSystem.documentDirectory ?? ""}photos/`;
 export const REPORT_DIR = `${FileSystem.documentDirectory ?? ""}reports/`;
@@ -146,7 +146,9 @@ export async function processPickedPhoto(
 
 /** Regenerate the small list thumbnail after crop/rotate transforms. */
 export async function regenerateThumbnail(uri: string, assetId: string): Promise<string> {
-  if (Platform.OS === "web") return uri;
+  if (Platform.OS === "web") {
+    return (await reencodeWebImage(uri, 500, 0.6)).dataUri;
+  }
   await ensureDir(PHOTO_DIR);
   const thumb = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 500 } }], {
     compress: 0.6,
@@ -178,7 +180,14 @@ export async function rotateWorkingImage(uri: string, assetId: string): Promise<
     compress: 0.8,
     format: ImageManipulator.SaveFormat.JPEG,
   });
-  if (Platform.OS === "web") return { uri: result.uri, width: result.width, height: result.height };
+  if (Platform.OS === "web") {
+    const durable = await reencodeWebImage(
+      result.uri,
+      Math.max(result.width, result.height),
+      0.8,
+    );
+    return { uri: durable.dataUri, width: durable.width, height: durable.height };
+  }
   const dest = `${PHOTO_DIR}report_${assetId}_${Date.now()}.jpg`;
   await FileSystem.moveAsync({ from: result.uri, to: dest });
   return { uri: dest, width: result.width, height: result.height };
@@ -201,7 +210,14 @@ export async function cropWorkingImage(
     [{ crop: { originX, originY, width, height } }],
     { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
   );
-  if (Platform.OS === "web") return { uri: result.uri, width: result.width, height: result.height };
+  if (Platform.OS === "web") {
+    const durable = await reencodeWebImage(
+      result.uri,
+      Math.max(result.width, result.height),
+      0.8,
+    );
+    return { uri: durable.dataUri, width: durable.width, height: durable.height };
+  }
   const dest = `${PHOTO_DIR}report_${assetId}_${Date.now()}.jpg`;
   await FileSystem.moveAsync({ from: result.uri, to: dest });
   return { uri: dest, width: result.width, height: result.height };

@@ -3,6 +3,7 @@ import {
   buildQuickWalkProjectInput,
   measureTimeToFirstIssue,
   resolveQuickWalkThemeKey,
+  shouldStartQuickWalkWithNewProject,
 } from "@/lib/quickWalk";
 import { DEFAULT_REPORT_OPTIONS } from "@/types/models";
 
@@ -23,6 +24,19 @@ describe("buildQuickWalkProjectInput", () => {
       coverPhotoUri: null,
       logoUri: null,
     });
+  });
+});
+
+describe("shouldStartQuickWalkWithNewProject", () => {
+  it("protects a real first capture from being added to the bundled sample", () => {
+    expect(
+      shouldStartQuickWalkWithNewProject([{ name: "Sample — Harbourview Apartments Stage 2" }]),
+    ).toBe(true);
+  });
+
+  it("uses the first real project and creates a project when no projects exist", () => {
+    expect(shouldStartQuickWalkWithNewProject([])).toBe(true);
+    expect(shouldStartQuickWalkWithNewProject([{ name: "My active site" }])).toBe(false);
   });
 });
 

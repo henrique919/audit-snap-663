@@ -71,10 +71,7 @@ export default function CaptureSession() {
   const {
     db,
     settings,
-    createIssue,
-    findOrCreateLocation,
-    findOrCreateAssignee,
-    persistStatus,
+    createIssuePersisted,
     updateAudit,
     updateProject,
     updateSettings,
@@ -85,6 +82,7 @@ export default function CaptureSession() {
   const isQuickWalk = quickWalk === "1";
 
   const [processing, setProcessing] = useState<boolean>(false);
+  const [savingDraft, setSavingDraft] = useState<boolean>(false);
   const [galleryProgress, setGalleryProgress] = useState<{ done: number; total: number } | null>(null);
   const [draft, setDraft] = useState<DraftIssue | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -259,29 +257,35 @@ export default function CaptureSession() {
   );
 
   const saveDraft = useCallback(
-    (next: AfterSaveNext) => {
+    async (next: AfterSaveNext) => {
       if (!draft || !audit) return null;
+      if (savingDraft) return null;
+      setSavingDraft(true);
       const wasFirstIssue = issues.length === 0;
-      const locationId = draft.location.trim()
-        ? findOrCreateLocation(audit.projectId, draft.location).id
-        : null;
-      const assigneeId = draft.assignee.trim() ? findOrCreateAssignee(draft.assignee).id : null;
-      const saved = createIssue(
+      const saved = await createIssuePersisted(
         {
           auditId: audit.id,
           projectId: audit.projectId,
-          locationId,
+          locationName: draft.location,
           title: draft.title.trim() || `Issue at ${draft.location.trim() || "site"}`,
           description: draft.description.trim(),
           status: draft.status,
           priority: draft.priority,
-          assigneeId,
+          assigneeName: draft.assignee,
           includeInReport: draft.includeInReport,
         },
         draft.photos,
       );
+      setSavingDraft(false);
+      if (!saved.ok) {
+        showAlert(
+          "Issue not saved",
+          `PunchThis could not safely store this issue. Your draft is still open. ${saved.error}`,
+        );
+        return null;
+      }
       setDraft(null);
-      showSavedToast(savedToastMessage(issueRef(saved.issue.issueNumber), persistStatus));
+      showSavedToast(savedToastMessage(issueRef(saved.issue.issueNumber), "idle"));
 
       const markupAssetId = next === "markup" ? (saved.assets[0]?.id ?? null) : null;
 
@@ -309,11 +313,9 @@ export default function CaptureSession() {
       audit,
       project,
       issues.length,
-      createIssue,
-      findOrCreateLocation,
-      findOrCreateAssignee,
+      createIssuePersisted,
       showSavedToast,
-      persistStatus,
+      savingDraft,
       isQuickWalk,
       walkStartedAt,
       updateSettings,
@@ -410,7 +412,13 @@ export default function CaptureSession() {
                   accessibilityLabel={`Open issue ${issueRef(issue.issueNumber)}`}
                 >
                   {thumb ? (
-                    <Image source={{ uri: thumb }} style={styles.recentImg} contentFit="cover" />
+                    <Image
+                      source={{ uri: thumb }}
+                      style={styles.recentImg}
+                      contentFit="cover"
+                      accessible
+                      accessibilityLabel={`Photo, ${issueRef(issue.issueNumber)}`}
+                    />
                   ) : (
                     <View style={[styles.recentImg, styles.recentPlaceholder]}>
                       <Camera color={palette.textFaintOnDark} size={16} />
@@ -512,7 +520,14 @@ export default function CaptureSession() {
               <ScrollView contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
                 <View style={styles.previewRow}>
                   {draft.photos.map((p, i) => (
-                    <Image key={i} source={{ uri: p.thumbUri }} style={styles.preview} contentFit="cover" />
+                    <Image
+                      key={i}
+                      source={{ uri: p.thumbUri }}
+                      style={styles.preview}
+                      contentFit="cover"
+                      accessible
+                      accessibilityLabel={`Selected photo ${i + 1}`}
+                    />
                   ))}
                 </View>
                 <AppButton
@@ -608,8 +623,8 @@ export default function CaptureSession() {
                 />
               </ScrollView>
               <View style={[styles.sheetFooter, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-                <AppButton label="Save & Review" variant="secondary" onPress={() => saveDraft("review")} style={styles.footerBtn} />
-                <AppButton testID="save-next-photo" label="Save & Next Photo" onPress={() => saveDraft("photo")} style={styles.footerBtnWide} />
+                <AppButton label="Save & Review" variant="secondary" onPress={() => void saveDraft("review")} loading={savingDraft} style={styles.footerBtn} />
+                <AppButton testID="save-next-photo" label="Save & Next Photo" onPress={() => void saveDraft("photo")} disabled={savingDraft} style={styles.footerBtnWide} />
               </View>
             </View>
           </KeyboardAvoidingView>

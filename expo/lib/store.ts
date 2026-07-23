@@ -20,10 +20,12 @@ import type {
 } from "@/types/models";
 import { DEFAULT_SETTINGS } from "@/types/models";
 import { defaultDriver } from "@/lib/persistence/asyncStorageDriver";
+import { createIndexedDbStorageDriver } from "@/lib/persistence/indexedDbDriver";
 import type { StorageDriver, TableName } from "@/lib/persistence/driver";
 import { compactOutbox } from "@/lib/persistence/outbox";
 import { errorMessage, withRetry } from "@/lib/persistence/retry";
 import type { PersistResult } from "@/lib/persistence/types";
+import { Platform } from "react-native";
 
 export type { PersistResult } from "@/lib/persistence/types";
 
@@ -69,7 +71,10 @@ export interface LoadDbResult {
   warnings: string[];
 }
 
-let driver: StorageDriver = defaultDriver;
+let driver: StorageDriver =
+  Platform.OS === "web" && typeof indexedDB !== "undefined"
+    ? createIndexedDbStorageDriver()
+    : defaultDriver;
 
 /** Test / Wave-2 hook — swap the underlying storage implementation. */
 export function setStorageDriver(next: StorageDriver): void {

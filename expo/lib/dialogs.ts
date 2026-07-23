@@ -20,6 +20,8 @@ export interface ActionSheetRequest {
   title: string;
   message?: string;
   actions: DialogAction[];
+  /** Called only when the sheet is dismissed without choosing an action. */
+  onDismiss?: () => void;
 }
 
 type ActionSheetListener = (request: ActionSheetRequest | null) => void;
@@ -57,7 +59,28 @@ export function showConfirm(
   cancelLabel: string = "Cancel",
 ): Promise<boolean> {
   if (Platform.OS === "web") {
-    return Promise.resolve(window.confirm(message ? `${title}\n\n${message}` : title));
+    return new Promise<boolean>((resolve) => {
+      if (!actionSheetListener) {
+        // A destructive action must fail closed if a confirm host is somehow
+        // unavailable during startup — never fall back to browser chrome.
+        console.log("[dialogs] no ActionSheet host mounted; confirmation cancelled:", title);
+        resolve(false);
+        return;
+      }
+      actionSheetListener({
+        title,
+        message,
+        onDismiss: () => resolve(false),
+        actions: [
+          { text: cancelLabel, style: "cancel", onPress: () => resolve(false) },
+          {
+            text: confirmLabel,
+            style: destructive ? "destructive" : "default",
+            onPress: () => resolve(true),
+          },
+        ],
+      });
+    });
   }
   return new Promise<boolean>((resolve) => {
     Alert.alert(

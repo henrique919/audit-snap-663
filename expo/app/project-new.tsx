@@ -96,9 +96,21 @@ export default function ProjectNewScreen() {
         <Field label="Inspector name" value={inspectorName} onChangeText={setInspectorName} placeholder="Who prepares the reports" optional maxLength={NAME_MAX_LENGTH} />
 
         <View style={styles.mediaRow}>
-          <TouchableOpacity style={styles.mediaBox} activeOpacity={0.8} onPress={() => pickImage("logo")}>
+          <TouchableOpacity
+            style={styles.mediaBox}
+            activeOpacity={0.8}
+            onPress={() => pickImage("logo")}
+            accessibilityRole="button"
+            accessibilityLabel="Choose project logo"
+          >
             {logoUri ? (
-              <Image source={{ uri: logoUri }} style={styles.mediaImg} contentFit="cover" />
+              <Image
+                source={{ uri: logoUri }}
+                style={styles.mediaImg}
+                contentFit="cover"
+                accessible
+                accessibilityLabel="Selected project logo"
+              />
             ) : (
               <>
                 <ImagePlus color={palette.textFaint} size={20} />
@@ -106,9 +118,21 @@ export default function ProjectNewScreen() {
               </>
             )}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.mediaBox} activeOpacity={0.8} onPress={() => pickImage("cover")}>
+          <TouchableOpacity
+            style={styles.mediaBox}
+            activeOpacity={0.8}
+            onPress={() => pickImage("cover")}
+            accessibilityRole="button"
+            accessibilityLabel="Choose project cover photo"
+          >
             {coverPhotoUri ? (
-              <Image source={{ uri: coverPhotoUri }} style={styles.mediaImg} contentFit="cover" />
+              <Image
+                source={{ uri: coverPhotoUri }}
+                style={styles.mediaImg}
+                contentFit="cover"
+                accessible
+                accessibilityLabel="Selected project cover photo"
+              />
             ) : (
               <>
                 <ImagePlus color={palette.textFaint} size={20} />

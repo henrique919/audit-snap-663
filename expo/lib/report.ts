@@ -44,16 +44,16 @@ export interface ReportData {
 
 /** PunchThis status palette (open / assigned / in progress / verified). */
 const STATUS_COLORS: Record<IssueStatus, string> = {
-  open: "#C93B3B",
+  open: "#B63232",
   assigned: "#E5A016",
   in_progress: "#4C82FF",
-  completed: "#1E9E5A",
+  completed: "#147A45",
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
   low: "#7E8B96",
   medium: "#E5A016",
-  high: "#C93B3B",
+  high: "#B63232",
 };
 
 function locationName(locations: ProjectLocation[], id: string | null): string {
