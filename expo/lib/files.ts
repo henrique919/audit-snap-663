@@ -11,7 +11,15 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ImageManipulator from "expo-image-manipulator";
 import { Platform } from "react-native";
 
-import { processPickedPhotoWeb, reencodeWebImage } from "@/lib/filesWeb";
+import {
+  processPickedPhotoWeb,
+  reencodeWebImage,
+  releaseWebObjectUrl,
+  WEB_REPORT_MAX_DIM,
+  WEB_REPORT_QUALITY,
+  WEB_THUMB_MAX_DIM,
+  WEB_THUMB_QUALITY,
+} from "@/lib/filesWeb";
 
 export const PHOTO_DIR = `${FileSystem.documentDirectory ?? ""}photos/`;
 export const REPORT_DIR = `${FileSystem.documentDirectory ?? ""}reports/`;
@@ -147,7 +155,11 @@ export async function processPickedPhoto(
 /** Regenerate the small list thumbnail after crop/rotate transforms. */
 export async function regenerateThumbnail(uri: string, assetId: string): Promise<string> {
   if (Platform.OS === "web") {
-    return (await reencodeWebImage(uri, 500, 0.6)).dataUri;
+    // Produce a real <=500px durable thumb — returning the working URI as-is
+    // both skipped the downscale and, post-transform, persisted an ephemeral
+    // blob: URL that died on the next browser launch.
+    const thumb = await reencodeWebImage(uri, WEB_THUMB_MAX_DIM, WEB_THUMB_QUALITY);
+    return thumb.dataUri;
   }
   await ensureDir(PHOTO_DIR);
   const thumb = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 500 } }], {
@@ -181,11 +193,10 @@ export async function rotateWorkingImage(uri: string, assetId: string): Promise<
     format: ImageManipulator.SaveFormat.JPEG,
   });
   if (Platform.OS === "web") {
-    const durable = await reencodeWebImage(
-      result.uri,
-      Math.max(result.width, result.height),
-      0.8,
-    );
+    // manipulateAsync returns a session-scoped blob: URL on web — re-encode to
+    // a durable data URI before it can reach a persisted asset record.
+    const durable = await reencodeWebImage(result.uri, WEB_REPORT_MAX_DIM, WEB_REPORT_QUALITY);
+    releaseWebObjectUrl(result.uri);
     return { uri: durable.dataUri, width: durable.width, height: durable.height };
   }
   const dest = `${PHOTO_DIR}report_${assetId}_${Date.now()}.jpg`;
@@ -211,11 +222,9 @@ export async function cropWorkingImage(
     { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
   );
   if (Platform.OS === "web") {
-    const durable = await reencodeWebImage(
-      result.uri,
-      Math.max(result.width, result.height),
-      0.8,
-    );
+    // Same durability rule as rotateWorkingImage: never persist a blob: URL.
+    const durable = await reencodeWebImage(result.uri, WEB_REPORT_MAX_DIM, WEB_REPORT_QUALITY);
+    releaseWebObjectUrl(result.uri);
     return { uri: durable.dataUri, width: durable.width, height: durable.height };
   }
   const dest = `${PHOTO_DIR}report_${assetId}_${Date.now()}.jpg`;
@@ -247,7 +256,21 @@ export async function persistGeneratedPdf(tmpUri: string, name: string): Promise
 export async function fileToDataUri(uri: string): Promise<string | null> {
   try {
     if (uri.startsWith("http")) return uri;
-    if (Platform.OS === "web") return uri;
+    if (Platform.OS === "web") {
+      // Inline blob: object URLs (IndexedDB-backed media after a reload) so
+      // the print window's HTML is self-contained — a blob URL dies with the
+      // app tab, a data URI doesn't.
+      if (uri.startsWith("blob:")) {
+        const blob = await (await fetch(uri)).blob();
+        return await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(reader.error ?? new Error("blob read failed"));
+          reader.readAsDataURL(blob);
+        });
+      }
+      return uri;
+    }
     const base64 = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.Base64,
     });

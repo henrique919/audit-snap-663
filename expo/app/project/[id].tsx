@@ -10,10 +10,10 @@ import {
   UsersRound,
 } from "lucide-react-native";
 import React, { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { AppButton, Card, Chip, SectionTitle } from "@/components/ui";
-import { font, palette, radius, spacing } from "@/constants/theme";
+import { font, layout, palette, radius, spacing } from "@/constants/theme";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { useAppStore, useProject, useProjectStats } from "@/providers/AppStore";
 
@@ -182,7 +182,11 @@ export default function ProjectDashboard() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: palette.background },
-  content: { padding: spacing.lg, paddingBottom: 80 },
+  content: {
+    padding: spacing.lg,
+    paddingBottom: 80,
+    ...(Platform.OS === "web" ? { maxWidth: layout.webMaxWidth, width: "100%", alignSelf: "center" } : null),
+  },
   missing: { flex: 1, alignItems: "center", justifyContent: "center" },
   missingText: { color: palette.textMuted },
   subheader: { fontSize: font.size.sm, color: palette.textMuted, marginBottom: spacing.lg },

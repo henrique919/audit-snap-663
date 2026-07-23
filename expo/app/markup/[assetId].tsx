@@ -817,7 +817,11 @@ export default function MarkupStudio() {
       saveAnnotation(asset.id, asset.issueId, elementsToSave, annotatedUri);
       const persisted = await flushPersistNow();
       if (!persisted) {
-        throw new Error("The markup changes could not be written to device storage.");
+        showAlert(
+          "Save failed",
+          "Your markup couldn't be written to device storage. Free up space and try again — see the banner for details.",
+        );
+        return;
       }
 
       // After store update: delete superseded files that nothing else references.
@@ -1120,6 +1124,7 @@ export default function MarkupStudio() {
             Selection chrome, crop overlay, and blur draft outline live in a sibling SVG. */}
         <View style={styles.canvasWrap}>
           <View
+            testID="markup-photo-canvas"
             style={[styles.canvas, { aspectRatio: imageAspect }]}
             onLayout={(e) => setCanvas({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
           >

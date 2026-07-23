@@ -140,33 +140,27 @@ const SEED_ISSUES: SeedIssue[] = [
   {
     title: "Temporary switchboard unsecured — signage non-compliant",
     description:
-      "Temporary site switchboard door left open with contractor contact details exposed. Secure the door, replace non-compliant signage and re-issue the test tag. Contractor phone number has been redacted in the report copy.",
+      "Temporary site switchboard door left open. Secure the door, replace non-compliant signage and re-issue the test tag.",
     status: "in_progress",
     priority: "high",
     location: 1,
     assignee: 2,
     photo: 7,
+    // Kept to 3 marks (box, arrow, note) on purpose - this is the site's
+    // single flagship "one issue, start to finish" demo (IssueJourney.jsx
+    // on the marketing site), so it needs to read as one clean annotated
+    // photo, not a showcase of every tool at once. The full tool set (incl.
+    // circle/pen/callout/blur) is still demonstrated live in the Markup
+    // Studio's own tool palette - it doesn't need to all land on one photo.
+    // Text sits clear of the box AND clear of the marketing site's "SAMPLE"
+    // band (bottom ~15% of the frame) - stacking a red annotation label on
+    // a red band was a real, reported "red on red" collision, not a design
+    // choice. The arrow does the connecting; the label just needs its own
+    // clean space.
     annotations: [
       { id: "ann_100", type: "rect", x: 0.1, y: 0.16, width: 0.36, height: 0.34, stroke: "#E53935", strokeWidth: 8 },
-      { id: "ann_101", type: "ellipse", cx: 0.7, cy: 0.28, rx: 0.12, ry: 0.09, stroke: "#0EA5E9", strokeWidth: 8 },
-      { id: "ann_102", type: "arrow", x1: 0.58, y1: 0.74, x2: 0.4, y2: 0.48, stroke: "#E53935", strokeWidth: 8 },
-      {
-        id: "ann_103",
-        type: "pen",
-        points: [
-          { x: 0.14, y: 0.6 },
-          { x: 0.17, y: 0.64 },
-          { x: 0.21, y: 0.6 },
-          { x: 0.25, y: 0.65 },
-          { x: 0.29, y: 0.61 },
-        ],
-        stroke: "#F59E0B",
-        strokeWidth: 8,
-      },
-      { id: "ann_104", type: "text", x: 0.5, y: 0.8, text: "Door left open", color: "#E53935", fontSize: 42, bg: true },
-      { id: "ann_105", type: "callout", cx: 0.16, cy: 0.1, number: 1, color: "#E53935", size: 64 },
-      { id: "ann_106", type: "callout", cx: 0.85, cy: 0.14, number: 2, color: "#0EA5E9", size: 64 },
-      { id: "ann_107", type: "blur", x: 0.56, y: 0.54, width: 0.26, height: 0.12, intensity: 18 },
+      { id: "ann_102", type: "arrow", x1: 0.6, y1: 0.6, x2: 0.4, y2: 0.42, stroke: "#E53935", strokeWidth: 8 },
+      { id: "ann_104", type: "text", x: 0.72, y: 0.6, text: "Door left open", color: "#E53935", fontSize: 42, bg: true },
     ],
   },
 ];

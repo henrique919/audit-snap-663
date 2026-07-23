@@ -92,6 +92,21 @@ export const spacing = {
   xxl: 32,
 } as const;
 
+/**
+ * Web-only content width cap. Operational screens (project list, project
+ * detail, capture session, issue detail) render as `flex:1` views that
+ * stretch edge-to-edge on native — correct there, since a phone is never
+ * wider than this — but the same layout also renders on web, where a
+ * wide desktop viewport stretched a phone-shaped list/detail layout to
+ * ~1600px with long unreadable line lengths and no real desktop shell
+ * (design audit H-07). Until a real desktop workspace (sidebar + bounded
+ * canvas + detail rail) exists, cap those screens at `webMaxWidth` and
+ * center them - gated to `Platform.OS === "web"` so native is untouched.
+ */
+export const layout = {
+  webMaxWidth: 960,
+} as const;
+
 export const font = {
   size: {
     xs: 11,

@@ -21,6 +21,12 @@ export interface WebImageVariant {
   height: number;
 }
 
+/** Shared web variant sizing — used by the pick pipeline and by crop/rotate re-encodes. */
+export const WEB_REPORT_MAX_DIM = 1800;
+export const WEB_REPORT_QUALITY = 0.72;
+export const WEB_THUMB_MAX_DIM = 500;
+export const WEB_THUMB_QUALITY = 0.6;
+
 export interface ProcessedWebPhoto {
   originalUri: string;
   reportUri: string;
@@ -65,24 +71,35 @@ function drawToDataUri(img: HTMLImageElement, maxDim: number, quality: number): 
 }
 
 /**
- * Re-encode an in-memory web image (including an ephemeral `blob:` URI) as a
- * durable JPEG data URI. Callers may then keep it in state until the
- * IndexedDB driver commits it as a Blob.
+ * Re-encode any same-session image URI (blob: object URL, data:, http) into a
+ * durable JPEG data URI. Never upscales. This is the required exit path for
+ * expo-image-manipulator results on web — its blob: URLs die with the browser
+ * session, so persisting one loses the photo on the next launch.
  */
 export async function reencodeWebImage(
-  sourceUri: string,
+  uri: string,
   maxDim: number,
   quality: number,
 ): Promise<WebImageVariant> {
-  const img = await loadImageElement(sourceUri);
+  const img = await loadImageElement(uri);
   return drawToDataUri(img, maxDim, quality);
+}
+
+/** Revoke a blob: object URL once its pixels have been re-encoded. Safe on any input. */
+export function releaseWebObjectUrl(uri: string): void {
+  if (!uri.startsWith("blob:")) return;
+  try {
+    URL.revokeObjectURL(uri);
+  } catch {
+    // already revoked / not ours — nothing to do
+  }
 }
 
 /** Decode a picked image and produce report (<=1800px, q0.72) + thumb (<=500px, q0.6) JPEG data URIs. */
 export async function processPickedPhotoWeb(sourceUri: string): Promise<ProcessedWebPhoto> {
   const img = await loadImageElement(sourceUri);
-  const report = drawToDataUri(img, 1800, 0.72);
-  const thumb = drawToDataUri(img, 500, 0.6);
+  const report = drawToDataUri(img, WEB_REPORT_MAX_DIM, WEB_REPORT_QUALITY);
+  const thumb = drawToDataUri(img, WEB_THUMB_MAX_DIM, WEB_THUMB_QUALITY);
   return {
     originalUri: report.dataUri,
     reportUri: report.dataUri,
