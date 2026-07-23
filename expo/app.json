@@ -15,14 +15,16 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.punchthis.app"
+      "bundleIdentifier": "com.punchthis.app",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#1C232B"
       },
-      "package": "com.punchthis.app"
+      "package": "com.punchthis.app",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -31,7 +33,14 @@
       "expo-router",
       "expo-font",
       "expo-web-browser",
-      "expo-mail-composer"
+      "expo-mail-composer",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PunchThis uses your photo library so you can attach existing site photos to inspection issues.",
+          "cameraPermission": "PunchThis uses the camera to photograph site issues for your inspection reports."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
