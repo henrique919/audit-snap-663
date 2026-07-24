@@ -44,11 +44,21 @@ export interface ReportTheme {
   description: string;
   primary: string;
   accent: string;
+  /** `accent` as text on `primary` — several themes' `accent` fails AA
+   * contrast as small text on their own `primary` (e.g. #4C82FF on #1C232B
+   * is ~4.49:1, and worse on the lighter #22303C). Use this, not `accent`,
+   * for the cover's theme-name tag text; `accent` stays as-is for
+   * borders/swatches, which aren't held to text contrast rules. */
+  accentText: string;
   heading: string;
   /** Cover page layout variant. */
   coverVariant: "executive" | "compact" | "formal";
   /** compact = smaller type, denser item cards, 3-across photos. */
   density: "comfortable" | "compact";
+  /** Item body layout: "row" = thumbnail list rows (Site Walk speed),
+   * "card" = full item cards with fixed-height photo boxes. See
+   * lib/report.ts photo-box sizing — page geometry is computed in TS. */
+  itemLayout: "row" | "card";
 }
 
 export const REPORT_THEMES: Record<ReportThemeKey, ReportTheme> = {
@@ -57,27 +67,33 @@ export const REPORT_THEMES: Record<ReportThemeKey, ReportTheme> = {
     description: "Polished client handover — strong cover, premium spacing",
     primary: "#1C232B",
     accent: "#4C82FF",
+    accentText: "#6C94FF",
     heading: "#1C232B",
     coverVariant: "executive",
     density: "comfortable",
+    itemLayout: "card",
   },
   sitewalk: {
     label: "Site Walk",
     description: "Fast field report — compact, issue-dense, strong hit list",
     primary: "#22303C",
     accent: "#4C82FF",
+    accentText: "#6C94FF",
     heading: "#1C232B",
     coverVariant: "compact",
     density: "compact",
+    itemLayout: "row",
   },
   handover: {
     label: "Handover",
     description: "Formal closeout — status-focused with sign-off block",
     primary: "#12181F",
     accent: "#E5A016",
+    accentText: "#E5A016",
     heading: "#1C232B",
     coverVariant: "formal",
     density: "comfortable",
+    itemLayout: "card",
   },
 };
 

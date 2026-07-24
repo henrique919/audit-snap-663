@@ -751,7 +751,7 @@ const styles = StyleSheet.create({
   offlineChip: { flexDirection: "row", alignItems: "center", gap: 5 },
   offlineText: { color: palette.greenBright, fontSize: font.size.xs, fontFamily: font.family.bodyBold },
   recentLabel: {
-    color: "rgba(255,255,255,0.4)",
+    color: "rgba(255,255,255,0.55)",
     fontSize: 10,
     fontFamily: font.family.bodyBold,
     textTransform: "uppercase",

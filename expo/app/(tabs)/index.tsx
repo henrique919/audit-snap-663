@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
   },
   continueText: { flex: 1 },
   continueKicker: {
-    color: palette.cobalt,
+    color: palette.cobaltTextOnDark,
     fontSize: 10,
     fontFamily: font.family.bodyBold,
     textTransform: "uppercase",

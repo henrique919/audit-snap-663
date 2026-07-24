@@ -51,7 +51,20 @@ export default function ReportBuilderScreen() {
   const set = (patch: Partial<ReportOptions>) => setOptions((prev) => ({ ...prev, ...patch }));
 
   const selectPreset = (key: ReportThemeKey) => {
-    set({ themeKey: key });
+    // Presets are bundles, not just colours — each serves a distinct purpose:
+    //  • Site Walk: fast field report — header band (no cover), no signature,
+    //    no per-item timestamps (the hit list + rows are for quick scanning).
+    //  • Client: polished + concise — formal cover, sign-off, timestamps OFF
+    //    (recorded/updated times read as noise on a client-facing document).
+    //  • Handover: complete evidence — cover, sign-off, timestamps ON.
+    // Every toggle stays user-overridable in Advanced options after picking.
+    const sectionDefaults: Partial<ReportOptions> =
+      key === "sitewalk"
+        ? { coverPage: false, includeSignature: false, includeTimestamps: false }
+        : key === "handover"
+          ? { coverPage: true, includeSignature: true, includeTimestamps: true }
+          : { coverPage: true, includeSignature: true, includeTimestamps: false };
+    set({ themeKey: key, ...sectionDefaults });
     updateAudit(audit.id, { themeKey: key });
     if (project) {
       updateProject(project.id, projectThemeMemoryPatch(key));
