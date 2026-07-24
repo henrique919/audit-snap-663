@@ -15,8 +15,12 @@ import { useAppFonts } from "@/constants/typography";
 import { AppStoreProvider } from "@/providers/AppStore";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { initializeTelemetry } from "@/lib/telemetry";
+import { setupWebPwa } from "@/lib/webPwa";
 
 initializeTelemetry();
+// Web runs as an SPA (no static prerender — see webPwa.ts), so the PWA head
+// tags + service-worker registration are wired up here rather than in +html.tsx.
+setupWebPwa();
 
 // Expo Router catches render failures in its own boundary. Wrap it so those
 // otherwise-swallowed crashes are also captured by the telemetry client.
