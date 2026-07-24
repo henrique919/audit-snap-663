@@ -2,7 +2,7 @@
  * Large-audit report HTML fixture + redaction / offline guarantees.
  */
 
-import { buildReportHtml, computePhotoBox, CARD_PHOTO_COL_MM } from "@/lib/report";
+import { buildReportHtml, computePhotoBox, cardPhotoSize } from "@/lib/report";
 import { getReportFontFaceCss } from "@/lib/reportFonts";
 import type {
   AnnotationElement,
@@ -319,13 +319,16 @@ describe("buildReportHtml — large fixture & redaction", () => {
       imageSrc: (uri) => uri,
     });
 
-    // standard box = 58mm tall → landscape 3:2 draws 87×58mm, dimensions on
-    // the frame itself (content box = photo aspect → overlay stays aligned).
-    expect(html).toContain('style="width:87mm;height:58mm"');
+    // standard two-column card: photo column 84mm → landscape 3:2 draws
+    // 84×56mm, dimensions on the frame (content box = photo aspect → overlay
+    // stays aligned). Photo sits in a fixed-width left column (card-media).
+    expect(html).toContain("item item-card");
+    expect(html).toContain('class="card-media" style="width:84mm"');
+    expect(html).toContain('style="width:84mm;height:56mm"');
     expect(html).not.toContain("--pw:");
   });
 
-  it("portrait and landscape photos share the same fixed box height", () => {
+  it("portrait and landscape photos both stay bounded in the card column", () => {
     const issue = fixture.issues[0];
     const oneAsset = fixture.assets.find((a) => a.issueId === issue.id)!;
     const build = (w: number, h: number, imageSize: "standard" | "large") =>
@@ -342,29 +345,29 @@ describe("buildReportHtml — large fixture & redaction", () => {
         imageSrc: (uri) => uri,
       });
 
-    // Portrait phone shot (3024×4032, ar 0.75) at standard: 43.5×58mm —
-    // fills the SAME 58mm height as landscape instead of growing taller.
+    // Portrait phone shot (3024×4032, ar 0.75) at standard: capped to the
+    // 64mm height cap → 48×64mm, so it fills the column height and centres
+    // rather than running the card tall (keeps portrait pagination ≈ landscape).
     const portrait = build(3024, 4032, "standard");
-    expect(portrait).toContain('style="width:43.5mm;height:58mm"');
+    expect(portrait).toContain('style="width:48mm;height:64mm"');
 
-    // Large box: 100mm tall — portrait 75×100mm, still bounded.
+    // Large column (112mm) + 92mm cap: portrait draws 69×92mm, still bounded.
     const portraitLarge = build(3024, 4032, "large");
-    expect(portraitLarge).toContain('style="width:75mm;height:100mm"');
+    expect(portraitLarge).toContain('style="width:69mm;height:92mm"');
   });
 
   it("computePhotoBox clamps by column width and guards degenerate aspects", () => {
-    // Landscape 3:2 into standard card box.
-    expect(computePhotoBox(1.5, CARD_PHOTO_COL_MM, 58)).toEqual({ w: 87, h: 58 });
-    // Portrait 3:4 fills box height.
-    expect(computePhotoBox(0.75, CARD_PHOTO_COL_MM, 58)).toEqual({ w: 43.5, h: 58 });
+    const col = cardPhotoSize("standard").colW; // 84
+    // Landscape 3:2 fills the column width.
+    expect(computePhotoBox(1.5, col, 64)).toEqual({ w: 84, h: 56 });
+    // Portrait 3:4 fills the height cap.
+    expect(computePhotoBox(0.75, col, 64)).toEqual({ w: 48, h: 64 });
     // Ultra-wide panorama clamps to the column, height shrinks proportionally.
-    const pano = computePhotoBox(4, CARD_PHOTO_COL_MM, 58);
-    expect(pano.w).toBe(CARD_PHOTO_COL_MM);
-    expect(pano.h).toBeCloseTo(CARD_PHOTO_COL_MM / 4, 1);
+    const pano = computePhotoBox(4, col, 64);
+    expect(pano.w).toBe(col);
+    expect(pano.h).toBeCloseTo(col / 4, 1);
     // Degenerate dims fall back to 4:3 instead of NaN/Infinity.
-    expect(computePhotoBox(0, CARD_PHOTO_COL_MM, 58)).toEqual(
-      computePhotoBox(4 / 3, CARD_PHOTO_COL_MM, 58),
-    );
+    expect(computePhotoBox(0, col, 64)).toEqual(computePhotoBox(4 / 3, col, 64));
   });
 
   it("sitewalk theme renders row layout in a single flowing page run", () => {

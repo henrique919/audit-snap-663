@@ -68,17 +68,26 @@ const PRIORITY_COLORS: Record<string, string> = {
  * stays exactly the photo's aspect, so annotation overlays (SVG, inset:0)
  * keep pixel alignment and the blur→redaction guarantee is untouched.
  */
-export const CARD_PHOTO_COL_MM = 178;
-/** imageSize → card photo-box height (mm). "compact"/"standard"/"large"
- * were previously a no-op for single-photo items (the 66% override); they
- * now map to real box heights. */
-export const CARD_PHOTO_BOX_MM: Record<string, number> = {
-  compact: 46,
-  standard: 58,
-  large: 100,
+/**
+ * Two-column card photo sizing per imageSize. The photo occupies a fixed
+ * LEFT column; the item's head/meta/description fill the space to its right
+ * (the old full-width layout left the entire right half of every page
+ * blank beside the photo). `colW` is the real user-facing size control —
+ * bigger column = bigger photos = fewer per page; `hCap` bounds a portrait
+ * photo's height so it fills the column height and centres rather than
+ * running tall.
+ */
+export const CARD_PHOTO_SIZES: Record<string, { colW: number; hCap: number }> = {
+  compact: { colW: 60, hCap: 52 },
+  standard: { colW: 84, hCap: 64 },
+  large: { colW: 112, hCap: 92 },
 };
 /** Site Walk row thumbnails: context-grade, fixed cell. */
 export const ROW_THUMB = { colWmm: 34, boxHmm: 26 };
+
+export function cardPhotoSize(imageSize: string): { colW: number; hCap: number } {
+  return CARD_PHOTO_SIZES[imageSize] ?? CARD_PHOTO_SIZES.standard;
+}
 
 export function computePhotoBox(
   aspectWoverH: number,
@@ -199,10 +208,11 @@ export function buildReportHtml(data: ReportData): string {
   const inspector = audit.preparedBy || project.inspectorName || branding.inspectorName || "—";
   const companyName = project.companyName || branding.companyName || BrandConfig.defaultCompanyName;
   const footerText = branding.footerText || BrandConfig.reportFooter;
-  // Card layouts: imageSize maps to a real fixed box height (mm). This
-  // replaces the old CSS width percentages AND the single-photo 66%
-  // override that made "Image size: Compact" a measured no-op.
-  const cardBoxHmm = CARD_PHOTO_BOX_MM[options.imageSize] ?? CARD_PHOTO_BOX_MM.standard;
+  // Card layouts: imageSize maps to a real photo COLUMN width (mm). The
+  // photo sits in a fixed left column with item text beside it — this
+  // replaces the old full-width layout that blanked the right half of the
+  // page, AND the single-photo 66% override that made Compact a no-op.
+  const cardPhoto = cardPhotoSize(options.imageSize);
   const rowLayout = theme.itemLayout === "row";
 
   /* ------------------------------- Cover page ------------------------------- */
@@ -480,16 +490,16 @@ export function buildReportHtml(data: ReportData): string {
               const hasMarkup = !!annotation && annotation.elements.length > 0;
               if (options.includeAnnotatedPhotos && hasMarkup) {
                 figures.push(
-                  photoFigure({ asset, annotation, annotated: true, imageSrc, label: caption("Marked up", asset), colWmm: CARD_PHOTO_COL_MM, boxHmm: cardBoxHmm }),
+                  photoFigure({ asset, annotation, annotated: true, imageSrc, label: caption("Marked up", asset), colWmm: cardPhoto.colW, boxHmm: cardPhoto.hCap }),
                 );
                 if (options.includeOriginalPhotos) {
                   figures.push(
-                    photoFigure({ asset, annotation, annotated: false, imageSrc, label: caption("Original", asset), colWmm: CARD_PHOTO_COL_MM, boxHmm: cardBoxHmm }),
+                    photoFigure({ asset, annotation, annotated: false, imageSrc, label: caption("Original", asset), colWmm: cardPhoto.colW, boxHmm: cardPhoto.hCap }),
                   );
                 }
               } else if (options.includeOriginalPhotos || options.includeAnnotatedPhotos) {
                 figures.push(
-                  photoFigure({ asset, annotation, annotated: false, imageSrc, label: caption("Photo", asset), colWmm: CARD_PHOTO_COL_MM, boxHmm: cardBoxHmm }),
+                  photoFigure({ asset, annotation, annotated: false, imageSrc, label: caption("Photo", asset), colWmm: cardPhoto.colW, boxHmm: cardPhoto.hCap }),
                 );
               }
             }
@@ -508,16 +518,28 @@ export function buildReportHtml(data: ReportData): string {
               );
             }
 
+            // Two-column card: photo(s) in a fixed left column, item text
+            // (head / meta / description) filling the space to the right —
+            // no more blank right half of the page beside each photo.
+            const body = `
+              <div class="card-body">
+                <div class="item-head">
+                  <div class="item-num" style="background:${theme.primary}">${issueRef(issue.issueNumber)}</div>
+                  <div class="item-title">${escapeHtml(issue.title || "Untitled issue")}</div>
+                  ${statusChip(issue.status)}
+                </div>
+                <div class="item-meta">${metaCells.join("")}</div>
+                ${issue.description ? `<div class="item-desc">${escapeHtml(issue.description)}</div>` : ""}
+              </div>`;
+            const media =
+              figures.length > 0
+                ? `<div class="card-media" style="width:${cardPhoto.colW}mm">${figures.join("")}</div>`
+                : "";
+
             return `
-            <article class="item" style="border-left-color:${STATUS_COLORS[issue.status]}">
-              <div class="item-head">
-                <div class="item-num" style="background:${theme.primary}">${issueRef(issue.issueNumber)}</div>
-                <div class="item-title">${escapeHtml(issue.title || "Untitled issue")}</div>
-                ${statusChip(issue.status)}
-              </div>
-              <div class="item-meta">${metaCells.join("")}</div>
-              ${issue.description ? `<div class="item-desc">${escapeHtml(issue.description)}</div>` : ""}
-              ${figures.length > 0 ? `<div class="photos">${figures.join("")}</div>` : ""}
+            <article class="item item-card" style="border-left-color:${STATUS_COLORS[issue.status]}">
+              ${media}
+              ${body}
             </article>`;
           })
           .join("");
@@ -678,6 +700,12 @@ export function buildReportHtml(data: ReportData): string {
   .group-head { color: #fff; border-radius: 7px; padding: 6px 12px; font-weight: 800; font-size: 11px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; letter-spacing: 0.3px; font-family: ${reportFontStack.heading}; page-break-after: avoid; }
   .group-count { font-weight: 600; font-size: 9.5px; opacity: 0.8; }
   .item { border: 1px solid #DDE3E8; border-left: 5px solid #B8C0C8; border-radius: 9px; padding: ${dense ? "8px 10px" : "10px 12px"}; margin-bottom: ${dense ? "7px" : "9px"}; page-break-inside: avoid; background: #fff; }
+  /* Two-column card: fixed photo column left, item body right. */
+  .item-card { display: flex; gap: 12px; align-items: flex-start; }
+  .card-media { flex: 0 0 auto; }
+  .card-media .photo { margin-bottom: 6px; }
+  .card-media .photo:last-child { margin-bottom: 0; }
+  .card-body { flex: 1 1 auto; min-width: 0; }
   .item-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
   .item-num { color: #fff; font-weight: 800; font-size: 10px; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.5px; }
   .item-title { font-weight: 700; font-size: 13px; flex: 1; letter-spacing: -0.1px; }

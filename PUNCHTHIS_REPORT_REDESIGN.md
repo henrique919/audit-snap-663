@@ -1,15 +1,36 @@
 # PunchThis Report Redesign — Assessment & Build Plan
 
-> **Implementation status (24 July 2026):** T1 + T2 are DONE and validated
-> 12/12 against the gates below — measured on real generated PDFs:
-> 10-item Site Walk **3 pages** (was 11), Client Standard **7 pages at
-> exactly 2.0 items/detail page** (was 11), Handover **7** (was 11),
-> 50-item Site Walk **10 pages** (was 35), portrait == landscape page
-> counts everywhere, Compact/Standard/Large now produce genuinely
-> different output, signature no longer orphans onto its own page, every
-> photo frame aspect-true (±0%) with overlays aligned.
-> Remaining: T3 (Client two-column card, target 3/page → ≤6 pages),
-> T4 (Handover evidence pairs), T5 (layoutDensity option), T6–T9.
+> **Implementation status (24 July 2026):** T1 + T2 + T3 DONE and validated
+> 12/12 against the gates below — measured on real generated PDFs.
+> **T4 and T5 were reviewed and deliberately declined for launch** (rationale
+> below).
+>
+> Final measured results (10 items unless noted):
+> - **Site Walk 3 pages** (was 11) · 50-item Site Walk **10 pages** (was 35)
+> - **Client 6 pages, 3 items/detail page where content allows** (was 11)
+> - **Handover 6 pages** with full evidence + timestamps + sign-off (was 11)
+> - Compact/Standard/Large genuinely differ (5/6/7 pages)
+> - portrait == landscape page counts; every photo frame aspect-true (±0%),
+>   overlays aligned; signature embedded in flow (no orphan page)
+>
+> **T3 (two-column card): DONE.** The full-width layout blanked the entire
+> right half of every page beside each photo. Photo now sits in a fixed left
+> column with head/meta/description beside it. Client shows 3 items/page;
+> Handover 2 (taller cards — it keeps evidence timestamps). imageSize
+> (Compact/Standard/Large) now controls the photo column width.
+>
+> **T4/T5 decision (declined):**
+> - **T4 (Handover original+markup pairs + photo appendix): not needed for
+>   launch.** Handover already delivers complete evidence — full meta incl.
+>   recorded/updated timestamps, marked-up annotated photos (crisp in the
+>   PDF), and a formal closeout sign-off block. Original+markup pairs remain
+>   available via the existing "Original photos" toggle; a photo appendix is
+>   a post-launch enhancement, not a blocker.
+> - **T5 (separate Compact/Standard/Detailed density control): not built —
+>   unnecessary complexity.** The preset bundles per-type defaults, imageSize
+>   gives real photo-size control, and existing toggles (cover, signature,
+>   original photos, completed items, timestamps) cover the useful cases. A
+>   second overlapping density axis would confuse more than help at launch.
 
 **Date:** 24 July 2026 · **Scope:** `expo/lib/report.ts` and the report builder/preview stack
 **Method:** every number below was measured from real generated output — the app's own
