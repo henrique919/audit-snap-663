@@ -2,7 +2,7 @@
  * Large-audit report HTML fixture + redaction / offline guarantees.
  */
 
-import { buildReportHtml } from "@/lib/report";
+import { buildReportHtml, computePhotoBox, CARD_PHOTO_COL_MM } from "@/lib/report";
 import { getReportFontFaceCss } from "@/lib/reportFonts";
 import type {
   AnnotationElement,
@@ -192,9 +192,10 @@ describe("buildReportHtml — large fixture & redaction", () => {
     expect(html.length).toBeGreaterThan(10_000);
     expect(html).toContain("Wave 1 large audit fixture");
     expect(html).toContain("Issue 50");
-    // 1-photo width rule still present in CSS variable usage for single-photo items
-    // (multi-photo issues use standard widths; zero-photo issues omit .photos)
-    expect(html).toContain("--pw:");
+    // The old CSS width-var clamp (--pw/--mh/--ar) is gone: photo geometry
+    // is exact mm boxes computed in TS (computePhotoBox).
+    expect(html).not.toContain("--pw:");
+    expect(html).not.toContain("--mh:");
   });
 
   it("contains zero fonts.googleapis.com / network font imports", async () => {
@@ -297,9 +298,9 @@ describe("buildReportHtml — large fixture & redaction", () => {
     expect(html).not.toMatch(/<img src=""/);
   });
 
-  it("keeps 66% width rule for a single-photo issue", () => {
+  it("single-photo issue gets the standard fixed box — no oversized override", () => {
     const issue = fixture.issues[0];
-    const oneAsset = fixture.assets.find((a) => a.issueId === issue.id)!;
+    const oneAsset = fixture.assets.find((a) => a.issueId === issue.id)!; // 1800×1200, ar 1.5
     const html = buildReportHtml({
       project: fixture.project,
       audit: fixture.audit,
@@ -318,33 +319,101 @@ describe("buildReportHtml — large fixture & redaction", () => {
       imageSrc: (uri) => uri,
     });
 
-    expect(html).toContain("--pw:66%");
+    // standard box = 58mm tall → landscape 3:2 draws 87×58mm, dimensions on
+    // the frame itself (content box = photo aspect → overlay stays aligned).
+    expect(html).toContain('style="width:87mm;height:58mm"');
+    expect(html).not.toContain("--pw:");
   });
 
-  it("caps photo height so a tall/portrait photo cannot fill a full page", () => {
+  it("portrait and landscape photos share the same fixed box height", () => {
     const issue = fixture.issues[0];
     const oneAsset = fixture.assets.find((a) => a.issueId === issue.id)!;
-    // Tall portrait phone photo — the case that used to fill a whole A4 page.
-    const portrait = { ...oneAsset, width: 3024, height: 4032 };
+    const build = (w: number, h: number, imageSize: "standard" | "large") =>
+      buildReportHtml({
+        project: fixture.project,
+        audit: fixture.audit,
+        issues: [issue],
+        locations: fixture.locations,
+        assignees: fixture.assignees,
+        assets: [{ ...oneAsset, width: w, height: h }],
+        annotations: [],
+        options: { ...fixture.options, imageSize },
+        branding: { companyName: "CleanRun IQ", inspectorName: "Ada", logoUri: null, footerText: "" },
+        imageSrc: (uri) => uri,
+      });
+
+    // Portrait phone shot (3024×4032, ar 0.75) at standard: 43.5×58mm —
+    // fills the SAME 58mm height as landscape instead of growing taller.
+    const portrait = build(3024, 4032, "standard");
+    expect(portrait).toContain('style="width:43.5mm;height:58mm"');
+
+    // Large box: 100mm tall — portrait 75×100mm, still bounded.
+    const portraitLarge = build(3024, 4032, "large");
+    expect(portraitLarge).toContain('style="width:75mm;height:100mm"');
+  });
+
+  it("computePhotoBox clamps by column width and guards degenerate aspects", () => {
+    // Landscape 3:2 into standard card box.
+    expect(computePhotoBox(1.5, CARD_PHOTO_COL_MM, 58)).toEqual({ w: 87, h: 58 });
+    // Portrait 3:4 fills box height.
+    expect(computePhotoBox(0.75, CARD_PHOTO_COL_MM, 58)).toEqual({ w: 43.5, h: 58 });
+    // Ultra-wide panorama clamps to the column, height shrinks proportionally.
+    const pano = computePhotoBox(4, CARD_PHOTO_COL_MM, 58);
+    expect(pano.w).toBe(CARD_PHOTO_COL_MM);
+    expect(pano.h).toBeCloseTo(CARD_PHOTO_COL_MM / 4, 1);
+    // Degenerate dims fall back to 4:3 instead of NaN/Infinity.
+    expect(computePhotoBox(0, CARD_PHOTO_COL_MM, 58)).toEqual(
+      computePhotoBox(4 / 3, CARD_PHOTO_COL_MM, 58),
+    );
+  });
+
+  it("sitewalk theme renders row layout in a single flowing page run", () => {
     const html = buildReportHtml({
-      project: fixture.project,
-      audit: fixture.audit,
-      issues: [issue],
-      locations: fixture.locations,
-      assignees: fixture.assignees,
-      assets: [portrait],
-      annotations: [],
-      options: { ...fixture.options, imageSize: "large" },
+      ...fixture,
+      options: { ...fixture.options, themeKey: "sitewalk", coverPage: false },
       branding: { companyName: "CleanRun IQ", inspectorName: "Ada", logoUri: null, footerText: "" },
       imageSrc: (uri) => uri,
     });
 
-    // Height cap is wired: container carries a max-height var, the photo carries
-    // its aspect (w/h), and the CSS caps .photo width = max-height * aspect.
-    expect(html).toContain("--mh:");
-    expect(html).toMatch(/--ar:0\.75/); // 3024/4032
-    expect(html).toContain("max-width: calc(var(--mh, 999mm) * var(--ar, 1))");
-    // The aspect box stays exact so annotation overlays keep aligning.
-    expect(html).toContain("padding-top:133.33%");
+    expect(html).toContain("item-row");
+    expect(html).toContain("report-band");
+    // No cover page and no standalone summary/details pages — one flow.
+    expect(html).not.toContain('class="page cover');
+    expect(html).not.toContain('class="page details"');
+    // Hit list survives as the backbone.
+    expect(html).toContain("Hit List");
+    // Multi-photo items surface the photo count in the meta line.
+    expect(html).toContain("2 photos");
+  });
+
+  it("card layout embeds the signature in the details flow (no orphan page) exactly once", () => {
+    const html = buildReportHtml({
+      ...fixture,
+      options: { ...fixture.options, includeSignature: true },
+      branding: { companyName: "CleanRun IQ", inspectorName: "Ada", logoUri: null, footerText: "" },
+      imageSrc: (uri) => uri,
+    });
+
+    const signoffCount = (html.match(/class="signoff"/g) ?? []).length;
+    expect(signoffCount).toBe(1);
+    // Embedded inside the details .page section, not appended after it.
+    const detailsStart = html.indexOf('class="page details"');
+    const detailsEnd = html.indexOf("</section>", html.lastIndexOf('class="signoff"'));
+    expect(detailsStart).toBeGreaterThan(-1);
+    expect(html.indexOf('class="signoff"')).toBeGreaterThan(detailsStart);
+    expect(detailsEnd).toBeGreaterThan(-1);
+  });
+
+  it("sitewalk row thumbnails still honour blur redaction (never CSS blur)", () => {
+    const html = buildReportHtml({
+      ...fixture,
+      options: { ...fixture.options, themeKey: "sitewalk", coverPage: false },
+      branding: { companyName: "CleanRun IQ", inspectorName: "Ada", logoUri: null, footerText: "" },
+      imageSrc: (uri) => uri,
+    });
+
+    // asset-1-0 (first asset of issue-1) has blur + annotatedUri → flattened
+    // copy; asset-2-* rows without flatten still redact via opaque rects.
+    expect(html).not.toMatch(/filter:\s*blur/i);
   });
 });

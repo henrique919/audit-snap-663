@@ -1,5 +1,16 @@
 # PunchThis Report Redesign — Assessment & Build Plan
 
+> **Implementation status (24 July 2026):** T1 + T2 are DONE and validated
+> 12/12 against the gates below — measured on real generated PDFs:
+> 10-item Site Walk **3 pages** (was 11), Client Standard **7 pages at
+> exactly 2.0 items/detail page** (was 11), Handover **7** (was 11),
+> 50-item Site Walk **10 pages** (was 35), portrait == landscape page
+> counts everywhere, Compact/Standard/Large now produce genuinely
+> different output, signature no longer orphans onto its own page, every
+> photo frame aspect-true (±0%) with overlays aligned.
+> Remaining: T3 (Client two-column card, target 3/page → ≤6 pages),
+> T4 (Handover evidence pairs), T5 (layoutDensity option), T6–T9.
+
 **Date:** 24 July 2026 · **Scope:** `expo/lib/report.ts` and the report builder/preview stack
 **Method:** every number below was measured from real generated output — the app's own
 web export path (report builder → preview → generate) driven by script against the

@@ -55,6 +55,10 @@ export interface ReportTheme {
   coverVariant: "executive" | "compact" | "formal";
   /** compact = smaller type, denser item cards, 3-across photos. */
   density: "comfortable" | "compact";
+  /** Item body layout: "row" = thumbnail list rows (Site Walk speed),
+   * "card" = full item cards with fixed-height photo boxes. See
+   * lib/report.ts photo-box sizing — page geometry is computed in TS. */
+  itemLayout: "row" | "card";
 }
 
 export const REPORT_THEMES: Record<ReportThemeKey, ReportTheme> = {
@@ -67,6 +71,7 @@ export const REPORT_THEMES: Record<ReportThemeKey, ReportTheme> = {
     heading: "#1C232B",
     coverVariant: "executive",
     density: "comfortable",
+    itemLayout: "card",
   },
   sitewalk: {
     label: "Site Walk",
@@ -77,6 +82,7 @@ export const REPORT_THEMES: Record<ReportThemeKey, ReportTheme> = {
     heading: "#1C232B",
     coverVariant: "compact",
     density: "compact",
+    itemLayout: "row",
   },
   handover: {
     label: "Handover",
@@ -87,6 +93,7 @@ export const REPORT_THEMES: Record<ReportThemeKey, ReportTheme> = {
     heading: "#1C232B",
     coverVariant: "formal",
     density: "comfortable",
+    itemLayout: "card",
   },
 };
 

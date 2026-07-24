@@ -51,7 +51,15 @@ export default function ReportBuilderScreen() {
   const set = (patch: Partial<ReportOptions>) => setOptions((prev) => ({ ...prev, ...patch }));
 
   const selectPreset = (key: ReportThemeKey) => {
-    set({ themeKey: key });
+    // Presets are bundles, not just colours: Site Walk is the fast field
+    // report (first-page header band instead of a cover, no signature),
+    // Client/Handover keep the formal cover + sign-off. Every toggle stays
+    // user-overridable in Advanced options after picking.
+    const sectionDefaults =
+      key === "sitewalk"
+        ? { coverPage: false, includeSignature: false }
+        : { coverPage: true, includeSignature: true };
+    set({ themeKey: key, ...sectionDefaults });
     updateAudit(audit.id, { themeKey: key });
     if (project) {
       updateProject(project.id, projectThemeMemoryPatch(key));
